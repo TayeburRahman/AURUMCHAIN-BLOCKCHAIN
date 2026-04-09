@@ -1,0 +1,27 @@
+# Sensitive files - never commit these
+.env
+*.env.*
+
+# PDF documentation (large binary, not source code)
+*.pdf
+pdf_content.txt
+
+# Rust / Cargo build artifacts
+target/
+**/*.rs.bk
+
+# Anchor build outputs (regenerated on build)
+.anchor/
+idl/
+
+# Node / npm
+node_modules/
+dist/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/settings.json
+.idea/

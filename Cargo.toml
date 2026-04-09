@@ -1,0 +1,3 @@
+[workspace]
+members = ["programs/project_registry"]
+resolver = "2"
