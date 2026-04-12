@@ -6,6 +6,7 @@
 import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
 import { AdminService } from '@/lib/domains/admin/service';
+import AdminWalletButton from '@/components/admin/AdminWalletButton';
 
 export default async function AdminPage() {
   const supabase = await createClient();
@@ -27,20 +28,23 @@ export default async function AdminPage() {
     <div className="min-h-screen bg-navy pt-24 px-6">
       <div className="max-w-7xl mx-auto">
         {/* Header */}
-        <div className="mb-8">
-          <h1 className="text-4xl font-bold gradient-text mb-2">Admin Dashboard</h1>
-          <p className="text-gray-400">Platform management and oversight</p>
+        <div className="mb-8 flex flex-col md:flex-row md:items-start justify-between gap-4">
+          <div>
+            <h1 className="text-4xl font-bold gradient-text mb-2">Admin Dashboard</h1>
+            <p className="text-gray-400">Platform management and oversight</p>
 
-          <div className="flex gap-2 mt-4">
-            {roles.map((role) => (
-              <span
-                key={role.id}
-                className="inline-block bg-gold/20 text-gold px-3 py-1 rounded-full text-sm font-medium"
-              >
-                {role.role.replace(/_/g, ' ').toUpperCase()}
-              </span>
-            ))}
+            <div className="flex gap-2 mt-4">
+              {roles.map((role) => (
+                <span
+                  key={role.id}
+                  className="inline-block bg-gold/20 text-gold px-3 py-1 rounded-full text-sm font-medium"
+                >
+                  {role.role.replace(/_/g, ' ').toUpperCase()}
+                </span>
+              ))}
+            </div>
           </div>
+          <AdminWalletButton />
         </div>
 
         {/* Quick Stats */}

@@ -2,7 +2,9 @@
 
 import { useState } from 'react';
 import { useWalletStatus } from '@/hooks/useWalletStatus';
-import { ConnectButton } from '@rainbow-me/rainbowkit';
+// EVM Import Commented Out
+// import { ConnectButton } from '@rainbow-me/rainbowkit';
+import { WalletMultiButton } from '@solana/wallet-adapter-react-ui';
 
 export function WalletBanner() {
   const { isWalletConnected, isWalletLinked, linkWallet, isLinking, error, investorTier } = useWalletStatus();
@@ -75,6 +77,8 @@ export function WalletBanner() {
             <div className="flex flex-wrap gap-3">
               {!isWalletConnected ? (
                 <>
+                  {/* EVM Button Commented Out */}
+                  {/*
                   <ConnectButton.Custom>
                     {({ openConnectModal }) => (
                       <button
@@ -85,11 +89,18 @@ export function WalletBanner() {
                       </button>
                     )}
                   </ConnectButton.Custom>
-                  <div className="flex items-center gap-2 text-xs text-gray-400">
+                  */}
+
+                  {/* Solana Button */}
+                  <WalletMultiButton 
+                    className="!h-[50px] !px-6 !bg-gradient-to-r !from-gold !to-[#b5952f] !text-navy !font-bold !rounded-lg hover:!scale-105 !transition-transform !shadow-lg !shadow-gold/20 flex items-center justify-center w-auto"
+                  />
+
+                  <div className="flex items-center gap-2 text-xs text-gray-400 mt-2">
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                     </svg>
-                    <span>Supports MetaMask, Coinbase, Trust Wallet & 300+ more</span>
+                    <span>Supports Phantom, Solflare & more Solana wallets</span>
                   </div>
                 </>
               ) : (

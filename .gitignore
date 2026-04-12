@@ -45,3 +45,6 @@ yarn-error.log*
 
 # Supabase (local development only)
 .supabase
+
+# Project management / planning docs (do not commit)
+milestone2_blockchain_tasks.txt

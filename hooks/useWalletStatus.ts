@@ -1,5 +1,8 @@
 import { useState, useEffect, useCallback } from 'react';
-import { useAccount, useSignMessage } from 'wagmi';
+// EVM Imports Commented Out
+// import { useAccount, useSignMessage } from 'wagmi';
+import { useWallet } from '@solana/wallet-adapter-react';
+import bs58 from 'bs58';
 import { createClient } from '@/lib/supabase/client';
 
 export type InvestorTier = 'browser' | 'investor' | 'vip';
@@ -28,8 +31,14 @@ export interface WalletStatus {
 }
 
 export function useWalletStatus(): WalletStatus {
-  const { address, isConnected } = useAccount();
-  const { signMessageAsync } = useSignMessage();
+  // EVM Hooks Commented Out
+  // const { address, isConnected } = useAccount();
+  // const { signMessageAsync } = useSignMessage();
+
+  // Solana Hooks
+  const { publicKey, connected, signMessage } = useWallet();
+  const address = publicKey?.toBase58();
+  const isConnected = connected;
 
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [userId, setUserId] = useState<string | null>(null);
@@ -108,14 +117,22 @@ export function useWalletStatus(): WalletStatus {
       const message = `Connect wallet to GoldenFleece\n\nWallet: ${address}\nNonce: ${nonce}\n\nThis signature proves you own this wallet.`;
 
       // Request signature from user
-      const signature = await signMessageAsync({ message });
+      
+      // EVM Logic Commented Out
+      // const signature = await signMessageAsync({ message });
+
+      // Solana Logic
+      if (!signMessage) throw new Error('Wallet does not support message signing');
+      const messageBytes = new TextEncoder().encode(message);
+      const signatureBytes = await signMessage(messageBytes);
+      const signature = bs58.encode(signatureBytes);
 
       // Save to database
       const { error: updateError } = await supabase
         .from('profiles')
         .update({
-          crypto_wallet_address: address.toLowerCase(),
-          crypto_wallet_type: 'metamask', // Could detect wallet type
+          crypto_wallet_address: address, // Solana addresses are case-sensitive! Do not pass toLowerCase()
+          crypto_wallet_type: 'solana-wallet', 
           crypto_wallet_connected_at: new Date().toISOString(),
           wallet_verification_nonce: nonce,
           investor_tier: 'investor', // Upgrade to investor tier

@@ -1,20 +1,32 @@
 "use client";
 
+import { QueryClientProvider, QueryClient } from '@tanstack/react-query';
+import { SolanaProvider } from './SolanaProvider';
+
+// EVM Imports Commented Out
+/*
 import '@rainbow-me/rainbowkit/styles.css';
 import {
   RainbowKitProvider,
   darkTheme,
 } from '@rainbow-me/rainbowkit';
 import { WagmiProvider } from 'wagmi';
-import { QueryClientProvider, QueryClient } from '@tanstack/react-query';
 import { config } from '@/lib/wagmi';
+*/
 
 const queryClient = new QueryClient();
 
 export function Web3Provider({ children }: { children: React.ReactNode }) {
   return (
-    <WagmiProvider config={config}>
-      <QueryClientProvider client={queryClient}>
+    <QueryClientProvider client={queryClient}>
+      {/* Solana Wrapper */}
+      <SolanaProvider>
+        {children}
+      </SolanaProvider>
+
+      {/* EVM Wrapper Commented Out */}
+      {/* 
+      <WagmiProvider config={config}>
         <RainbowKitProvider
           theme={darkTheme({
             accentColor: '#D4AF37', // Gold color from your theme
@@ -26,7 +38,8 @@ export function Web3Provider({ children }: { children: React.ReactNode }) {
         >
           {children}
         </RainbowKitProvider>
-      </QueryClientProvider>
-    </WagmiProvider>
+      </WagmiProvider>
+      */}
+    </QueryClientProvider>
   );
 }

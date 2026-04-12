@@ -1,8 +1,10 @@
 "use client";
 
 import { Fragment } from 'react';
-import { ConnectButton } from '@rainbow-me/rainbowkit';
+// EVM Import Commented Out
+// import { ConnectButton } from '@rainbow-me/rainbowkit';
 import { useWalletStatus } from '@/hooks/useWalletStatus';
+import { WalletMultiButton } from '@solana/wallet-adapter-react-ui';
 
 interface WalletConnectionModalProps {
   isOpen: boolean;
@@ -73,6 +75,8 @@ export function WalletConnectionModal({ isOpen, onClose, feature = "this feature
               </div>
               {!isWalletConnected && (
                 <div className="mt-3 flex justify-center">
+                  {/* EVM Button Commented Out */}
+                  {/*
                   <ConnectButton.Custom>
                     {({ openConnectModal }) => (
                       <button
@@ -83,6 +87,12 @@ export function WalletConnectionModal({ isOpen, onClose, feature = "this feature
                       </button>
                     )}
                   </ConnectButton.Custom>
+                  */}
+
+                  {/* Solana Button */}
+                  <WalletMultiButton 
+                    className="!h-10 !px-6 !text-sm !font-bold !bg-gradient-to-r !from-gold !to-gold-light !text-navy !rounded-lg hover:!scale-105 !transition-all"
+                  />
                 </div>
               )}
             </div>

@@ -1,6 +1,8 @@
 "use client";
 
-import { ConnectButton } from '@rainbow-me/rainbowkit';
+// EVM Import Commented Out
+// import { ConnectButton } from '@rainbow-me/rainbowkit';
+import { WalletMultiButton } from '@solana/wallet-adapter-react-ui';
 import { useWalletStatus } from '@/hooks/useWalletStatus';
 
 export function WalletConnection() {
@@ -46,7 +48,8 @@ export function WalletConnection() {
 
       {/* Wallet Status */}
       <div className="glass rounded-lg p-6 border border-gold/20 space-y-4">
-        {/* RainbowKit Connect Button */}
+        {/* RainbowKit Connect Button Commented Out */}
+        {/*
         <div>
           <label className="block text-sm font-medium text-gray-300 mb-3">
             1. Connect Wallet
@@ -61,6 +64,17 @@ export function WalletConnection() {
               smallScreen: false,
               largeScreen: true,
             }}
+          />
+        </div>
+        */}
+
+        {/* Solana Wallet Button */}
+        <div>
+          <label className="block text-sm font-medium text-gray-300 mb-3">
+            1. Connect Wallet
+          </label>
+          <WalletMultiButton 
+            className="!h-10 !px-6 !text-sm !font-bold !bg-[#0f172a] !border !border-[#D4AF37]/30 hover:!bg-[#1e293b] !rounded-lg !transition-all"
           />
         </div>
 

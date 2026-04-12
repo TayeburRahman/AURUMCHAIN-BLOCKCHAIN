@@ -1,0 +1,20 @@
+# Future Development Plan - Program 3 (Allocation & Distribution)
+
+## Mock USDC Strategy for End-to-End Testing
+
+Since Program 3 requires investors to pay in USDC (Stablecoin), we will need a way to emulate this on Solana Devnet without requiring real money.
+
+### Technique selected: "The Fake Money Printer" (Custom Devnet Mint)
+
+Instead of relying on official Circle Devnet faucets which have strict limits and require manual intervention, we will create our own mock USDC token for testing.
+
+**Implementation Steps (To be done before testing Program 3):**
+
+1. **Create Mock Token:** Run an SPL Token CLI command to create a new token mint on Devnet (e.g., "Goldenfleece Test USDC").
+2. **Take Mint Authority:** As the creators, we possess the mint authority for this test token.
+3. **Mint Infinite Test Funds:** Mint large amounts (e.g., 1,000,000 Test USDC) to the admin wallet and any simulated investor wallets.
+4. **Environment Variables:** Set `NEXT_PUBLIC_USDC_MINT` in the `.env` file to the address of our newly created fake USDC.
+5. **Testing Advantage:**
+   - To the smart contract, this operates exactly identically to real USDC.
+   - We can build an admin debug button in the UI: "Fund Wallet with 50,000 Test USDC" to make onboarding test users completely frictionless.
+6. **Production Switch:** When migrating to Mainnet, we simply swap the `NEXT_PUBLIC_USDC_MINT` address back to the official Circle USDC Mainnet address (`EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v`). No code changes required.

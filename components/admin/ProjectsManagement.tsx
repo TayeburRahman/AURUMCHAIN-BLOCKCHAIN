@@ -19,7 +19,14 @@ export default function ProjectsManagement({ initialProjects, userId }: Projects
   const [error, setError] = useState<string | null>(null);
 
   // Form state
-  const [formData, setFormData] = useState<Partial<ProjectInsert>>({
+  const [formData, setFormData] = useState<Partial<ProjectInsert> & {
+    token_symbol?: string;
+    metadata_uri?: string;
+    accepted_stablecoin?: string;
+    treasury_wallet?: string;
+    lockup_end_date?: string;
+    distribution_cadence?: number;
+  }>({
     name: '',
     slug: '',
     description: '',
@@ -36,6 +43,12 @@ export default function ProjectsManagement({ initialProjects, userId }: Projects
     status: 'draft',
     images: [],
     documents: [],
+    token_symbol: '',
+    metadata_uri: '',
+    accepted_stablecoin: process.env.NEXT_PUBLIC_USDC_MINT || '',
+    treasury_wallet: process.env.NEXT_PUBLIC_ADMIN_WALLET || '',
+    lockup_end_date: '',
+    distribution_cadence: 0,
   });
 
   const handleInputChange = (
@@ -52,7 +65,8 @@ export default function ProjectsManagement({ initialProjects, userId }: Projects
         name === 'total_tokens' ||
         name === 'available_tokens' ||
         name === 'expected_return_percentage' ||
-        name === 'project_duration_months'
+        name === 'project_duration_months' ||
+        name === 'distribution_cadence'
           ? parseFloat(value) || 0
           : value,
     }));
@@ -138,6 +152,12 @@ export default function ProjectsManagement({ initialProjects, userId }: Projects
       longitude: project.longitude,
       start_date: project.start_date,
       expected_completion_date: project.expected_completion_date,
+      token_symbol: '',
+      metadata_uri: '',
+      accepted_stablecoin: process.env.NEXT_PUBLIC_USDC_MINT || '',
+      treasury_wallet: process.env.NEXT_PUBLIC_ADMIN_WALLET || '',
+      lockup_end_date: '',
+      distribution_cadence: 0,
     });
     setShowForm(true);
   };
@@ -184,6 +204,12 @@ export default function ProjectsManagement({ initialProjects, userId }: Projects
       status: 'draft',
       images: [],
       documents: [],
+      token_symbol: '',
+      metadata_uri: '',
+      accepted_stablecoin: process.env.NEXT_PUBLIC_USDC_MINT || '',
+      treasury_wallet: process.env.NEXT_PUBLIC_ADMIN_WALLET || '',
+      lockup_end_date: '',
+      distribution_cadence: 0,
     });
     setEditingProject(null);
     setError(null);
@@ -390,6 +416,95 @@ export default function ProjectsManagement({ initialProjects, userId }: Projects
                   step="1"
                   className="w-full px-4 py-2 bg-navy/50 border border-gold/20 rounded-lg text-white focus:outline-none focus:border-gold"
                 />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">
+                  Token Symbol (Max 10) *
+                </label>
+                <input
+                  type="text"
+                  name="token_symbol"
+                  value={formData.token_symbol || ''}
+                  onChange={handleInputChange}
+                  maxLength={10}
+                  required
+                  placeholder="e.g. TPA"
+                  className="w-full px-4 py-2 bg-navy/50 border border-gold/20 rounded-lg text-white focus:outline-none focus:border-gold"
+                />
+              </div>
+            </div>
+
+            {/* Program Requirements */}
+            <div className="grid md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">
+                  Accepted Stablecoin (Mint Address) *
+                </label>
+                <input
+                  type="text"
+                  name="accepted_stablecoin"
+                  value={formData.accepted_stablecoin || ''}
+                  onChange={handleInputChange}
+                  required
+                  className="w-full px-4 py-2 bg-navy/50 border border-gold/20 rounded-lg text-white focus:outline-none focus:border-gold font-mono text-sm"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">
+                  Treasury Wallet Address *
+                </label>
+                <input
+                  type="text"
+                  name="treasury_wallet"
+                  value={formData.treasury_wallet || ''}
+                  onChange={handleInputChange}
+                  required
+                  className="w-full px-4 py-2 bg-navy/50 border border-gold/20 rounded-lg text-white focus:outline-none focus:border-gold font-mono text-sm"
+                />
+              </div>
+            </div>
+
+            <div className="grid md:grid-cols-3 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">
+                  Metadata URL (Arweave/Pinata)
+                </label>
+                <input
+                  type="url"
+                  name="metadata_uri"
+                  value={formData.metadata_uri || ''}
+                  onChange={handleInputChange}
+                  placeholder="https://..."
+                  className="w-full px-4 py-2 bg-navy/50 border border-gold/20 rounded-lg text-white focus:outline-none focus:border-gold text-sm"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">
+                  Lock-up End Date
+                </label>
+                <input
+                  type="datetime-local"
+                  name="lockup_end_date"
+                  value={formData.lockup_end_date || ''}
+                  onChange={handleInputChange}
+                  className="w-full px-4 py-2 bg-navy/50 border border-gold/20 rounded-lg text-white focus:outline-none focus:border-gold"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">
+                  Distribution Cadence
+                </label>
+                <select
+                  name="distribution_cadence"
+                  value={formData.distribution_cadence}
+                  onChange={handleInputChange}
+                  className="w-full px-4 py-2 bg-navy/50 border border-gold/20 rounded-lg text-white focus:outline-none focus:border-gold"
+                >
+                  <option value={0}>Monthly</option>
+                  <option value={1}>Quarterly</option>
+                  <option value={2}>Bi-Annually</option>
+                  <option value={3}>Annually</option>
+                </select>
               </div>
             </div>
 
