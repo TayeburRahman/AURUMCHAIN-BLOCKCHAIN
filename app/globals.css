@@ -1,0 +1,344 @@
+@import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Space+Mono:wght@400;700&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --color-navy: #0a1628;
+  --color-navy-dark: #060f1a;
+  --color-gold: #E5B35A;
+  --color-gold-light: #F5D78E;
+  --color-gold-dark: #C89B3C;
+
+  --font-mono: 'Space Mono', 'Courier New', monospace;
+  --font-pixel: 'Press Start 2P', monospace;
+}
+
+* {
+  scroll-behavior: smooth;
+}
+
+html, body {
+  overflow-x: hidden;
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  height: 100%;
+}
+
+body {
+  background-color: var(--color-navy);
+  color: white;
+  font-family: var(--font-mono);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Scroll snap container */
+.snap-container {
+  scroll-snap-type: y mandatory;
+  scroll-behavior: smooth;
+}
+
+/* Scroll snap sections */
+.snap-section {
+  scroll-snap-align: start;
+  scroll-snap-stop: always;
+  min-height: 100vh;
+}
+
+/* Hide scrollbar for snap containers but keep functionality */
+.snap-container::-webkit-scrollbar {
+  width: 8px;
+}
+
+.snap-container::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.snap-container::-webkit-scrollbar-thumb {
+  background: var(--color-gold-dark);
+  border-radius: 4px;
+}
+
+.snap-container::-webkit-scrollbar-thumb:hover {
+  background: var(--color-gold);
+}
+
+/* Pixelated font for headers and titles */
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--font-pixel);
+  line-height: 1.4;
+}
+
+/* Button text should also be pixelated */
+button {
+  font-family: var(--font-pixel);
+}
+
+/* Navigation links */
+nav a {
+  font-family: var(--font-pixel);
+}
+
+/* Smooth animations */
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes scaleIn {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes slideInLeft {
+  from {
+    opacity: 0;
+    transform: translateX(-30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes slideInRight {
+  from {
+    opacity: 0;
+    transform: translateX(30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: -1000px 0;
+  }
+  100% {
+    background-position: 1000px 0;
+  }
+}
+
+@keyframes float {
+  0%, 100% {
+    transform: translateY(0px);
+  }
+  50% {
+    transform: translateY(-20px);
+  }
+}
+
+@keyframes glow-pulse {
+  0%, 100% {
+    opacity: 0.4;
+  }
+  50% {
+    opacity: 0.7;
+  }
+}
+
+@keyframes glow-rotate {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
+}
+
+.animate-float {
+  animation: float 6s ease-in-out infinite;
+}
+
+.animate-fade-in-up {
+  animation: fadeInUp 0.6s ease-out forwards;
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.8s ease-out forwards;
+}
+
+.animate-scale-in {
+  animation: scaleIn 0.5s ease-out forwards;
+}
+
+.animate-slide-in-left {
+  animation: slideInLeft 0.6s ease-out forwards;
+}
+
+.animate-slide-in-right {
+  animation: slideInRight 0.6s ease-out forwards;
+}
+
+/* Staggered animation delays */
+.delay-100 { animation-delay: 100ms; }
+.delay-200 { animation-delay: 200ms; }
+.delay-300 { animation-delay: 300ms; }
+.delay-400 { animation-delay: 400ms; }
+.delay-500 { animation-delay: 500ms; }
+
+/* Glassmorphism effect */
+.glass {
+  background: rgba(10, 22, 40, 0.7);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+
+/* Gradient text - Metoro-style white to gold */
+.gradient-text {
+  background: linear-gradient(135deg, #F5D78E 0%, #E5B35A 50%, #C89B3C 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.gradient-text-hero {
+  background: linear-gradient(180deg, #FFFFFF 0%, #F5D78E 40%, #E5B35A 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.gradient-text-subtle {
+  background: linear-gradient(135deg, #FFFFFF 0%, #F5D78E 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* Hover lift effect */
+.hover-lift {
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+.hover-lift:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 12px 24px rgba(229, 179, 90, 0.15);
+}
+
+/* Button glow effect */
+.btn-glow {
+  position: relative;
+  overflow: hidden;
+}
+
+.btn-glow::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 0;
+  height: 0;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.2);
+  transform: translate(-50%, -50%);
+  transition: width 0.6s, height 0.6s;
+}
+
+.btn-glow:hover::before {
+  width: 300px;
+  height: 300px;
+}
+
+/* Shimmer effect */
+.shimmer {
+  background: linear-gradient(
+    90deg,
+    rgba(229, 179, 90, 0) 0%,
+    rgba(229, 179, 90, 0.2) 50%,
+    rgba(229, 179, 90, 0) 100%
+  );
+  background-size: 1000px 100%;
+  animation: shimmer 3s infinite linear;
+}
+
+/* Luminous glow effects - Metoro style */
+.glow-orb {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(120px);
+  pointer-events: none;
+}
+
+.glow-gold {
+  background: radial-gradient(circle, rgba(245, 215, 142, 0.7) 0%, rgba(229, 179, 90, 0.4) 40%, transparent 70%);
+}
+
+.glow-gold-subtle {
+  background: radial-gradient(circle, rgba(229, 179, 90, 0.3) 0%, transparent 70%);
+  animation: glow-pulse 8s ease-in-out infinite;
+}
+
+.glow-emerald {
+  background: radial-gradient(circle, rgba(52, 211, 153, 0.4) 0%, transparent 70%);
+}
+
+/* Layered gradient backgrounds */
+.gradient-bg-premium {
+  background: radial-gradient(ellipse 80% 50% at 50% -20%, rgba(245, 215, 142, 0.15), transparent),
+              radial-gradient(ellipse 60% 50% at 50% 120%, rgba(229, 179, 90, 0.1), transparent);
+}
+
+/* Refined card hover */
+.card-hover-lift {
+  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.card-hover-lift:hover {
+  transform: translateY(-8px);
+  box-shadow: 0 20px 40px rgba(229, 179, 90, 0.2),
+              0 0 60px rgba(229, 179, 90, 0.1);
+}
+
+/* Premium border glow */
+.border-glow {
+  border: 1px solid rgba(229, 179, 90, 0.2);
+  box-shadow: 0 0 20px rgba(229, 179, 90, 0.1) inset;
+}
+
+.border-glow:hover {
+  border-color: rgba(229, 179, 90, 0.4);
+  box-shadow: 0 0 30px rgba(229, 179, 90, 0.2) inset,
+              0 0 20px rgba(229, 179, 90, 0.1);
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 10px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--color-navy-dark);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--color-gold-dark);
+  border-radius: 5px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-gold);
+}

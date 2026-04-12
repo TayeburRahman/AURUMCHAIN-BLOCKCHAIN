@@ -1,27 +1,47 @@
-# Sensitive files - never commit these
-.env
-*.env.*
+# Dependencies
+node_modules
+/.pnp
+.pnp.js
+.yarn/install-state.gz
 
-# PDF documentation (large binary, not source code)
-*.pdf
-pdf_content.txt
+# Testing
+/coverage
 
-# Rust / Cargo build artifacts
-target/
-**/*.rs.bk
+# Next.js
+/.next/
+/out/
+next-env.d.ts
 
-# Anchor build outputs (regenerated on build)
-.anchor/
-idl/
+# Production
+/build
+dist
 
-# Node / npm
-node_modules/
-dist/
-
-# OS files
+# Misc
 .DS_Store
-Thumbs.db
+*.pem
+
+# Debug
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Environment Variables - NEVER commit these!
+.env
+.env*.local
+.env.production
+
+# Vercel
+.vercel
+
+# TypeScript
+*.tsbuildinfo
 
 # IDE
-.vscode/settings.json
-.idea/
+.vscode
+.idea
+*.swp
+*.swo
+*~
+
+# Supabase (local development only)
+.supabase
