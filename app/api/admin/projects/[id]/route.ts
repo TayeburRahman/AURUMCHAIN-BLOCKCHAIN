@@ -5,7 +5,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
+import { createClient, createAdminClient } from '@/lib/supabase/server';
 import { AdminService, createAuditLog } from '@/lib/domains/admin/service';
 import { Database } from '@/lib/types/database.types';
 
@@ -43,8 +43,11 @@ export async function PUT(
 
     const body: ProjectUpdate = await request.json();
 
+    // Use admin client to bypass RLS (admin auth already verified above)
+    const adminSupabase = createAdminClient();
+
     // Update project
-    const { data: project, error } = await supabase
+    const { data: project, error } = await adminSupabase
       .from('projects')
       .update({
         name: body.name,
@@ -134,8 +137,11 @@ export async function DELETE(
       return NextResponse.json({ error: 'Project not found' }, { status: 404 });
     }
 
+    // Use admin client to bypass RLS (admin auth already verified above)
+    const adminSupabase = createAdminClient();
+
     // Delete project
-    const { error } = await supabase
+    const { error } = await adminSupabase
       .from('projects')
       .delete()
       .eq('id', id);

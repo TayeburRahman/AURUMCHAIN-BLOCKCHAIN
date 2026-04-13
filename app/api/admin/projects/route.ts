@@ -55,6 +55,9 @@ export async function POST(request: NextRequest) {
         images: body.images,
         documents: body.documents,
         video_url: body.video_url,
+        // Blockchain linkage — store so we can fetch on-chain data later
+        blockchain_signature:   body.blockchain_signature   ?? null,
+        blockchain_project_id:  body.blockchain_project_id  ?? null,
       })
       .select()
       .single();

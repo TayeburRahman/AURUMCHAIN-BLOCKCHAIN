@@ -107,6 +107,8 @@ export type Database = {
           images: string[] | null
           documents: string[] | null
           video_url: string | null
+          blockchain_signature: string | null
+          blockchain_project_id: number | null
           created_at: string
           updated_at: string
         }
@@ -134,6 +136,8 @@ export type Database = {
           images?: string[] | null
           documents?: string[] | null
           video_url?: string | null
+          blockchain_signature?: string | null
+          blockchain_project_id?: number | null
           created_at?: string
           updated_at?: string
         }
@@ -161,6 +165,8 @@ export type Database = {
           images?: string[] | null
           documents?: string[] | null
           video_url?: string | null
+          blockchain_signature?: string | null
+          blockchain_project_id?: number | null
           created_at?: string
           updated_at?: string
         }

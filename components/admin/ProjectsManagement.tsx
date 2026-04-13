@@ -1,6 +1,7 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { createClient } from '@/lib/supabase/client';
 import { Database } from '@/lib/types/database.types';
 import { useWallet, useConnection } from '@solana/wallet-adapter-react';
 import { createOnChainProject } from '@/lib/solana/projectRegistry';
@@ -23,6 +24,7 @@ export default function ProjectsManagement({ initialProjects, userId }: Projects
   const [editingProject, setEditingProject] = useState<Project | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [statusChanging, setStatusChanging] = useState<string | null>(null); // tracks which project is being updated
 
   // Form state
   const [formData, setFormData] = useState<Partial<ProjectInsert> & {
@@ -123,7 +125,10 @@ export default function ProjectsManagement({ initialProjects, userId }: Projects
             distributionCadence: formData.distribution_cadence || 0,
           };
           
-          await createOnChainProject(connection, wallet, blockParams);
+          const chainResult = await createOnChainProject(connection, wallet, blockParams);
+          // Attach blockchain linkage to the form payload so the API can persist it
+          formData.blockchain_signature  = chainResult.signature;
+          (formData as any).blockchain_project_id = chainResult.projectId;
         } catch (chainErr: any) {
           throw new Error("Blockchain Transaction Failed: " + chainErr.message);
         }
@@ -163,6 +168,31 @@ export default function ProjectsManagement({ initialProjects, userId }: Projects
       setLoading(false);
     }
   };
+
+  // ── Realtime subscription: keep admin list in sync with Supabase changes ──
+  useEffect(() => {
+    const supabase = createClient();
+    const channel = supabase
+      .channel('admin-projects-realtime')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'projects' },
+        (payload) => {
+          if (payload.eventType === 'INSERT') {
+            setProjects((prev) => [payload.new as any, ...prev]);
+          } else if (payload.eventType === 'UPDATE') {
+            setProjects((prev) =>
+              prev.map((p) => (p.id === (payload.new as any).id ? (payload.new as any) : p))
+            );
+          } else if (payload.eventType === 'DELETE') {
+            setProjects((prev) => prev.filter((p) => p.id !== (payload.old as any).id));
+          }
+        }
+      )
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
+  }, []);
 
   const handleEdit = (project: Project) => {
     setEditingProject(project);
@@ -251,12 +281,43 @@ export default function ProjectsManagement({ initialProjects, userId }: Projects
     setError(null);
   };
 
+  // ── Quick status change without opening the full edit form ────────────────
+  const handleStatusChange = async (projectId: string, newStatus: Project['status']) => {
+    setStatusChanging(projectId);
+    try {
+      const response = await fetch(`/api/admin/projects/${projectId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: newStatus }),
+      });
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || 'Failed to update status');
+      }
+      // Optimistic update (realtime will also sync)
+      setProjects((prev) =>
+        prev.map((p) => (p.id === projectId ? { ...p, status: newStatus } : p))
+      );
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setStatusChanging(null);
+    }
+  };
+
   return (
     <div>
       {/* Action Bar */}
       <div className="mb-6 flex items-center justify-between">
-        <div className="text-gray-300">
-          <span className="font-medium">{projects.length}</span> projects total
+        <div className="flex items-center gap-4 text-gray-300">
+          <span><span className="font-medium">{projects.length}</span> projects total</span>
+          <span className="flex items-center gap-1.5 text-xs text-green-400 font-medium">
+            <span className="relative flex h-2 w-2">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
+            </span>
+            Live
+          </span>
         </div>
         <button
           onClick={() => {
@@ -695,43 +756,74 @@ export default function ProjectsManagement({ initialProjects, userId }: Projects
                   <div>
                     <span className="text-gray-500">Funding:</span>
                     <span className="text-white font-medium ml-2">
-                      ${(project.current_funding / 1000).toFixed(0)}k / ${(project.funding_goal / 1000).toFixed(0)}k
+                      ${((project.current_funding ?? 0) / 1000).toFixed(0)}k / ${((project.funding_goal ?? 0) / 1000).toFixed(0)}k
                     </span>
                   </div>
                   <div>
                     <span className="text-gray-500">Tokens:</span>
                     <span className="text-white font-medium ml-2">
-                      {project.available_tokens.toLocaleString()} / {project.total_tokens.toLocaleString()}
+                      {(project.available_tokens ?? 0).toLocaleString()} / {(project.total_tokens ?? 0).toLocaleString()}
                     </span>
                   </div>
                   <div>
                     <span className="text-gray-500">Return:</span>
                     <span className="text-white font-medium ml-2">
-                      {project.expected_return_percentage}%
+                      {project.expected_return_percentage ?? '—'}%
                     </span>
                   </div>
                   <div>
                     <span className="text-gray-500">Duration:</span>
                     <span className="text-white font-medium ml-2">
-                      {project.project_duration_months} months
+                      {project.project_duration_months ?? '—'} months
                     </span>
                   </div>
                 </div>
+                {/* Blockchain badge */}
+                {project.blockchain_signature && (
+                  <div className="mt-3 flex items-center gap-2">
+                    <span className="text-xs px-2 py-0.5 rounded-full bg-gold/10 text-gold border border-gold/30">⛓ On-Chain</span>
+                    <a
+                      href={`https://explorer.solana.com/tx/${project.blockchain_signature}?cluster=devnet`}
+                      target="_blank" rel="noopener noreferrer"
+                      className="text-xs text-gray-500 hover:text-gold underline underline-offset-2"
+                    >
+                      {project.blockchain_signature.slice(0, 12)}…
+                    </a>
+                  </div>
+                )}
               </div>
-              <div className="flex gap-2 ml-4">
-                <button
-                  onClick={() => handleEdit(project)}
-                  className="px-4 py-2 bg-gold/20 text-gold rounded-lg hover:bg-gold/30 transition-colors"
+              <div className="flex flex-col gap-2 ml-4 items-end">
+                {/* Quick status changer */}
+                <select
+                  id={`status-${project.id}`}
+                  value={project.status}
+                  disabled={statusChanging === project.id}
+                  onChange={(e) => handleStatusChange(project.id, e.target.value as Project['status'])}
+                  className="px-3 py-1.5 bg-navy/80 border border-gold/20 rounded-lg text-xs text-white focus:outline-none focus:border-gold transition-colors disabled:opacity-50 cursor-pointer"
+                  title="Change project status"
                 >
-                  Edit
-                </button>
-                <button
-                  onClick={() => handleDelete(project.id)}
-                  disabled={loading}
-                  className="px-4 py-2 bg-red-500/20 text-red-400 rounded-lg hover:bg-red-500/30 transition-colors disabled:opacity-50"
-                >
-                  Delete
-                </button>
+                  <option value="draft">Draft</option>
+                  <option value="funding">Funding</option>
+                  <option value="active">Active</option>
+                  <option value="funded">Funded</option>
+                  <option value="completed">Completed</option>
+                  <option value="cancelled">Cancelled</option>
+                </select>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => handleEdit(project)}
+                    className="px-4 py-2 bg-gold/20 text-gold rounded-lg hover:bg-gold/30 transition-colors text-sm"
+                  >
+                    Edit
+                  </button>
+                  <button
+                    onClick={() => handleDelete(project.id)}
+                    disabled={loading}
+                    className="px-4 py-2 bg-red-500/20 text-red-400 rounded-lg hover:bg-red-500/30 transition-colors disabled:opacity-50 text-sm"
+                  >
+                    Delete
+                  </button>
+                </div>
               </div>
             </div>
           </div>

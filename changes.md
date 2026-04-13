@@ -1,6 +1,165 @@
 # Frontend Changes Documentation
 
+---
+
+## Feature: Blank Stats Fix — On-Chain Derived Display Values
+**Timestamp:** 2026-04-13T12:48:00+06:00
+Fixed blank `Token Price`, `Duration`, and `Token Supply` fields on the user-facing `/projects` cards for projects imported from the blockchain. These three fields don't exist in the on-chain `ProjectAccount` struct so they were `null` in Supabase. Cards now derive display values from available chain data.
+
+### File: `app/projects/page.tsx`
+
+| Line Numbers | Feature Added | Reason for Addition |
+| :--- | :--- | :--- |
+| **131–143** | `derivedTokenPrice` IIFE | Computes token price as `maxInvestmentUsdc / supplyCap / 1_000_000` USDC. Falls back to on-chain data when DB `token_price` is null or zero. Formats as `$0.0001` for sub-cent prices. |
+| **145–152** | `derivedDuration` IIFE | Computes duration from on-chain subscription window: `(subscriptionEnd - subscriptionStart) / (30 × 86400)` months. Falls back to DB `project_duration_months`. |
+| **154–160** | `derivedReturn` IIFE | DB `expected_return_percentage` takes priority. For on-chain projects without a return rate set, displays `"XK tokens"` (supply cap) as a useful substitute instead of showing blank. |
+| **237–244** | Adaptive stat tile label — `"Token Supply"` vs `"Expected Return"` | When `expected_return_percentage` is null and `isOnChain` is true, the tile header reads "Token Supply" to accurately describe what is displayed, avoiding a misleading label. |
+| **243–249** | `derivedDuration` wired into Duration tile | Replaces the raw `project.project_duration_months` expression which rendered blank for all backfilled chain projects. |
+| **250–272** | `derivedTokenPrice` wired into Token Price tile (both branches) | Replaces `$${project.token_price}` which showed `$1` for the approximate backfill value. Now shows mathematically accurate USDC-per-token from chain state. |
+| **264–267** | Null-safe `min_investment` display | `{project.min_investment ? \`$...\` : "—"}` prevents `$undefined` rendering for imported projects that had no `min_investment` set in the DB. |
+
+---
+
+## Feature: On-Chain Project Backfill + Admin RLS Fix on PUT/DELETE
+**Timestamp:** 2026-04-13T12:42:00+06:00
+Imported all 8 orphaned on-chain projects (IDs 0–7) into Supabase. Fixed missing RLS bypass on UPDATE and DELETE operations in the admin API.
+
+### File: `app/api/admin/projects/[id]/route.ts`
+
+| Line Numbers | Feature Added | Reason for Addition |
+| :--- | :--- | :--- |
+| **8** | Import `createAdminClient` | Applying the same Service Role bypass to UPDATE and DELETE as was already done for INSERT. |
+| **45–47** | `const adminSupabase = createAdminClient()` before `.update()` | The `projects` table RLS has no `UPDATE` permission for the anon key. Without this, any edit from the admin panel silently returned a `42501` error. |
+| **137–139** | `const adminSupabase = createAdminClient()` before `.delete()` | Same RLS bypass for DELETE. Anon key deletion was being blocked by Postgres silently. |
+
+### File: `scripts/backfill_onchain_projects.ts` *(NEW)*
+
+| Line Numbers | Feature Added | Reason for Addition |
+| :--- | :--- | :--- |
+| **All New** | Anchor read-only fetch loop + Supabase upsert | Fetches all on-chain `ProjectAccount`s (IDs 0 to `project_count-1`) from Solana Devnet and inserts them into Supabase `projects` using Service Role key. Previously these existed only on-chain with no DB row, making them invisible to the frontend. |
+| **63–78** | `deriveStatus(account)` function | Maps on-chain boolean flags (`isActive`, `mintAuthorityRevoked`, `tokensIssued >= supplyCap`, subscription window) to the Supabase status enum. This is the canonical cross-system status mapping. |
+| **38** | Explicit `any` types on dummy wallet provider | Fixes TypeScript `TS7006` implicit-any error on the read-only AnchorProvider stub used for non-signing chain reads in Node.js. |
+
+---
+
+## Feature: Admin Project Rendering Bug Fixes + Quick Status Changer
+**Timestamp:** 2026-04-13T12:33:00+06:00
+Fixed a `TypeError` crash on `/admin/projects` caused by calling `.toLocaleString()` and arithmetic on null DB fields. Added an inline status dropdown on every project card so admins can change status instantly without opening the full edit form.
+
+### File: `components/admin/ProjectsManagement.tsx`
+
+| Line Numbers | Feature Added | Reason for Addition |
+| :--- | :--- | :--- |
+| **25** | `const [statusChanging, setStatusChanging] = useState<string \| null>(null)` | Tracks which card's status dropdown is mid-request so only that dropdown is disabled, allowing the rest of the list to remain interactive during a status update. |
+| **283–309** | `handleStatusChange(projectId, newStatus)` function | Fires `PUT /api/admin/projects/[id]` with `{ status: newStatus }` and applies an optimistic update immediately. Realtime subscription confirms from Postgres. Skips opening the full edit form entirely. |
+| **730** | `(project.current_funding ?? 0)` and `(project.funding_goal ?? 0)` | Fixed `TypeError` crash — Supabase returns `null` for numeric fields that the backfill script left unset. `?? 0` prevents division-by-null at runtime. |
+| **737** | `(project.available_tokens ?? 0).toLocaleString()` | `.toLocaleString()` on `null` throws at runtime. Nullish coalescing converts null to 0 before the call. |
+| **737** | `(project.total_tokens ?? 0).toLocaleString()` | Same fix as above for the corresponding field. |
+| **742** | `{project.expected_return_percentage ?? '—'}%` | Prevents the string `"null%"` rendering in the return tile for projects without this value set. |
+| **747** | `{project.project_duration_months ?? '—'} months` | Prevents `"null months"` rendering in the duration tile. |
+| **757–784** | Status `<select>` dropdown + grouped Edit/Delete buttons | Replaces the flat two-button row with a vertical stack: a status `<select>` on top and the Edit/Delete buttons below. All 6 statuses are available directly from the list view. |
+| **755–761** | `⛓ On-Chain` badge with Solana Explorer transaction link | Shows a truncated clickable `blockchain_signature` linking to `explorer.solana.com` on cards that have a confirmed on-chain transaction, giving the admin a direct audit trail. |
+
+---
+
+## Feature: Blockchain Transaction Duplicate Fix + RLS Bypass Architecture
+**Timestamp:** 2026-04-13T10:08:00+06:00
+Resolved persistent "Transaction already processed" Phantom simulation errors and fixed Supabase Row-Level Security blocking all project database writes.
+
+### File: `lib/solana/projectRegistry.ts`
+
+| Line Numbers | Feature Added | Reason for Addition |
+| :--- | :--- | :--- |
+| **95–126** | Replaced `.rpc()` with manual `Transaction` assembly | Anchor's `.rpc()` internally reuses blockhashes causing Phantom to pre-simulate duplicate transactions. Manual assembly with `skipPreflight: true` bypasses Phantom's ghost simulation entirely. |
+| **106** | Force `getLatestBlockhash('finalized')` | Forces the RPC to return an absolutely fresh blockhash from the finalized ledger, bypassing Next.js HTTP cache layers. |
+| **128–132** | Returns `{ signature, projectId, projectPda }` | Exposes the on-chain result so the caller can persist the blockchain linkage into the Supabase database. |
+
+### File: `components/admin/ProjectsManagement.tsx`
+
+| Line Numbers | Feature Added | Reason for Addition |
+| :--- | :--- | :--- |
+| **99** | `if (loading) return;` guard at top of `handleSubmit` | Prevents React's event system from enqueuing two concurrent transaction-generation calls when the user double-clicks the submit button before Phantom opens. |
+
+### File: `lib/supabase/server.ts`
+
+| Line Numbers | Feature Added | Reason for Addition |
+| :--- | :--- | :--- |
+| **3** | Import `createClient as createSupabaseClient` from `@supabase/supabase-js` | Required for the Service Role client which uses the raw JS SDK rather than the SSR cookie-aware wrapper. |
+| **29–48** | New export `createAdminClient()` | Creates a Supabase client authenticated with `SUPABASE_SERVICE_ROLE_KEY`. This bypasses all Postgres Row-Level Security policies on tables, allowing server-side admin API routes to perform privileged writes that would otherwise be blocked. |
+
+### File: `app/api/admin/projects/route.ts`
+
+| Line Numbers | Feature Added | Reason for Addition |
+| :--- | :--- | :--- |
+| **8** | Import `createAdminClient` | Required to call the privileged client in the POST handler. |
+| **31** | `const adminSupabase = createAdminClient()` | Elevated client instance — used for the INSERT so Postgres doesn't block with `42501 violates row-level security`. |
+| **34** | Switch `.from('projects')` to `adminSupabase` | The root cause of the `new row violates row-level security policy` error. The anon-key client had no allowed INSERT policy on `projects`. |
+| **57–58** | `blockchain_signature`, `blockchain_project_id` fields in INSERT | Persists the Solana transaction signature and sequential project ID for later use by the public API to derive the on-chain PDA and fetch enriched data. |
+
+### File: `app/api/admin/projects/[id]/route.ts`
+
+| Line Numbers | Feature Added | Reason for Addition |
+| :--- | :--- | :--- |
+| **8** | Import `createAdminClient` | Required to apply privileged client to UPDATE/DELETE. |
+| **45–47** | `adminSupabase` for PUT | Same RLS bypass applied to UPDATE so project edits don't fail silently. |
+| **137–139** | `adminSupabase` for DELETE | Same RLS bypass applied to DELETE so project removals don't fail. |
+
+### File: `app/components/SolanaProvider.tsx`
+
+| Line Numbers | Feature Added | Reason for Addition |
+| :--- | :--- | :--- |
+| **24–31** | `config={{ commitment: 'confirmed', fetch: ... cache: 'no-store' }}` | Forces all underlying `@solana/web3.js` RPC HTTP calls to bypass Next.js's aggressive route-level fetch cache, ensuring blockhash and account state are always live. |
+
+---
+
+## Feature: Hybrid Realtime Projects Page (Supabase + On-Chain)
+**Timestamp:** 2026-04-13T12:12:00+06:00
+Replaced static hardcoded arrays on the public and admin projects pages with live hybrid data (Supabase metadata + Solana on-chain state). Added Supabase Realtime subscriptions to both pages for zero-refresh live updates.
+
+### File: `lib/types/database.types.ts`
+
+| Line Numbers | Feature Added | Reason for Addition |
+| :--- | :--- | :--- |
+| **110–111** | `blockchain_signature`, `blockchain_project_id` in `Row` type | Reflects new columns added to Postgres via migration `008_add_blockchain_to_projects.sql`. |
+| **139–140** | Same fields in `Insert` type | Allows the admin API route to include these fields in TypeScript-safe insert payloads. |
+| **167–168** | Same fields in `Update` type | Allows future edit operations to update blockchain linkage if needed. |
+
+### File: `lib/solana/getProjectAccount.ts` *(NEW)*
+
+| Line Numbers | Feature Added | Reason for Addition |
+| :--- | :--- | :--- |
+| **All New** | `getProjectAccount(projectId)` | Server-side read-only Anchor utility. Derives the PDA from a numeric project ID and fetches the full `ProjectAccount` from Solana Devnet without requiring a browser wallet. Returns `null` gracefully on failure so missing chain data never crashes the page. |
+| **All New** | `getProjectAccountsBulk(projectIds[])` | Wraps `getProjectAccount` in `Promise.allSettled` to fetch multiple accounts in parallel. Per-project failures are swallowed so one bad chain account can't block the entire page response. |
+
+### File: `app/api/projects/route.ts` *(NEW)*
+
+| Line Numbers | Feature Added | Reason for Addition |
+| :--- | :--- | :--- |
+| **All New** | Public `GET /api/projects` | Fetches all public projects from Supabase, enriches them with live on-chain data via `getProjectAccountsBulk`, and returns a merged JSON array. `force-dynamic` export prevents Next.js from caching the response statically. |
+
+### File: `app/projects/page.tsx`
+
+| Line Numbers | Feature Added | Reason for Addition |
+| :--- | :--- | :--- |
+| **1–All** | Full rewrite from static to live hybrid data | Replaced the hardcoded 6-project array with `fetch('/api/projects')` on mount, `useEffect` Supabase Realtime channel subscription that re-fetches on any DB change, and a `ProjectCard` component that renders both Supabase and on-chain fields. |
+| **`ProjectCard`** | On-chain progress bar (`tokensIssued / supplyCap`) | Uses the live on-chain counter instead of the static DB `current_funding` field, giving investors a real-time view of token issuance. |
+| **`ProjectCard`** | ⛓ On-Chain badge, Paused warning, Token Mint explorer link | Visual indicators show chain-verified status, compliance pause flags, and let users click through to Solana Explorer for the token mint and transaction. |
+| **`SkeletonCard`** | Loading skeleton component | Renders 3 animated placeholder cards while the API fetches data, preventing layout shift. |
+
+### File: `components/admin/ProjectsManagement.tsx`
+
+| Line Numbers | Feature Added | Reason for Addition |
+| :--- | :--- | :--- |
+| **3** | Import `useEffect`, `createClient` | Required for realtime subscription lifecycle. |
+| **126–129** | Capture `chainResult` and attach to `formData` | After the blockchain confirms, the Solana signature and project ID are attached to the POST body so `route.ts` can persist them as `blockchain_signature` and `blockchain_project_id`. |
+| **165–189** | Supabase Realtime `useEffect` subscription | Listens to `postgres_changes` on the `projects` table. INSERT events prepend to state, UPDATE events patch in-place, DELETE events filter out — all without a page refresh. |
+| **286–304** | Animated "● Live" green dot indicator | Visual feedback showing the admin that realtime is actively connected, using a CSS `animate-ping` pulsing dot. |
+
+---
+
 **Timestamp:** 2026-04-12T16:30:00+06:00
+
+
 
 ## Feature: On-Chain Compatibility for Project Creation
 Integrated required blockchain smart contract parameters directly into the admin visual workflow without breaking existing UI logic.

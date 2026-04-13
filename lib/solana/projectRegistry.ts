@@ -65,7 +65,7 @@ export const createOnChainProject = async (
   const registryPda = getRegistryPDA();
 
   // 1. Fetch the Registry Account to determine the incoming project_id (project_count)
-  let registryAccount;
+  let registryAccount: any;
   try {
     registryAccount = await program.account.registryConfig.fetch(registryPda);
   } catch (error: any) {
