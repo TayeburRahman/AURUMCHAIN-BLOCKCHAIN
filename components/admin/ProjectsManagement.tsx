@@ -4,7 +4,13 @@ import { useState, useEffect } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { Database } from '@/lib/types/database.types';
 import { useWallet, useConnection } from '@solana/wallet-adapter-react';
-import { createOnChainProject } from '@/lib/solana/projectRegistry';
+import {
+  createOnChainProject,
+  updateOnChainProjectParams,
+  pauseOnChainInvestments,
+  pauseOnChainTransfers,
+  setOnChainProjectActive,
+} from '@/lib/solana/projectRegistry';
 import { PublicKey } from '@solana/web3.js';
 import { BN } from '@coral-xyz/anchor';
 
@@ -107,15 +113,16 @@ export default function ProjectsManagement({ initialProjects, userId }: Projects
         throw new Error("Admin wallet is not connected. Please connect your Phantom wallet to sign the transaction.");
       }
 
-      // Step 1: Create project on Solana Devnet FIRST
+      // Step 1: Blockchain — create NEW project on-chain, or UPDATE params for existing chain-linked project
       if (!editingProject) {
+        // ── CREATE ──
         try {
           const blockParams = {
             name: formData.name || 'Unnamed Project',
             symbol: formData.token_symbol || 'TKN',
             uri: formData.metadata_uri || 'https://metadata.placeholder',
             supplyCap: new BN(formData.total_tokens || 1000000),
-            minInvestmentUsdc: new BN((formData.min_investment || 100) * 1_000_000), // Default 6 decimals
+            minInvestmentUsdc: new BN((formData.min_investment || 100) * 1_000_000),
             maxInvestmentUsdc: new BN((formData.funding_goal || 1_000_000) * 1_000_000),
             acceptedStablecoin: new PublicKey(formData.accepted_stablecoin || process.env.NEXT_PUBLIC_USDC_MINT || 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v'),
             treasuryWallet: new PublicKey(formData.treasury_wallet || wallet.publicKey!.toBase58()),
@@ -124,13 +131,47 @@ export default function ProjectsManagement({ initialProjects, userId }: Projects
             subscriptionEnd: new BN(Math.floor(new Date(formData.expected_completion_date || Date.now() + 86400000).getTime() / 1000)),
             distributionCadence: formData.distribution_cadence || 0,
           };
-          
           const chainResult = await createOnChainProject(connection, wallet, blockParams);
-          // Attach blockchain linkage to the form payload so the API can persist it
           formData.blockchain_signature  = chainResult.signature;
           (formData as any).blockchain_project_id = chainResult.projectId;
         } catch (chainErr: any) {
-          throw new Error("Blockchain Transaction Failed: " + chainErr.message);
+          throw new Error('Blockchain Transaction Failed: ' + chainErr.message);
+        }
+      } else if (editingProject.blockchain_project_id !== null && editingProject.blockchain_project_id !== undefined) {
+        // ── UPDATE on-chain params (only the 6 mutable fields) ──
+        try {
+          const chainUpdateParams: Parameters<typeof updateOnChainProjectParams>[3] = {};
+
+          // Only include fields that actually changed vs. current on-chain values
+          if (formData.min_investment !== undefined && formData.min_investment !== null)
+            chainUpdateParams.minInvestmentUsdc = new BN(Math.round((formData.min_investment || 0) * 1_000_000));
+
+          if (formData.funding_goal !== undefined && formData.funding_goal !== null)
+            chainUpdateParams.maxInvestmentUsdc = new BN(Math.round((formData.funding_goal || 0) * 1_000_000));
+
+          if (formData.start_date)
+            chainUpdateParams.subscriptionStart = new BN(Math.floor(new Date(formData.start_date).getTime() / 1000));
+
+          if (formData.expected_completion_date)
+            chainUpdateParams.subscriptionEnd = new BN(Math.floor(new Date(formData.expected_completion_date).getTime() / 1000));
+
+          if ((formData as any).lockup_end_date)
+            chainUpdateParams.lockupEndTs = new BN(Math.floor(new Date((formData as any).lockup_end_date).getTime() / 1000));
+
+          if (formData.distribution_cadence !== undefined && formData.distribution_cadence !== null)
+            chainUpdateParams.distributionCadence = formData.distribution_cadence;
+
+          // Only hit the chain if at least one field was included
+          if (Object.keys(chainUpdateParams).length > 0) {
+            await updateOnChainProjectParams(
+              connection,
+              wallet,
+              editingProject.blockchain_project_id,
+              chainUpdateParams
+            );
+          }
+        } catch (chainErr: any) {
+          throw new Error('On-Chain Update Failed: ' + chainErr.message);
         }
       }
 
@@ -298,6 +339,37 @@ export default function ProjectsManagement({ initialProjects, userId }: Projects
       setProjects((prev) =>
         prev.map((p) => (p.id === projectId ? { ...p, status: newStatus } : p))
       );
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setStatusChanging(null);
+    }
+  };
+
+  // ── On-chain boolean toggles (pause/resume/activate) ─────────────────────
+  const handleChainToggle = async (
+    project: Project,
+    action: 'pauseInvestments' | 'resumeInvestments' | 'pauseTransfers' | 'resumeTransfers' | 'activate' | 'deactivate'
+  ) => {
+    if (project.blockchain_project_id === null || project.blockchain_project_id === undefined) {
+      setError('This project has no on-chain record.'); return;
+    }
+    if (!wallet.connected) { setError('Connect your Phantom wallet first.'); return; }
+    if (statusChanging) return;
+    setStatusChanging(project.id);
+    try {
+      if (action === 'pauseInvestments')
+        await pauseOnChainInvestments(connection, wallet, project.blockchain_project_id, true);
+      else if (action === 'resumeInvestments')
+        await pauseOnChainInvestments(connection, wallet, project.blockchain_project_id, false);
+      else if (action === 'pauseTransfers')
+        await pauseOnChainTransfers(connection, wallet, project.blockchain_project_id, true);
+      else if (action === 'resumeTransfers')
+        await pauseOnChainTransfers(connection, wallet, project.blockchain_project_id, false);
+      else if (action === 'activate')
+        await setOnChainProjectActive(connection, wallet, project.blockchain_project_id, true);
+      else if (action === 'deactivate')
+        await setOnChainProjectActive(connection, wallet, project.blockchain_project_id, false);
     } catch (err: any) {
       setError(err.message);
     } finally {
@@ -809,6 +881,33 @@ export default function ProjectsManagement({ initialProjects, userId }: Projects
                   <option value="completed">Completed</option>
                   <option value="cancelled">Cancelled</option>
                 </select>
+
+                {/* On-chain toggle buttons — only shown for chain-linked projects */}
+                {project.blockchain_project_id !== null && project.blockchain_project_id !== undefined && (
+                  <div className="flex gap-1 flex-wrap justify-end">
+                    <button
+                      title="Toggle investment subscriptions on-chain"
+                      disabled={statusChanging === project.id}
+                      onClick={() => handleChainToggle(
+                        project,
+                        /* derive current state from last known chain snapshot via status */
+                        project.status === 'funding' ? 'pauseInvestments' : 'resumeInvestments'
+                      )}
+                      className="px-2 py-1 rounded text-xs font-medium bg-orange-500/20 text-orange-400 hover:bg-orange-500/30 transition-colors disabled:opacity-40"
+                    >
+                      {project.status === 'funding' ? '⏸ Pause Inv.' : '▶ Resume Inv.'}
+                    </button>
+                    <button
+                      title="Toggle token transfers on-chain"
+                      disabled={statusChanging === project.id}
+                      onClick={() => handleChainToggle(project, 'pauseTransfers')}
+                      className="px-2 py-1 rounded text-xs font-medium bg-yellow-500/20 text-yellow-400 hover:bg-yellow-500/30 transition-colors disabled:opacity-40"
+                    >
+                      🔒 Pause Tx
+                    </button>
+                  </div>
+                )}
+
                 <div className="flex gap-2">
                   <button
                     onClick={() => handleEdit(project)}

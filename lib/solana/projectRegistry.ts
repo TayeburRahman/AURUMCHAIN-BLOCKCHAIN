@@ -131,3 +131,171 @@ export const createOnChainProject = async (
     projectPda: projectPda.toString(),
   };
 };
+
+// ─────────────────────────────────────────────────────────────────────────────
+// UPDATE PROJECT PARAMS (on-chain edit — all fields optional)
+// Maps to the `updateProjectParams` instruction in the IDL.
+// Only non-null fields are transmitted; send null to keep existing chain value.
+// ─────────────────────────────────────────────────────────────────────────────
+
+export interface UpdateProjectParams {
+  minInvestmentUsdc?: BN | null;   // pass null = keep current value
+  maxInvestmentUsdc?: BN | null;
+  subscriptionStart?: BN | null;
+  subscriptionEnd?: BN | null;
+  distributionCadence?: number | null;
+  lockupEndTs?: BN | null;
+}
+
+/**
+ * Calls `updateProjectParams` on-chain for an already-deployed project.
+ * Only the fields set to a non-null BN will be mutated on-chain.
+ * Requires admin wallet (registry.authority or registry.super_admin).
+ */
+export const updateOnChainProjectParams = async (
+  connection: Connection,
+  wallet: any,
+  projectId: number,
+  params: UpdateProjectParams
+): Promise<{ signature: string }> => {
+  if (!wallet.publicKey) throw new Error('Wallet not connected');
+
+  const program  = getRegistryProgram(connection, wallet);
+  const registry = getRegistryPDA();
+  const project  = getProjectPDA(new BN(projectId));
+
+  // Anchor expects Option<T> as null (absent) or the value — BN works directly
+  const instructionParams = {
+    minInvestmentUsdc:  params.minInvestmentUsdc  ?? null,
+    maxInvestmentUsdc:  params.maxInvestmentUsdc  ?? null,
+    subscriptionStart:  params.subscriptionStart  ?? null,
+    subscriptionEnd:    params.subscriptionEnd    ?? null,
+    distributionCadence: params.distributionCadence !== undefined && params.distributionCadence !== null
+      ? params.distributionCadence
+      : null,
+    lockupEndTs:        params.lockupEndTs        ?? null,
+  };
+
+  const instruction = await program.methods
+    .updateProjectParams(instructionParams)
+    .accounts({ registry, project, admin: wallet.publicKey } as any)
+    .instruction();
+
+  const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash('finalized');
+  const { Transaction } = await import('@solana/web3.js');
+  const tx = new Transaction();
+  tx.add(instruction);
+  tx.recentBlockhash = blockhash;
+  tx.feePayer = wallet.publicKey;
+
+  const signature = await wallet.sendTransaction(tx, connection, { skipPreflight: true, maxRetries: 3 });
+  await connection.confirmTransaction({ signature, blockhash, lastValidBlockHeight }, 'confirmed');
+
+  return { signature };
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// PAUSE / RESUME INVESTMENT SUBSCRIPTIONS
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Toggles investments_paused flag on-chain.
+ * paused=true → investors cannot subscribe; paused=false → open again.
+ */
+export const pauseOnChainInvestments = async (
+  connection: Connection,
+  wallet: any,
+  projectId: number,
+  paused: boolean
+): Promise<{ signature: string }> => {
+  if (!wallet.publicKey) throw new Error('Wallet not connected');
+
+  const program  = getRegistryProgram(connection, wallet);
+  const registry = getRegistryPDA();
+  const project  = getProjectPDA(new BN(projectId));
+
+  const instruction = await program.methods
+    .pauseInvestments(paused)
+    .accounts({ registry, project, admin: wallet.publicKey } as any)
+    .instruction();
+
+  const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash('finalized');
+  const { Transaction } = await import('@solana/web3.js');
+  const tx = new Transaction();
+  tx.add(instruction);
+  tx.recentBlockhash = blockhash;
+  tx.feePayer = wallet.publicKey;
+
+  const signature = await wallet.sendTransaction(tx, connection, { skipPreflight: true, maxRetries: 3 });
+  await connection.confirmTransaction({ signature, blockhash, lastValidBlockHeight }, 'confirmed');
+
+  return { signature };
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// PAUSE / RESUME TOKEN TRANSFERS
+// ─────────────────────────────────────────────────────────────────────────────
+
+export const pauseOnChainTransfers = async (
+  connection: Connection,
+  wallet: any,
+  projectId: number,
+  paused: boolean
+): Promise<{ signature: string }> => {
+  if (!wallet.publicKey) throw new Error('Wallet not connected');
+
+  const program  = getRegistryProgram(connection, wallet);
+  const registry = getRegistryPDA();
+  const project  = getProjectPDA(new BN(projectId));
+
+  const instruction = await program.methods
+    .pauseTransfers(paused)
+    .accounts({ registry, project, admin: wallet.publicKey } as any)
+    .instruction();
+
+  const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash('finalized');
+  const { Transaction } = await import('@solana/web3.js');
+  const tx = new Transaction();
+  tx.add(instruction);
+  tx.recentBlockhash = blockhash;
+  tx.feePayer = wallet.publicKey;
+
+  const signature = await wallet.sendTransaction(tx, connection, { skipPreflight: true, maxRetries: 3 });
+  await connection.confirmTransaction({ signature, blockhash, lastValidBlockHeight }, 'confirmed');
+
+  return { signature };
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// SET PROJECT ACTIVE / INACTIVE  (super_admin only on-chain)
+// ─────────────────────────────────────────────────────────────────────────────
+
+export const setOnChainProjectActive = async (
+  connection: Connection,
+  wallet: any,
+  projectId: number,
+  isActive: boolean
+): Promise<{ signature: string }> => {
+  if (!wallet.publicKey) throw new Error('Wallet not connected');
+
+  const program  = getRegistryProgram(connection, wallet);
+  const registry = getRegistryPDA();
+  const project  = getProjectPDA(new BN(projectId));
+
+  const instruction = await program.methods
+    .setProjectActive(isActive)
+    .accounts({ registry, project, superAdmin: wallet.publicKey } as any)
+    .instruction();
+
+  const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash('finalized');
+  const { Transaction } = await import('@solana/web3.js');
+  const tx = new Transaction();
+  tx.add(instruction);
+  tx.recentBlockhash = blockhash;
+  tx.feePayer = wallet.publicKey;
+
+  const signature = await wallet.sendTransaction(tx, connection, { skipPreflight: true, maxRetries: 3 });
+  await connection.confirmTransaction({ signature, blockhash, lastValidBlockHeight }, 'confirmed');
+
+  return { signature };
+};

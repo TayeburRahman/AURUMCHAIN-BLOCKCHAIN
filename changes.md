@@ -2,6 +2,34 @@
 
 ---
 
+## Feature: On-Chain Project Edit Integration + Pause/Toggle Controls
+**Timestamp:** 2026-04-13T15:27:00+06:00
+Wired the `updateProjectParams`, `pauseInvestments`, `pauseTransfers`, and `setProjectActive` on-chain instructions into the admin frontend. Admins can now edit live subscription windows, min/max investment thresholds, lockup dates and distribution cadence directly on a deployed project — all signed by Phantom wallet and confirmed on Solana Devnet before the Supabase record is updated. Pause/resume and transfer-lock toggles are available per card without opening the edit form.
+
+### File: `lib/solana/projectRegistry.ts`
+
+| Line Numbers | Feature Added | Reason for Addition |
+| :--- | :--- | :--- |
+| **136–150** | `UpdateProjectParams` interface | Typed contract for the 6 mutable on-chain fields (`minInvestmentUsdc`, `maxInvestmentUsdc`, `subscriptionStart`, `subscriptionEnd`, `distributionCadence`, `lockupEndTs`). All fields are `BN \| null` matching Rust `Option<T>` — `null` = keep current chain value. |
+| **152–196** | `updateOnChainProjectParams(connection, wallet, projectId, params)` | Calls the `updateProjectParams` IDL instruction for an already-deployed project. Uses manual `Transaction` assembly with `skipPreflight: true` to avoid Phantom simulation errors. Uses `getLatestBlockhash('finalized')` for a fresh blockhash. Waits for `confirmed` commitment before resolving. |
+| **200–230** | `pauseOnChainInvestments(connection, wallet, projectId, paused)` | Calls the `pauseInvestments` IDL instruction. `paused=true` blocks new investor subscriptions on-chain; `paused=false` reopens them. Same manual TX pattern as all other instructions. |
+| **234–262** | `pauseOnChainTransfers(connection, wallet, projectId, paused)` | Calls the `pauseTransfers` IDL instruction. Freezes SPL token transfer authority when `paused=true`. Used for compliance holds without needing a contract redeployment. |
+| **266–298** | `setOnChainProjectActive(connection, wallet, projectId, isActive)` | Calls the `setProjectActive` IDL instruction (super_admin only on-chain). Sets `is_active` flag; when `false` the project is effectively archived on-chain. |
+
+### File: `components/admin/ProjectsManagement.tsx`
+
+| Line Numbers | Feature Added | Reason for Addition |
+| :--- | :--- | :--- |
+| **7–13** | Extended import block — `updateOnChainProjectParams`, `pauseOnChainInvestments`, `pauseOnChainTransfers`, `setOnChainProjectActive` | Required to call the four new chain functions. These are tree-shaken so they add zero bundle weight when the admin isn't using them. |
+| **110** | Comment `// Step 1: Blockchain — create NEW or UPDATE existing` | Clarifies the bifurcation in `handleSubmit` between create and edit paths. |
+| **134–168** | `else if (editingProject.blockchain_project_id !== null)` branch in `handleSubmit` | When editing a chain-linked project, builds a `chainUpdateParams` object with only the fields that are non-null in `formData`. If at least one field is populated, calls `updateOnChainProjectParams` before the Supabase `PUT`. If no mutable field changed, the chain call is skipped entirely (no unnecessary transaction fee). Errors from the chain call surface immediately before the DB is touched. |
+| **136** | `Parameters<typeof updateOnChainProjectParams>[3]` typed object | Zero-cast type extraction from the function signature — guarantees the keys accepted by `handleSubmit` match exactly what `updateOnChainProjectParams` accepts, catching mismatches at compile time. |
+| **138–149** | Individual field guards (`if (formData.min_investment !== undefined...)`) | Each on-chain field is only included in `chainUpdateParams` if it has a real value. Sending a `0` or empty string would corrupt on-chain data, so every field has an explicit presence check before creating the `BN`. |
+| **348–381** | `handleChainToggle(project, action)` function | Unified handler for all 4 boolean on-chain state changes (`pauseInvestments`, `resumeInvestments`, `pauseTransfers`, `resumeTransfers`). Checks for wallet connection and `blockchain_project_id` before submitting. Reuses `setStatusChanging(project.id)` so the card disables during the in-flight transaction. |
+| **854–877** | On-chain toggle button group inside card action area | Renders `⏸ Pause Inv.` / `▶ Resume Inv.` and `🔒 Pause Tx` mini-buttons for every card where `blockchain_project_id` is not null. Hidden for off-chain-only projects. Uses the same `disabled={statusChanging === project.id}` guard as the status dropdown. Buttons match the existing `text-xs font-medium rounded` aesthetic with color-coded variants (orange for investment pause, yellow for transfer pause). |
+
+---
+
 ## Feature: Blank Stats Fix — On-Chain Derived Display Values
 **Timestamp:** 2026-04-13T12:48:00+06:00
 Fixed blank `Token Price`, `Duration`, and `Token Supply` fields on the user-facing `/projects` cards for projects imported from the blockchain. These three fields don't exist in the on-chain `ProjectAccount` struct so they were `null` in Supabase. Cards now derive display values from available chain data.
