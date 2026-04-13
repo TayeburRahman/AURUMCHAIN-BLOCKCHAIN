@@ -4,7 +4,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
+import { createClient, createAdminClient } from '@/lib/supabase/server';
 import { AdminService, createAuditLog } from '@/lib/domains/admin/service';
 import { Database } from '@/lib/types/database.types';
 
@@ -19,7 +19,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // Check if user is admin
+    // securely verify role via business logic
     const isAdmin = await AdminService.isAdmin(user.id);
     if (!isAdmin) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
@@ -27,8 +27,11 @@ export async function POST(request: NextRequest) {
 
     const body: ProjectInsert = await request.json();
 
+    // Use admin client to bypass physical postgres RLS blocks since business logic has already vetted the actor
+    const adminSupabase = createAdminClient();
+
     // Create project
-    const { data: project, error } = await supabase
+    const { data: project, error } = await adminSupabase
       .from('projects')
       .insert({
         name: body.name,

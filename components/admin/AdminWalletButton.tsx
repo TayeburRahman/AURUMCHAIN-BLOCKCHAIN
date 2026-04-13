@@ -1,6 +1,12 @@
 "use client";
 
-import { WalletMultiButton } from '@solana/wallet-adapter-react-ui';
+import dynamic from 'next/dynamic';
+
+const WalletMultiButton = dynamic(
+  () => import('@solana/wallet-adapter-react-ui').then((mod) => mod.WalletMultiButton),
+  { ssr: false }
+);
+
 import { useWalletStatus } from '@/hooks/useWalletStatus';
 
 export default function AdminWalletButton() {

@@ -4,7 +4,12 @@ import { useState } from 'react';
 import { useWalletStatus } from '@/hooks/useWalletStatus';
 // EVM Import Commented Out
 // import { ConnectButton } from '@rainbow-me/rainbowkit';
-import { WalletMultiButton } from '@solana/wallet-adapter-react-ui';
+import dynamic from 'next/dynamic';
+
+const WalletMultiButton = dynamic(
+  () => import('@solana/wallet-adapter-react-ui').then((mod) => mod.WalletMultiButton),
+  { ssr: false }
+);
 
 export function WalletBanner() {
   const { isWalletConnected, isWalletLinked, linkWallet, isLinking, error, investorTier } = useWalletStatus();
@@ -93,7 +98,7 @@ export function WalletBanner() {
 
                   {/* Solana Button */}
                   <WalletMultiButton 
-                    className="!h-[50px] !px-6 !bg-gradient-to-r !from-gold !to-[#b5952f] !text-navy !font-bold !rounded-lg hover:!scale-105 !transition-transform !shadow-lg !shadow-gold/20 flex items-center justify-center w-auto"
+                    className="!h-[50px] !px-6 !bg-gradient-to-r !from-gold !to-[#b5952f] !text-navy !font-bold !rounded-lg hover:!scale-105 !transition-transform !shadow-lg !shadow-gold/20 flex flex-shrink-0 items-center justify-center w-auto whitespace-nowrap min-w-[160px]"
                   />
 
                   <div className="flex items-center gap-2 text-xs text-gray-400 mt-2">

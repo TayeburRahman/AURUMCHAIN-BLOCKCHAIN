@@ -2,6 +2,10 @@
 
 import { useState } from 'react';
 import { Database } from '@/lib/types/database.types';
+import { useWallet, useConnection } from '@solana/wallet-adapter-react';
+import { createOnChainProject } from '@/lib/solana/projectRegistry';
+import { PublicKey } from '@solana/web3.js';
+import { BN } from '@coral-xyz/anchor';
 
 type Project = Database['public']['Tables']['projects']['Row'];
 type ProjectInsert = Database['public']['Tables']['projects']['Insert'];
@@ -12,6 +16,8 @@ interface ProjectsManagementProps {
 }
 
 export default function ProjectsManagement({ initialProjects, userId }: ProjectsManagementProps) {
+  const { connection } = useConnection();
+  const wallet = useWallet();
   const [projects, setProjects] = useState<Project[]>(initialProjects);
   const [showForm, setShowForm] = useState(false);
   const [editingProject, setEditingProject] = useState<Project | null>(null);
@@ -90,10 +96,40 @@ export default function ProjectsManagement({ initialProjects, userId }: Projects
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (loading) return; // Prevent double-clicks causing concurrent Phantom popups
     setLoading(true);
     setError(null);
 
     try {
+      if (!wallet.connected) {
+        throw new Error("Admin wallet is not connected. Please connect your Phantom wallet to sign the transaction.");
+      }
+
+      // Step 1: Create project on Solana Devnet FIRST
+      if (!editingProject) {
+        try {
+          const blockParams = {
+            name: formData.name || 'Unnamed Project',
+            symbol: formData.token_symbol || 'TKN',
+            uri: formData.metadata_uri || 'https://metadata.placeholder',
+            supplyCap: new BN(formData.total_tokens || 1000000),
+            minInvestmentUsdc: new BN((formData.min_investment || 100) * 1_000_000), // Default 6 decimals
+            maxInvestmentUsdc: new BN((formData.funding_goal || 1_000_000) * 1_000_000),
+            acceptedStablecoin: new PublicKey(formData.accepted_stablecoin || process.env.NEXT_PUBLIC_USDC_MINT || 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v'),
+            treasuryWallet: new PublicKey(formData.treasury_wallet || wallet.publicKey!.toBase58()),
+            lockupEndTs: new BN(Math.floor(new Date(formData.lockup_end_date || Date.now()).getTime() / 1000)),
+            subscriptionStart: new BN(Math.floor(new Date(formData.start_date || Date.now()).getTime() / 1000)),
+            subscriptionEnd: new BN(Math.floor(new Date(formData.expected_completion_date || Date.now() + 86400000).getTime() / 1000)),
+            distributionCadence: formData.distribution_cadence || 0,
+          };
+          
+          await createOnChainProject(connection, wallet, blockParams);
+        } catch (chainErr: any) {
+          throw new Error("Blockchain Transaction Failed: " + chainErr.message);
+        }
+      }
+
+      // Step 2: Save metadata to Supabase
       const url = editingProject
         ? `/api/admin/projects/${editingProject.id}`
         : '/api/admin/projects';
@@ -108,7 +144,7 @@ export default function ProjectsManagement({ initialProjects, userId }: Projects
 
       if (!response.ok) {
         const data = await response.json();
-        throw new Error(data.error || 'Failed to save project');
+        throw new Error(data.error || 'Failed to save project to off-chain DB');
       }
 
       const savedProject = await response.json();

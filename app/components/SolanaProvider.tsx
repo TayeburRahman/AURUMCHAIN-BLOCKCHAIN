@@ -9,7 +9,6 @@ import { WalletModalProvider } from "@solana/wallet-adapter-react-ui";
 import "@solana/wallet-adapter-react-ui/styles.css";
 
 export function SolanaProvider({ children }: { children: React.ReactNode }) {
-  // Can be configured from environment variable
   const network = WalletAdapterNetwork.Devnet;
   const endpoint = useMemo(() => clusterApiUrl(network), [network]);
   
@@ -22,8 +21,14 @@ export function SolanaProvider({ children }: { children: React.ReactNode }) {
   );
 
   return (
-    <ConnectionProvider endpoint={endpoint}>
-      <WalletProvider wallets={wallets} autoConnect>
+    <ConnectionProvider 
+      endpoint={endpoint} 
+      config={{ 
+        commitment: 'confirmed',
+        fetch: (url, options) => fetch(url, { ...options, cache: 'no-store' }) 
+      }}
+    >
+      <WalletProvider wallets={wallets} autoConnect={false}>
         <WalletModalProvider>{children}</WalletModalProvider>
       </WalletProvider>
     </ConnectionProvider>
