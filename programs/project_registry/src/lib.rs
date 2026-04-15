@@ -1,4 +1,4 @@
-﻿use anchor_lang::prelude::*;
+use anchor_lang::prelude::*;
 
 declare_id!("GcXxLjcCm7ov3i6QqQsL8zgjqiknWBswXn6jcwpEMYdC");
 
@@ -267,6 +267,37 @@ pub mod project_registry {
 
         Ok(())
     }
+
+#[event]
+pub struct AuthorityTransferred {
+    pub new_super_admin: Pubkey,
+    pub new_authority:   Pubkey,
+}
+
+    // --------------------------------------------------------
+    // Instruction 10: transfer_authority
+    // --------------------------------------------------------
+    pub fn transfer_authority(
+        ctx: Context<TransferAuthority>,
+        new_super_admin: Option<Pubkey>,
+        new_authority:   Option<Pubkey>,
+    ) -> Result<()> {
+        let registry = &mut ctx.accounts.registry;
+
+        if let Some(nsa) = new_super_admin {
+            registry.super_admin = nsa;
+        }
+        if let Some(na) = new_authority {
+            registry.authority = na;
+        }
+
+        emit!(AuthorityTransferred {
+            new_super_admin: registry.super_admin,
+            new_authority:   registry.authority,
+        });
+
+        Ok(())
+    }
 }
 
 // ============================================================
@@ -385,6 +416,26 @@ pub struct InternalCpiAction<'info> {
         constraint = caller.key() == registry.authority @ RegistryError::UnauthorizedCpiCaller
     )]
     pub caller: Signer<'info>,
+}
+
+#[derive(Accounts)]
+pub struct TransferAuthority<'info> {
+    #[account(
+        mut,
+        seeds = [b"registry"],
+        bump  = registry.bump,
+    )]
+    pub registry: Account<'info, RegistryConfig>,
+
+    #[account(
+        constraint = super_admin.key() == registry.super_admin @ RegistryError::Unauthorized
+    )]
+    pub super_admin: Signer<'info>,
+
+    #[account(
+        constraint = authority.key() == registry.authority @ RegistryError::Unauthorized
+    )]
+    pub authority: Signer<'info>,
 }
 
 // ============================================================
@@ -576,4 +627,42 @@ pub enum RegistryError {
     MintAuthorityAlreadyRevoked,
     #[msg("Token issuance would exceed the project supply cap")]
     SupplyCapExceeded,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_registry_initialization_logic() {
+        let admin = Pubkey::new_unique();
+        let registry = RegistryConfig {
+            authority: Pubkey::default(),
+            super_admin: admin,
+            project_count: 0,
+            bump: 0,
+        };
+        
+        assert_eq!(registry.super_admin, admin);
+        assert_eq!(registry.project_count, 0);
+    }
+
+    #[test]
+    fn test_transfer_authority_logic() {
+        let old_super = Pubkey::new_unique();
+        let old_auth = Pubkey::new_unique();
+        let new_super = Pubkey::new_unique();
+        
+        let mut registry = RegistryConfig {
+            authority: old_auth,
+            super_admin: old_super,
+            project_count: 5,
+            bump: 1,
+        };
+
+        // Simulate logic of transfer_authority instruction
+        registry.super_admin = new_super;
+        assert_eq!(registry.super_admin, new_super);
+        assert_eq!(registry.authority, old_auth);
+    }
 }

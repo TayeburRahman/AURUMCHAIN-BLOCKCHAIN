@@ -87,6 +87,18 @@
         { "name": "caller", "isMut": false, "isSigner": true }
       ],
       "args": [{ "name": "amount", "type": "u64" }]
+    },
+    {
+      "name": "transferAuthority",
+      "accounts": [
+        { "name": "registry", "isMut": true, "isSigner": false },
+        { "name": "superAdmin", "isMut": false, "isSigner": true },
+        { "name": "authority", "isMut": false, "isSigner": true }
+      ],
+      "args": [
+        { "name": "newSuperAdmin", "type": { "option": "publicKey" } },
+        { "name": "newAuthority", "type": { "option": "publicKey" } }
+      ]
     }
   ],
   "accounts": [
@@ -226,6 +238,13 @@
         { "name": "amountIssued", "type": "u64", "index": false },
         { "name": "totalIssued", "type": "u64", "index": false },
         { "name": "supplyCap", "type": "u64", "index": false }
+      ]
+    },
+    {
+      "name": "AuthorityTransferred",
+      "fields": [
+        { "name": "newSuperAdmin", "type": "publicKey", "index": false },
+        { "name": "newAuthority", "type": "publicKey", "index": false }
       ]
     }
   ],

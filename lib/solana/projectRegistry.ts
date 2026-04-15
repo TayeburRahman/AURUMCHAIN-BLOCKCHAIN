@@ -1,6 +1,6 @@
 import { Program, AnchorProvider, setProvider, BN } from '@coral-xyz/anchor';
 import { Connection, PublicKey, SystemProgram } from '@solana/web3.js';
-import idl from '@/programs/project_registry/src/idl.json';
+import idl from '../../programs/project_registry/src/idl.json';
 
 // Define the program ID dynamically (or default to the one in lib.rs)
 export const PROJECT_REGISTRY_PROGRAM_ID = new PublicKey(

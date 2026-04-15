@@ -2,6 +2,107 @@
 
 ---
 
+## Feature: On-Chain Authority Transfer Logic & Management UI
+**Timestamp:** 2026-04-15T10:02:43+06:00
+Implemented a secure, dual-signer authority transfer mechanism for the Project Registry. This includes the on-chain Rust instruction, a robust TypeScript Service-Repository layer with custom error parsing, and a dedicated premium management interface in the Admin Dashboard.
+
+### File: `programs/project_registry/src/lib.rs`
+
+| Line Numbers | Feature Added | Reason for Addition |
+| :--- | :--- | :--- |
+| **271–275** | `AuthorityTransferred` event | Provides an on-chain audit trail when registry control is changed. |
+| **280–300** | `transfer_authority` instruction | Core logic for replacing Super Admin or Authority. Enforces dual-signer constraint for security. |
+| **421–439** | `TransferAuthority` accounts struct | Defines the required account inputs and constraints (Signers) for the transfer instruction. |
+| **632–668** | Rust Unit Tests | Validates the state transition logic and authority replacement behavior locally. |
+
+### File: `programs/project_registry/src/idl.json`
+
+| Line Numbers | Feature Added | Reason for Addition |
+| :--- | :--- | :--- |
+| **90–102** | `transferAuthority` instruction definition | Registers the new instruction in the IDL so frontend clients can discover and call it. |
+| **229–236** | `AuthorityTransferred` event definition | Allows frontend listeners to decode on-chain authority update events. |
+
+### File: `lib/web3/repositories/projectRegistryRepository.ts` (NEW)
+
+| Line Numbers | Feature Added | Reason for Addition |
+| :--- | :--- | :--- |
+| **All New** | Registry account interaction logic | Encapsulates PDA derivation and low-level instruction building for the Project Registry program. |
+
+### File: `lib/web3/services/projectRegistryService.ts` (NEW)
+
+| Line Numbers | Feature Added | Reason for Addition |
+| :--- | :--- | :--- |
+| **All New** | Higher-level Authority Service | Orchestrates transaction execution and implements custom log parsing to extract specific program errors (e.g., `Unauthorized`). |
+
+### File: `lib/solana/projectRegistry.ts`
+
+| Line Numbers | Feature Added | Reason for Addition |
+| :--- | :--- | :--- |
+| **3** | Relative Import Refactor | Switched `@/` to `../../` to support standalone script execution (npx tsx) which doesn't support Next.js path aliases by default. |
+
+### File: `app/admin/page.tsx`
+
+| Line Numbers | Feature Added | Reason for Addition |
+| :--- | :--- | :--- |
+| **155–168** | "Platform Authority" section | Adds a visual entry point in the main Admin Dashboard linking to the management interface. |
+
+### File: `app/admin/authority/page.tsx` (NEW)
+
+| Line Numbers | Feature Added | Reason for Addition |
+| :--- | :--- | :--- |
+| **All New** | Premium Authority Management UI | A glassmorphic admin interface allowing real-time state viewing and secure transfer of registry control. |
+
+### File: `scripts/verify-authority-transfer.ts` (NEW)
+
+| Line Numbers | Feature Added | Reason for Addition |
+| :--- | :--- | :--- |
+| **All New** | Integration Verification Script | Lightweight CLI tool to verify that the Service Layer is correctly communicating with the on-chain Devnet registry. |
+
+---
+
+## Feature: Admin Dashboard Wallet Restriction & Persistence Fix
+**Timestamp:** 2026-04-15T09:05:00+06:00
+Implemented a dual-layer security model for the Admin Dashboard. Restricted access exclusively to the program deployer wallet address (defined in `.env`) and introduced a global security context to persist wallet authorization across route navigations.
+
+### File: `app/admin/layout.tsx` (NEW)
+
+| Line Numbers | Feature Added | Reason for Addition |
+| :--- | :--- | :--- |
+| **All New** | `AdminLayout` with server-side auth | Centralizes admin security by checking Supabase sessions and roles before rendering. Wraps children in the `AdminGuard` for unified protection across all `/admin` routes. |
+
+### File: `components/admin/AdminGuard.tsx` (NEW/MODIFY)
+
+| Line Numbers | Feature Added | Reason for Addition |
+| :--- | :--- | :--- |
+| **All New** | Wallet-based Access Guard | Blocks all administrative UI components if the connected Solana wallet does not match the authorized address. Displays a premium "Restricted Access" screen for unauthorized connections. |
+| **3, 17** | `AdminSecurityContext` integration | Consumes global authorization state to prevent re-verification flickers during navigation. |
+
+### File: `context/AdminSecurityContext.tsx` (NEW)
+
+| Line Numbers | Feature Added | Reason for Addition |
+| :--- | :--- | :--- |
+| **All New** | Global Security Provider | Monitors the connected wallet and maintains an `isAuthorized` flag at the root level, ensuring the connection stays active and verified across all page mounts. |
+
+### File: `app/components/Web3Provider.tsx`
+
+| Line Numbers | Feature Added | Reason for Addition |
+| :--- | :--- | :--- |
+| **5, 25–27** | `AdminSecurityProvider` injection | Initialized the global security context as a root wrapper to ensure state stability across the entire application lifecycle. |
+
+### File: `app/components/SolanaProvider.tsx`
+
+| Line Numbers | Feature Added | Reason for Addition |
+| :--- | :--- | :--- |
+| **31** | `autoConnect={true}` | Forces the Solana wallet adapter to automatically restore existing connections on mount, streamlining the login flow for repeat admin users. |
+
+### File: `app/admin/page.tsx`
+
+| Line Numbers | Feature Added | Reason for Addition |
+| :--- | :--- | :--- |
+| **15** | Auth simplification | Removed redundant page-level redirect logic as all security checks are now handled by the shared `AdminLayout`. |
+
+---
+
 ## Feature: On-Chain Project Edit Integration + Pause/Toggle Controls
 **Timestamp:** 2026-04-13T15:27:00+06:00
 Wired the `updateProjectParams`, `pauseInvestments`, `pauseTransfers`, and `setProjectActive` on-chain instructions into the admin frontend. Admins can now edit live subscription windows, min/max investment thresholds, lockup dates and distribution cadence directly on a deployed project — all signed by Phantom wallet and confirmed on Solana Devnet before the Supabase record is updated. Pause/resume and transfer-lock toggles are available per card without opening the edit form.

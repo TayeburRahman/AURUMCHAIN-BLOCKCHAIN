@@ -151,6 +151,20 @@ export default async function AdminPage() {
               'User Activity',
             ]}
           />
+
+          {/* Platform Authority Section */}
+          <AdminSection
+            title="Platform Authority"
+            icon="🔑"
+            description="Manage registry administrators"
+            href="/admin/authority"
+            items={[
+              'View Current Super Admin',
+              'Update Operational Authority',
+              'Transfer Master Control',
+              'Registry PDA Status',
+            ]}
+          />
         </div>
       </div>
     </div>
