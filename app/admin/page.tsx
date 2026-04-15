@@ -12,17 +12,8 @@ export default async function AdminPage() {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
 
-  if (!user) {
-    redirect('/login');
-  }
-
-  // Check if user is admin
-  const isAdmin = await AdminService.isAdmin(user.id);
-  if (!isAdmin) {
-    redirect('/dashboard');
-  }
-
-  const roles = await AdminService.getUserRoles(user.id);
+  // User is guaranteed to exist and be an admin by the layout
+  const roles = await AdminService.getUserRoles(user!.id);
 
   return (
     <div className="min-h-screen bg-navy pt-24 px-6">
