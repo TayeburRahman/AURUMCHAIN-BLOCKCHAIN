@@ -1,8 +1,8 @@
 "use client";
 
-import { useWallet } from "@solana/wallet-adapter-react";
+import { useAdminSecurity } from "@/context/AdminSecurityContext";
 import dynamic from "next/dynamic";
-import { ReactNode, useEffect, useState } from "react";
+import { ReactNode } from "react";
 
 const WalletMultiButton = dynamic(
   () => import("@solana/wallet-adapter-react-ui").then((mod) => mod.WalletMultiButton),
@@ -14,24 +14,7 @@ interface AdminGuardProps {
 }
 
 export default function AdminGuard({ children }: AdminGuardProps) {
-  const { publicKey, connected } = useWallet();
-  const [isAuthorized, setIsAuthorized] = useState<boolean | null>(null);
-
-  const AUTHORIZED_ADMIN_WALLET = process.env.NEXT_PUBLIC_ADMIN_WALLET;
-
-  useEffect(() => {
-    if (!connected) {
-      setIsAuthorized(false);
-      return;
-    }
-
-    if (publicKey && AUTHORIZED_ADMIN_WALLET) {
-      const walletAddress = publicKey.toBase58();
-      setIsAuthorized(walletAddress === AUTHORIZED_ADMIN_WALLET);
-    } else {
-      setIsAuthorized(false);
-    }
-  }, [publicKey, connected, AUTHORIZED_ADMIN_WALLET]);
+  const { isAuthorized } = useAdminSecurity();
 
   // Loading state
   if (isAuthorized === null) {

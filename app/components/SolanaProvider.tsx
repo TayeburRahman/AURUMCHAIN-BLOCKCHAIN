@@ -28,7 +28,7 @@ export function SolanaProvider({ children }: { children: React.ReactNode }) {
         fetch: (url, options) => fetch(url, { ...options, cache: 'no-store' }) 
       }}
     >
-      <WalletProvider wallets={wallets} autoConnect={false}>
+      <WalletProvider wallets={wallets} autoConnect={true}>
         <WalletModalProvider>{children}</WalletModalProvider>
       </WalletProvider>
     </ConnectionProvider>

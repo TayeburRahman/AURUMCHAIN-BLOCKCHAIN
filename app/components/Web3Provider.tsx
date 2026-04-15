@@ -2,6 +2,7 @@
 
 import { QueryClientProvider, QueryClient } from '@tanstack/react-query';
 import { SolanaProvider } from './SolanaProvider';
+import { AdminSecurityProvider } from '@/context/AdminSecurityContext';
 
 // EVM Imports Commented Out
 /*
@@ -21,7 +22,9 @@ export function Web3Provider({ children }: { children: React.ReactNode }) {
     <QueryClientProvider client={queryClient}>
       {/* Solana Wrapper */}
       <SolanaProvider>
-        {children}
+        <AdminSecurityProvider>
+          {children}
+        </AdminSecurityProvider>
       </SolanaProvider>
 
       {/* EVM Wrapper Commented Out */}
