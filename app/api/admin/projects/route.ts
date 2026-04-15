@@ -58,6 +58,7 @@ export async function POST(request: NextRequest) {
         // Blockchain linkage — store so we can fetch on-chain data later
         blockchain_signature:   body.blockchain_signature   ?? null,
         blockchain_project_id:  body.blockchain_project_id  ?? null,
+        mint_address:           (body as any).mint_address  ?? null,
       })
       .select()
       .single();

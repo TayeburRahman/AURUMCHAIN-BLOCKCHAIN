@@ -71,6 +71,8 @@ export async function PUT(
         images: body.images,
         documents: body.documents,
         video_url: body.video_url,
+        mint_address: body.mint_address,
+        mint_authority_revoked: body.mint_authority_revoked,
         updated_at: new Date().toISOString(),
       })
       .eq('id', id)

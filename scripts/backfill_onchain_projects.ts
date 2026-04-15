@@ -103,9 +103,11 @@ async function main() {
       .maybeSingle();
 
     if (existing) {
-      console.log(`  [ID=${id}] "${name}" already in DB (${existing.id}) — updating blockchain linkage`);
+      console.log(`  [ID=${id}] "${name}" already in DB (${existing.id}) — updating blockchain linkage & mint info`);
       await supabase.from('projects').update({
         blockchain_project_id: id,
+        mint_address: account.mint.toString() !== DEFAULT_PUBKEY ? account.mint.toString() : null,
+        mint_authority_revoked: account.mintAuthorityRevoked,
         status,
       }).eq('id', existing.id);
       skipped++;
@@ -131,6 +133,8 @@ async function main() {
       available_tokens: supplyCap - (account.tokensIssued as BN).toNumber(),
       status,
       blockchain_project_id: id,
+      mint_address: account.mint.toString() !== DEFAULT_PUBKEY ? account.mint.toString() : null,
+      mint_authority_revoked: account.mintAuthorityRevoked,
       images: [],
       documents: [],
     }).select('id').single();

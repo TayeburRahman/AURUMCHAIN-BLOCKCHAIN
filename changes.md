@@ -2,6 +2,34 @@
 
 ---
 
+## Feature: Automated SPL Token Mint & Metaplex Metadata Integration
+**Timestamp:** 2026-04-15T15:05:00+06:00
+Implemented a professional, atomic project initialization flow. When an admin creates a project, the system now automatically generates a new SPL Token Mint, registers on-chain branding via Metaplex (Name, Symbol, URI), and links the mint to the registry in a single transaction.
+
+### File: `lib/solana/projectRegistry.ts`
+
+| Line Numbers | Feature Added | Reason for Addition |
+| :--- | :--- | :--- |
+| **4–16** | Metaplex & SPL Token Imports | Added `@solana/spl-token` and `@metaplex-foundation/mpl-token-metadata` to support on-chain asset creation. |
+| **51–63** | `getMetadataPDA(mint)` | Helper function to derive the Metaplex Metadata PDA account address using the standard seeds. |
+| **73–155** | `createOnChainProject` Rewrite | Completely overhauled to bundle 5 instructions: Mint Account Creation, Initialize Mint, Create Metadata, Create Registry Project, and Set Project Mint. Uses `partialSign(mintKeypair)` to authorize the new mint. |
+| **142** | Decimal/Supply Multiplier | Forces `1,000,000` (6 decimals) multiplication for the `supplyCap` to ensure the on-chain raw units match the "Total Tokens" display. |
+
+### File: `components/admin/ProjectsManagement.tsx`
+
+| Line Numbers | Feature Added | Reason for Addition |
+| :--- | :--- | :--- |
+| **136–141** | `mint_address` Capture | Updated the submission handler to receive the newly generated `mintAddress` from the blockchain and pass it to the backend. |
+| **919–931** | 💎 Mint Address Display | Added a visual badge and direct link to Solscan for the Token Mint on every project card. |
+
+### File: `app/api/admin/projects/route.ts`
+
+| Line Numbers | Feature Added | Reason for Addition |
+| :--- | :--- | :--- |
+| **61** | `mint_address` Persistence | Updated the POST handler to save the automated mint address into the Supabase database. |
+
+---
+
 ## Feature: On-Chain Authority Transfer Logic & Management UI
 **Timestamp:** 2026-04-15T10:02:43+06:00
 Implemented a secure, dual-signer authority transfer mechanism for the Project Registry. This includes the on-chain Rust instruction, a robust TypeScript Service-Repository layer with custom error parsing, and a dedicated premium management interface in the Admin Dashboard.
@@ -286,11 +314,8 @@ Replaced static hardcoded arrays on the public and admin projects pages with liv
 
 ---
 
-**Timestamp:** 2026-04-12T16:30:00+06:00
-
-
-
 ## Feature: On-Chain Compatibility for Project Creation
+**Timestamp:** 2026-04-12T16:30:00+06:00
 Integrated required blockchain smart contract parameters directly into the admin visual workflow without breaking existing UI logic.
 
 ### File: `components/admin/ProjectsManagement.tsx`

@@ -10,6 +10,8 @@ import {
   pauseOnChainInvestments,
   pauseOnChainTransfers,
   setOnChainProjectActive,
+  setProjectOnChainMint,
+  revokeOnChainMintAuthority,
 } from '@/lib/solana/projectRegistry';
 import { PublicKey } from '@solana/web3.js';
 import { BN } from '@coral-xyz/anchor';
@@ -134,6 +136,7 @@ export default function ProjectsManagement({ initialProjects, userId }: Projects
           const chainResult = await createOnChainProject(connection, wallet, blockParams);
           formData.blockchain_signature  = chainResult.signature;
           (formData as any).blockchain_project_id = chainResult.projectId;
+          (formData as any).mint_address = chainResult.mintAddress;
         } catch (chainErr: any) {
           throw new Error('Blockchain Transaction Failed: ' + chainErr.message);
         }
@@ -370,10 +373,64 @@ export default function ProjectsManagement({ initialProjects, userId }: Projects
         await setOnChainProjectActive(connection, wallet, project.blockchain_project_id, true);
       else if (action === 'deactivate')
         await setOnChainProjectActive(connection, wallet, project.blockchain_project_id, false);
+      else if (action === 'revokeMintAuthority') {
+        if (!confirm('WARNING: Revoking mint authority is irreversible. You will not be able to issue any more tokens for this project. PROCEED?')) {
+          setStatusChanging(null);
+          return;
+        }
+        const result = await revokeOnChainMintAuthority(connection, wallet, project.blockchain_project_id);
+        
+        // Sync with Supabase
+        await fetch(`/api/admin/projects/${project.id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ mint_authority_revoked: true }),
+        });
+        
+        alert(`Success! Mint authority revoked.\nTX: ${result.signature}`);
+      }
     } catch (err: any) {
       setError(err.message);
     } finally {
       setStatusChanging(null);
+    }
+  };
+
+  const handleSetMint = async (project: Project) => {
+    const mintAddress = prompt('Enter the SPL Token Mint Address for this project:');
+    if (!mintAddress || !project.blockchain_project_id) return;
+
+    try {
+      new PublicKey(mintAddress); // Validate pubkey format
+    } catch (e) {
+      alert('Invalid Solana address format.');
+      return;
+    }
+
+    setLoading(true);
+    setError(null);
+    try {
+      const result = await setProjectOnChainMint(
+        connection,
+        wallet,
+        project.blockchain_project_id,
+        mintAddress
+      );
+
+      // Sync with Supabase
+      const response = await fetch(`/api/admin/projects/${project.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ mint_address: mintAddress }),
+      });
+
+      if (!response.ok) throw new Error('On-chain success, but failed to update Supabase.');
+
+      alert(`Success! Project mint set to: ${mintAddress}\nTX: ${result.signature}`);
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -859,8 +916,20 @@ export default function ProjectsManagement({ initialProjects, userId }: Projects
                       target="_blank" rel="noopener noreferrer"
                       className="text-xs text-gray-500 hover:text-gold underline underline-offset-2"
                     >
-                      {project.blockchain_signature.slice(0, 12)}…
+                      Tx: {project.blockchain_signature.slice(0, 12)}…
                     </a>
+
+                    {/* Mint Address Link */}
+                    {(project as any).mint_address && (
+                      <a
+                        href={`https://solscan.io/token/${(project as any).mint_address}?cluster=devnet`}
+                        target="_blank" rel="noopener noreferrer"
+                        className="text-xs text-gray-400 hover:text-gold flex items-center gap-1 group transition-colors"
+                      >
+                        <span className="text-gold opacity-60 group-hover:opacity-100">💎</span>
+                        <span className="underline underline-offset-2">Mint: {(project as any).mint_address.slice(0, 8)}…</span>
+                      </a>
+                    )}
                   </div>
                 )}
               </div>
@@ -905,6 +974,37 @@ export default function ProjectsManagement({ initialProjects, userId }: Projects
                     >
                       🔒 Pause Tx
                     </button>
+
+                    {/* Set Mint Button */}
+                    {!(project as any).mint_address && (
+                      <button
+                        title="Link an SPL Token Mint to this project"
+                        disabled={loading || statusChanging === project.id}
+                        onClick={() => handleSetMint(project)}
+                        className="px-2 py-1 rounded text-xs font-bold bg-gold text-navy hover:bg-gold-light transition-all disabled:opacity-50"
+                      >
+                        💎 Set Mint
+                      </button>
+                    )}
+
+                    {/* Revoke Mint Authority (Danger Zone) */}
+                    {(project as any).mint_address && !(project as any).mint_authority_revoked && (
+                      <button
+                        title="IRREVERSIBLE: Stop all future issuance"
+                        disabled={statusChanging === project.id}
+                        onClick={() => handleChainToggle(project, 'revokeMintAuthority' as any)}
+                        className="px-2 py-1 rounded text-xs font-medium bg-red-500/20 text-red-500 hover:bg-red-500/30 border border-red-500/30 transition-colors disabled:opacity-40"
+                      >
+                        🚫 Revoke Auth
+                      </button>
+                    )}
+
+                    {/* Revoked Status Indicator */}
+                    {(project as any).mint_authority_revoked && (
+                      <span className="px-2 py-1 rounded text-[10px] font-bold bg-white/5 text-gray-500 border border-white/10 uppercase tracking-tighter">
+                        Mint Locked
+                      </span>
+                    )}
                   </div>
                 )}
 
