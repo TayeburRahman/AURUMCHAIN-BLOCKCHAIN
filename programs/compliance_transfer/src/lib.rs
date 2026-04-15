@@ -1,6 +1,6 @@
 use anchor_lang::prelude::*;
 
-declare_id!("REPLACE_WITH_PLAYGROUND_PROGRAM_ID");
+declare_id!("CHWFf4LBaq3VECZ6hiH4YZWNrqezkDteiDq1VbYLFtTs");
 
 // =============================================================================
 // AURUMCHAIN – Program 2: Compliance / Transfer Control
