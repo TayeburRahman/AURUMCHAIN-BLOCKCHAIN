@@ -33,11 +33,11 @@ export default function AuthorityManagementPage() {
     if (!service) return;
     try {
       setLoading(true);
-      const config = await service.syncRegistryState();
+      const config = await service.fetchRegistryConfig();
       setCurrentConfig({
-        superAdmin: config.superAdmin.toBase58(),
-        authority: config.authority.toBase58(),
-        projectCount: config.projectCount.toNumber()
+        superAdmin: (config.superAdmin as PublicKey).toBase58(),
+        authority: (config.authority as PublicKey).toBase58(),
+        projectCount: (config.projectCount as BN).toNumber()
       });
     } catch (err: any) {
       console.error("Authority Page - Fetch Error:", err);

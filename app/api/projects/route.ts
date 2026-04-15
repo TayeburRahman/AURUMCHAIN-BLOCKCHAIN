@@ -9,71 +9,64 @@
 
 import { NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/server';
-import { getProjectAccountsBulk } from '@/lib/solana/getProjectAccount';
+import { Connection } from '@solana/web3.js';
+import { ProjectRegistryService } from '@/lib/web3/services/projectRegistryService';
 
-export const dynamic = 'force-dynamic'; // Always fetch fresh data, never use static cache
+export const dynamic = 'force-dynamic';
 
 export async function GET() {
   try {
     const supabase = createAdminClient();
 
-    // Fetch all publicly visible projects from Supabase
+    // 1. Fetch Supabase projects
     const { data: projects, error } = await supabase
       .from('projects')
       .select('*')
       .in('status', ['funding', 'active', 'funded', 'completed', 'draft'])
       .order('created_at', { ascending: false });
 
-    if (error) {
-      console.error('[GET /api/projects] Supabase error:', error);
-      return NextResponse.json({ error: error.message }, { status: 500 });
-    }
+    if (error) throw error;
+    if (!projects || projects.length === 0) return NextResponse.json([]);
 
-    if (!projects || projects.length === 0) {
-      return NextResponse.json([]);
-    }
+    // 2. Fetch all on-chain project accounts
+    const connection = new Connection(process.env.NEXT_PUBLIC_SOLANA_RPC_URL || 'https://api.devnet.solana.com');
+    const service = new ProjectRegistryService(connection, {}); // Read-only mode
+    const allOnChainProjects = await service.fetchAllProjects();
 
-    // Collect all project IDs that have an associated on-chain account
-    const chainProjectIds = projects
-      .filter((p) => p.blockchain_project_id !== null && p.blockchain_project_id !== undefined)
-      .map((p) => p.blockchain_project_id as number);
+    // Map on-chain projects by their numeric ID for quick lookup
+    const chainMap = new Map();
+    allOnChainProjects.forEach((acc: any) => {
+      chainMap.set(acc.account.projectId.toNumber(), acc.account);
+    });
 
-    // Bulk-fetch on-chain data in parallel (failures are silently null per project)
-    const chainDataMap = chainProjectIds.length > 0
-      ? await getProjectAccountsBulk(chainProjectIds)
-      : new Map();
-
-    // Merge Supabase + on-chain data
+    // 3. Merge data
     const enriched = projects.map((project) => {
-      const chainData = project.blockchain_project_id !== null && project.blockchain_project_id !== undefined
-        ? chainDataMap.get(project.blockchain_project_id) ?? null
+      const chainData = project.blockchain_project_id !== null 
+        ? chainMap.get(project.blockchain_project_id) 
         : null;
 
       return {
-        // ---- Supabase fields ----
         ...project,
-
-        // ---- On-chain fields (null if not yet on chain) ----
         onChain: chainData ? {
           symbol:              chainData.symbol,
           uri:                 chainData.uri,
-          supplyCap:           chainData.supplyCap,
-          tokensIssued:        chainData.tokensIssued,
-          minInvestmentUsdc:   chainData.minInvestmentUsdc,
-          maxInvestmentUsdc:   chainData.maxInvestmentUsdc,
-          acceptedStablecoin:  chainData.acceptedStablecoin,
-          treasuryWallet:      chainData.treasuryWallet,
-          mint:                chainData.mint,
-          lockupEndTs:         chainData.lockupEndTs,
-          subscriptionStart:   chainData.subscriptionStart,
-          subscriptionEnd:     chainData.subscriptionEnd,
+          supplyCap:           chainData.supplyCap.toNumber(),
+          tokensIssued:        chainData.tokensIssued.toNumber(),
+          minInvestmentUsdc:   chainData.minInvestmentUsdc.toNumber(),
+          maxInvestmentUsdc:   chainData.maxInvestmentUsdc.toNumber(),
+          acceptedStablecoin:  chainData.acceptedStablecoin.toString(),
+          treasuryWallet:      chainData.treasuryWallet.toString(),
+          mint:                chainData.mint.toString(),
+          lockupEndTs:         chainData.lockupEndTs.toNumber(),
+          subscriptionStart:   chainData.subscriptionStart.toNumber(),
+          subscriptionEnd:     chainData.subscriptionEnd.toNumber(),
           distributionCadence: chainData.distributionCadence,
           isActive:            chainData.isActive,
           investmentsPaused:   chainData.investmentsPaused,
           transfersPaused:     chainData.transfersPaused,
           mintAuthorityRevoked: chainData.mintAuthorityRevoked,
-          creator:             chainData.creator,
-          pda:                 chainData.pda,
+          creator:             chainData.creator.toString(),
+          pda:                 '', // PDA can be derived if needed, but rarely used in public API
         } : null,
       };
     });

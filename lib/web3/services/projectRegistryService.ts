@@ -1,13 +1,25 @@
-import { Connection, PublicKey, Transaction } from '@solana/web3.js';
+import { Connection, PublicKey, Transaction, Keypair, SystemProgram } from '@solana/web3.js';
+import { Program, BN } from '@coral-xyz/anchor';
+import { 
+  MINT_SIZE, 
+  TOKEN_PROGRAM_ID, 
+  createInitializeMintInstruction, 
+  getMinimumBalanceForRentExemptMint 
+} from '@solana/spl-token';
+import { 
+  createCreateMetadataAccountV3Instruction, 
+  PROGRAM_ID as METAPLEX_PROGRAM_ID 
+} from '@metaplex-foundation/mpl-token-metadata';
+
 import { ProjectRegistryRepository } from '../repositories/projectRegistryRepository';
-import { getRegistryProgram } from '../../solana/projectRegistry';
+import { getRegistryProgram } from '../utils/programDiscoverer';
+import { getMetadataPDA } from '../utils/pdaHelpers';
 
 /**
  * ProjectRegistryService
  * 
  * High-level service for Project Registry operations.
- * Orchestrates transaction construction and robust RPC execution with custom error parsing.
- * Follows the Service-Repository design pattern for Web3 integration.
+ * Orchestrates transaction construction and robust RPC execution.
  */
 export class ProjectRegistryService {
   private repository: ProjectRegistryRepository;
@@ -17,55 +29,156 @@ export class ProjectRegistryService {
   constructor(connection: Connection, wallet: any) {
     this.connection = connection;
     this.wallet = wallet;
-    // Uses existing program factory to maintain IDL consistency
     const program = getRegistryProgram(connection, wallet);
     this.repository = new ProjectRegistryRepository(program);
   }
 
   /**
-   * Transfers registry authority (Super Admin and/or Operational Authority).
-   * 
-   * SECURITY: Restricted to current super_admin as listed in ControlAccount.
-   * Requires signatures from BOTH current super_admin and current authority.
-   * 
-   * @param params - Object containing the optional new public keys.
-   * @param params.newSuperAdmin - New master admin public key.
-   * @param params.newAuthority - New operational admin public key.
-   * @returns {Promise<string>} The confirmed transaction signature.
-   * @throws {Error} Branded error with parsed Solana logs if the transaction fails.
+   * Fetches a single project by its on-chain ID.
    */
-  async transferAuthority(params: {
-    newSuperAdmin?: PublicKey | null;
-    newAuthority?: PublicKey | null;
-  }): Promise<string> {
+  async fetchProject(projectId: number): Promise<any> {
     try {
-      if (!this.wallet.publicKey) {
-        throw new Error("AUTHENTICATION_ERROR: Wallet not connected");
-      }
+      return await this.repository.fetchProjectAccount(projectId);
+    } catch (error) {
+      console.warn(`[ProjectRegistryService] Project ID ${projectId} not found on-chain.`);
+      return null;
+    }
+  }
 
-      // 1. Fetch current on-chain state to identify required signers
+  /**
+   * Fetches the global registry configuration.
+   */
+  async fetchRegistryConfig(): Promise<any> {
+    try {
+      return await this.repository.fetchRegistryConfig();
+    } catch (error: any) {
+      throw this.handleError(error);
+    }
+  }
+
+  /**
+   * Alias for fetchRegistryConfig (backwards compatibility).
+   */
+  async syncRegistryState(): Promise<any> {
+    return this.fetchRegistryConfig();
+  }
+
+  /**
+   * Fetches all projects from the registry.
+   */
+  async fetchAllProjects(): Promise<any[]> {
+    return await this.repository.fetchAllProjects();
+  }
+
+  /**
+   * ATOMIC PROJECT CREATION:
+   * 1. Creates SPL Mint account
+   * 2. Initializes Mint (6 decimals)
+   * 3. Registers Metaplex Metadata
+   * 4. Initializes Project in Registry
+   * 5. Links Mint to Project
+   */
+  async createProjectWithMint(params: {
+    symbol: string;
+    name: string;
+    uri: string;
+    supplyCap: number;
+    minInvestmentUsdc: number;
+    maxInvestmentUsdc: number;
+    lockupEndTs: number;
+    subscriptionStart: number;
+    subscriptionEnd: number;
+    treasuryWallet: PublicKey;
+    acceptedStablecoin: PublicKey;
+    distributionCadence: number;
+  }): Promise<{ signature: string; projectId: number; mintAddress: string }> {
+    try {
+      if (!this.wallet.publicKey) throw new Error("Wallet not connected");
+
+      const mintKeypair = Keypair.generate();
+      const mintAddress = mintKeypair.publicKey;
+
+      // 1. Get next project ID from registry config
       const registryConfig = await this.repository.fetchRegistryConfig();
-      
-      // 2. Build the atomic instruction via the repository
-      const instruction = await this.repository.getTransferAuthorityInstruction(
-        registryConfig.superAdmin,
-        registryConfig.authority,
-        params.newSuperAdmin ?? null,
-        params.newAuthority ?? null
+      const nextId = (registryConfig.projectCount as BN).toNumber();
+
+      // 2. Prepare instructions
+      const lamports = await getMinimumBalanceForRentExemptMint(this.connection);
+      const metadataPda = getMetadataPDA(mintAddress);
+
+      const createMintAccIx = SystemProgram.createAccount({
+        fromPubkey: this.wallet.publicKey,
+        newAccountPubkey: mintAddress,
+        space: MINT_SIZE,
+        lamports,
+        programId: TOKEN_PROGRAM_ID,
+      });
+
+      const initMintIx = createInitializeMintInstruction(
+        mintAddress,
+        6, // Standard 6 decimals
+        this.wallet.publicKey,
+        this.wallet.publicKey
       );
 
-      // 3. Construct and prepare the transaction with a fresh blockhash
-      const { blockhash, lastValidBlockHeight } = await this.connection.getLatestBlockhash('confirmed');
-      const transaction = new Transaction().add(instruction);
+      const metadataIx = createCreateMetadataAccountV3Instruction(
+        {
+          metadata: metadataPda,
+          mint: mintAddress,
+          mintAuthority: this.wallet.publicKey,
+          payer: this.wallet.publicKey,
+          updateAuthority: this.wallet.publicKey,
+        },
+        {
+          createMetadataAccountArgsV3: {
+            data: {
+              name: params.name,
+              symbol: params.symbol,
+              uri: params.uri,
+              sellerFeeBasisPoints: 0,
+              creators: null,
+              collection: null,
+              uses: null,
+            },
+            isMutable: true,
+            collectionDetails: null,
+          },
+        }
+      );
+
+      const createProjectIx = await this.repository.getCreateProjectInstruction(nextId, {
+        name: params.name,
+        symbol: params.symbol,
+        uri: params.uri,
+        supplyCap: new BN(params.supplyCap).mul(new BN(1_000_000)), // Apply decimals
+        minInvestmentUsdc: new BN(params.minInvestmentUsdc).mul(new BN(1_000_000)),
+        maxInvestmentUsdc: new BN(params.maxInvestmentUsdc).mul(new BN(1_000_000)),
+        lockupEndTs: new BN(params.lockupEndTs),
+        subscriptionStart: new BN(params.subscriptionStart),
+        subscriptionEnd: new BN(params.subscriptionEnd),
+        acceptedStablecoin: params.acceptedStablecoin,
+        treasuryWallet: params.treasuryWallet,
+        distributionCadence: params.distributionCadence,
+      });
+
+      const setMintIx = await this.repository.getSetProjectMintInstruction(nextId, mintAddress);
+
+      // 3. Assemble and Send Transaction
+      const { blockhash, lastValidBlockHeight } = await this.connection.getLatestBlockhash('finalized');
+      const transaction = new Transaction().add(
+        createMintAccIx,
+        initMintIx,
+        metadataIx,
+        createProjectIx,
+        setMintIx
+      );
+      
       transaction.recentBlockhash = blockhash;
       transaction.feePayer = this.wallet.publicKey;
+      transaction.partialSign(mintKeypair);
 
-      // 4. Atomic execution and confirmation
-      // Note: If current superAdmin and authority are distinct wallets, 
-      // both must be present in the signing process.
       const signature = await this.wallet.sendTransaction(transaction, this.connection, {
         skipPreflight: true,
-        maxRetries: 3
       });
 
       await this.connection.confirmTransaction({
@@ -74,42 +187,116 @@ export class ProjectRegistryService {
         lastValidBlockHeight
       }, 'confirmed');
 
-      return signature;
+      return { signature, projectId: nextId, mintAddress: mintAddress.toString() };
     } catch (error: any) {
-      console.error("ProjectRegistryService.transferAuthority critical failure:", error);
-      
-      // Robust error parsing specifically for Solana RPC error logs
-      if (error.logs) {
-        const programError = this.parseProgramError(error.logs);
-        throw new Error(`BLOCKCHAIN_ERROR: ${programError}`);
-      }
-      
-      throw error;
+      throw this.handleError(error);
     }
   }
 
   /**
-   * Internal helper to extract descriptive error codes from Solana logs.
-   * Prevents generic "Transaction failed" messages by surfacing program context.
+   * Revokes the mint authority for a project (Irreversible).
    */
-  private parseProgramError(logs: string[]): string {
-    const errorPattern = /custom program error: (0x[0-9a-fA-F]+)/;
-    for (const log of logs) {
-      const match = log.match(errorPattern);
-      if (match) {
-        return `Custom Program Error ${match[1]} - Check IDL for description.`;
-      }
-      if (log.includes("Error: ")) return log;
+  async revokeMintAuthority(projectId: number): Promise<string> {
+    try {
+      const instruction = await this.repository.getRevokeMintAuthorityInstruction(projectId);
+      return await this.sendAndConfirm(instruction);
+    } catch (error: any) {
+      throw this.handleError(error);
     }
-    return "Unknown Transaction Error";
   }
 
   /**
-   * Synchronizes the local application state with authoritative on-chain registry metadata.
-   * 
-   * @returns {Promise<any>} The current registry configuration.
+   * Manually sets the mint address for a project.
    */
-  async syncRegistryState(): Promise<any> {
-    return await this.repository.fetchRegistryConfig();
+  async setProjectMint(projectId: number, mint: PublicKey): Promise<string> {
+    try {
+      const instruction = await this.repository.getSetProjectMintInstruction(projectId, mint);
+      return await this.sendAndConfirm(instruction);
+    } catch (error: any) {
+      throw this.handleError(error);
+    }
+  }
+
+  /**
+   * Updates mutable project parameters.
+   */
+  async updateProject(projectId: number, params: any): Promise<string> {
+    try {
+      const instruction = await this.repository.getUpdateProjectParamsInstruction(projectId, params);
+      return await this.sendAndConfirm(instruction);
+    } catch (error: any) {
+      throw this.handleError(error);
+    }
+  }
+
+  /**
+   * Toggles on-chain project flags.
+   */
+  async toggleStatus(
+    method: 'pauseInvestments' | 'pauseTransfers' | 'setProjectActive',
+    projectId: number,
+    value: boolean
+  ): Promise<string> {
+    try {
+      const instruction = await this.repository.getToggleInstruction(method, projectId, value);
+      return await this.sendAndConfirm(instruction);
+    } catch (error: any) {
+      throw this.handleError(error);
+    }
+  }
+
+  /**
+   * Transfers registry authority.
+   */
+  async transferAuthority(params: {
+    newSuperAdmin?: PublicKey | null;
+    newAuthority?: PublicKey | null;
+  }): Promise<string> {
+    try {
+      const config = await this.repository.fetchRegistryConfig();
+      const instruction = await this.repository.getTransferAuthorityInstruction(
+        config.superAdmin,
+        config.authority,
+        params.newSuperAdmin ?? null,
+        params.newAuthority ?? null
+      );
+      return await this.sendAndConfirm(instruction);
+    } catch (error: any) {
+      throw this.handleError(error);
+    }
+  }
+
+  /**
+   * Internal helper for single-instruction transactions.
+   */
+  private async sendAndConfirm(instruction: any): Promise<string> {
+    const { blockhash, lastValidBlockHeight } = await this.connection.getLatestBlockhash('confirmed');
+    const transaction = new Transaction().add(instruction);
+    transaction.recentBlockhash = blockhash;
+    transaction.feePayer = this.wallet.publicKey;
+
+    const signature = await this.wallet.sendTransaction(transaction, this.connection, {
+      skipPreflight: true,
+    });
+
+    await this.connection.confirmTransaction({
+      signature,
+      blockhash,
+      lastValidBlockHeight
+    }, 'confirmed');
+
+    return signature;
+  }
+
+  private handleError(error: any): Error {
+    console.error("ProjectRegistryService failure:", error);
+    if (error.logs) {
+      const pattern = /custom program error: (0x[0-9a-fA-F]+)/;
+      for (const log of error.logs) {
+        const match = log.match(pattern);
+        if (match) return new Error(`BLOCKCHAIN_ERROR: Custom Program Error ${match[1]}`);
+      }
+    }
+    return error;
   }
 }

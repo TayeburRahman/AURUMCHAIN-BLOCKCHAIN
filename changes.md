@@ -1,4 +1,28 @@
-# Frontend Changes Documentation
+# Frontend & Architecture Changes Documentation
+
+---
+
+## Feature: Project Registry Service Refactor & Transaction Stability (AC-BC-402 Completion)
+**Timestamp:** 2026-04-15T16:20:00+06:00
+Finalized the migration of all blockchain logic into a formal **Service-Repository** architecture. This refactor resolved several critical transaction failures related to Metaplex metadata encoding, Borsh serialization, and missing on-chain parameters.
+
+### 1. New Core Infrastructure
+| File | Line Numbers | Feature Added | Reason for Addition |
+| :--- | :--- | :--- | :--- |
+| **[pdaHelpers.ts](file:///c:/Rupom/Projects/AURUMCHAIN/lib/web3/utils/pdaHelpers.ts)** | **1–59** | 🔑 Centralized PDA Helpers | Centralized all seed-based address derivation (Projects, Registry, Metadata). Prevents "account mismatch" errors by ensuring every layer uses the same derivation logic. |
+| **[projectRegistryRepository.ts](file:///c:/Rupom/Projects/AURUMCHAIN/lib/web3/repositories/projectRegistryRepository.ts)** | **1–188** | 📦 Instruction Repository | Encapsulates all `@coral-xyz/anchor` method builders. Handles the complex `CreateProjectParams` struct mapping and PDA linkage for 10+ instructions. |
+| **[projectRegistryService.ts](file:///c:/Rupom/Projects/AURUMCHAIN/lib/web3/services/projectRegistryService.ts)** | **1–310** | 🛠️ Multi-Instruction Service | Coordinates atomic project creation: SPL Mint -> Initialize -> Metaplex Metadata -> Registry Entry. Implements centralized Error handling and partial signing for new mints. |
+| **[useProjectRegistry.ts](file:///c:/Rupom/Projects/AURUMCHAIN/hooks/useProjectRegistry.ts)** | **1–66** | 🔄 Reactive Hydration Hook | A unified hook for the frontend to fetch on-chain state. Decouples the UI from the underlying Solana SDK, simplifying maintenance. |
+
+### 2. Integration & Stability Fixes
+| File | Line Numbers | Feature Added | Reason for Addition |
+| :--- | :--- | :--- | :--- |
+| **`projectRegistryRepository.ts`** | **49–63** | Struct Argument Refactor | Fixed "too many arguments" error by wrapping positional arguments into a single IDL-compatible struct. |
+| **`projectRegistryService.ts`** | **133** | Metaplex Key Correction | Fixed `createMetadataAccountArgsV3` key typo. Resolved "struct key expected" error during on-chain metadata registration. |
+| **`projectRegistryService.ts`** | **39–46** | Service Error Recovery | Implemented `try-catch` within `fetchProject` to return `null` instead of crashing the UI when an on-chain account doesn't exist yet. |
+| **`ProjectsManagement.tsx`** | **110–136** | Atomic Submission Flow | Refactored `handleSubmit` to use the new atomic service. Captures on-chain project IDs and Mint addresses in a single pass for Supabase persistence. |
+| **`api/projects/route.ts`** | **12–74** | Service-Proxy Fetching | Replaced legacy fetchers with the new Service Layer. Enables read-only fetching of all registry projects on the server-side Public API. |
+| **`authority/page.tsx`** | **33–41** | Config Sync Fix | Switched to `fetchRegistryConfig` with explicit `PublicKey` and `BN` casting to resolve TypeScript failures in the Authority management UI. |
 
 ---
 

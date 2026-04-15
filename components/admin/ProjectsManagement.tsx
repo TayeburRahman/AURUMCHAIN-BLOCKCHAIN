@@ -4,15 +4,7 @@ import { useState, useEffect } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { Database } from '@/lib/types/database.types';
 import { useWallet, useConnection } from '@solana/wallet-adapter-react';
-import {
-  createOnChainProject,
-  updateOnChainProjectParams,
-  pauseOnChainInvestments,
-  pauseOnChainTransfers,
-  setOnChainProjectActive,
-  setProjectOnChainMint,
-  revokeOnChainMintAuthority,
-} from '@/lib/solana/projectRegistry';
+import { ProjectRegistryService } from '@/lib/web3/services/projectRegistryService';
 import { PublicKey } from '@solana/web3.js';
 import { BN } from '@coral-xyz/anchor';
 
@@ -116,24 +108,26 @@ export default function ProjectsManagement({ initialProjects, userId }: Projects
       }
 
       // Step 1: Blockchain — create NEW project on-chain, or UPDATE params for existing chain-linked project
+      const service = new ProjectRegistryService(connection, wallet);
+
       if (!editingProject) {
         // ── CREATE ──
         try {
-          const blockParams = {
+          const chainResult = await service.createProjectWithMint({
             name: formData.name || 'Unnamed Project',
             symbol: formData.token_symbol || 'TKN',
             uri: formData.metadata_uri || 'https://metadata.placeholder',
-            supplyCap: new BN(formData.total_tokens || 1000000),
-            minInvestmentUsdc: new BN((formData.min_investment || 100) * 1_000_000),
-            maxInvestmentUsdc: new BN((formData.funding_goal || 1_000_000) * 1_000_000),
+            supplyCap: formData.total_tokens || 1000000,
+            minInvestmentUsdc: formData.min_investment || 100,
+            maxInvestmentUsdc: formData.funding_goal || 1_000_000,
             acceptedStablecoin: new PublicKey(formData.accepted_stablecoin || process.env.NEXT_PUBLIC_USDC_MINT || 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v'),
             treasuryWallet: new PublicKey(formData.treasury_wallet || wallet.publicKey!.toBase58()),
-            lockupEndTs: new BN(Math.floor(new Date(formData.lockup_end_date || Date.now()).getTime() / 1000)),
-            subscriptionStart: new BN(Math.floor(new Date(formData.start_date || Date.now()).getTime() / 1000)),
-            subscriptionEnd: new BN(Math.floor(new Date(formData.expected_completion_date || Date.now() + 86400000).getTime() / 1000)),
+            lockupEndTs: Math.floor(new Date(formData.lockup_end_date || Date.now()).getTime() / 1000),
+            subscriptionStart: Math.floor(new Date(formData.start_date || Date.now()).getTime() / 1000),
+            subscriptionEnd: Math.floor(new Date(formData.expected_completion_date || Date.now() + 86400000).getTime() / 1000),
             distributionCadence: formData.distribution_cadence || 0,
-          };
-          const chainResult = await createOnChainProject(connection, wallet, blockParams);
+          });
+          
           formData.blockchain_signature  = chainResult.signature;
           (formData as any).blockchain_project_id = chainResult.projectId;
           (formData as any).mint_address = chainResult.mintAddress;
@@ -141,37 +135,24 @@ export default function ProjectsManagement({ initialProjects, userId }: Projects
           throw new Error('Blockchain Transaction Failed: ' + chainErr.message);
         }
       } else if (editingProject.blockchain_project_id !== null && editingProject.blockchain_project_id !== undefined) {
-        // ── UPDATE on-chain params (only the 6 mutable fields) ──
+        // ── UPDATE on-chain params ──
         try {
-          const chainUpdateParams: Parameters<typeof updateOnChainProjectParams>[3] = {};
-
-          // Only include fields that actually changed vs. current on-chain values
+          const chainUpdateParams: any = {};
           if (formData.min_investment !== undefined && formData.min_investment !== null)
             chainUpdateParams.minInvestmentUsdc = new BN(Math.round((formData.min_investment || 0) * 1_000_000));
-
           if (formData.funding_goal !== undefined && formData.funding_goal !== null)
             chainUpdateParams.maxInvestmentUsdc = new BN(Math.round((formData.funding_goal || 0) * 1_000_000));
-
           if (formData.start_date)
             chainUpdateParams.subscriptionStart = new BN(Math.floor(new Date(formData.start_date).getTime() / 1000));
-
           if (formData.expected_completion_date)
             chainUpdateParams.subscriptionEnd = new BN(Math.floor(new Date(formData.expected_completion_date).getTime() / 1000));
-
           if ((formData as any).lockup_end_date)
             chainUpdateParams.lockupEndTs = new BN(Math.floor(new Date((formData as any).lockup_end_date).getTime() / 1000));
-
           if (formData.distribution_cadence !== undefined && formData.distribution_cadence !== null)
             chainUpdateParams.distributionCadence = formData.distribution_cadence;
 
-          // Only hit the chain if at least one field was included
           if (Object.keys(chainUpdateParams).length > 0) {
-            await updateOnChainProjectParams(
-              connection,
-              wallet,
-              editingProject.blockchain_project_id,
-              chainUpdateParams
-            );
+            await service.updateProject(editingProject.blockchain_project_id, chainUpdateParams);
           }
         } catch (chainErr: any) {
           throw new Error('On-Chain Update Failed: ' + chainErr.message);
@@ -361,24 +342,25 @@ export default function ProjectsManagement({ initialProjects, userId }: Projects
     if (statusChanging) return;
     setStatusChanging(project.id);
     try {
+      const service = new ProjectRegistryService(connection, wallet);
       if (action === 'pauseInvestments')
-        await pauseOnChainInvestments(connection, wallet, project.blockchain_project_id, true);
+        await service.toggleStatus('pauseInvestments', project.blockchain_project_id, true);
       else if (action === 'resumeInvestments')
-        await pauseOnChainInvestments(connection, wallet, project.blockchain_project_id, false);
+        await service.toggleStatus('pauseInvestments', project.blockchain_project_id, false);
       else if (action === 'pauseTransfers')
-        await pauseOnChainTransfers(connection, wallet, project.blockchain_project_id, true);
+        await service.toggleStatus('pauseTransfers', project.blockchain_project_id, true);
       else if (action === 'resumeTransfers')
-        await pauseOnChainTransfers(connection, wallet, project.blockchain_project_id, false);
+        await service.toggleStatus('pauseTransfers', project.blockchain_project_id, false);
       else if (action === 'activate')
-        await setOnChainProjectActive(connection, wallet, project.blockchain_project_id, true);
+        await service.toggleStatus('setProjectActive', project.blockchain_project_id, true);
       else if (action === 'deactivate')
-        await setOnChainProjectActive(connection, wallet, project.blockchain_project_id, false);
+        await service.toggleStatus('setProjectActive', project.blockchain_project_id, false);
       else if (action === 'revokeMintAuthority') {
         if (!confirm('WARNING: Revoking mint authority is irreversible. You will not be able to issue any more tokens for this project. PROCEED?')) {
           setStatusChanging(null);
           return;
         }
-        const result = await revokeOnChainMintAuthority(connection, wallet, project.blockchain_project_id);
+        const signature = await service.revokeMintAuthority(project.blockchain_project_id);
         
         // Sync with Supabase
         await fetch(`/api/admin/projects/${project.id}`, {
@@ -387,7 +369,7 @@ export default function ProjectsManagement({ initialProjects, userId }: Projects
           body: JSON.stringify({ mint_authority_revoked: true }),
         });
         
-        alert(`Success! Mint authority revoked.\nTX: ${result.signature}`);
+        alert(`Success! Mint authority revoked.\nTX: ${signature}`);
       }
     } catch (err: any) {
       setError(err.message);
@@ -410,11 +392,10 @@ export default function ProjectsManagement({ initialProjects, userId }: Projects
     setLoading(true);
     setError(null);
     try {
-      const result = await setProjectOnChainMint(
-        connection,
-        wallet,
+      const service = new ProjectRegistryService(connection, wallet);
+      const signature = await service.setProjectMint(
         project.blockchain_project_id,
-        mintAddress
+        new PublicKey(mintAddress)
       );
 
       // Sync with Supabase
@@ -426,7 +407,7 @@ export default function ProjectsManagement({ initialProjects, userId }: Projects
 
       if (!response.ok) throw new Error('On-chain success, but failed to update Supabase.');
 
-      alert(`Success! Project mint set to: ${mintAddress}\nTX: ${result.signature}`);
+      alert(`Success! Project mint set to: ${mintAddress}\nTX: ${signature}`);
     } catch (err: any) {
       setError(err.message);
     } finally {

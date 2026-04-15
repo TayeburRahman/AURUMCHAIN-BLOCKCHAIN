@@ -51,5 +51,11 @@ milestone2_blockchain_tasks.txt
 
 # Scratch and test scripts
 /scratch/
-scripts/verify-authority-transfer.ts
-scripts/check_latest_project.ts
+scripts/*.ts
+scripts/*.js
+!scripts/backfill_onchain_projects.ts
+
+# Jest/Unit Tests
+__tests__/
+**/*.test.ts
+**/*.test.tsx
