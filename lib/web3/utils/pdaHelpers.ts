@@ -56,3 +56,25 @@ export function getControlPDA(programId: PublicKey): PublicKey {
     programId
   )[0];
 }
+
+/**
+ * Derives the Compliance Control PDA for Program 2.
+ * Seeds: [b"compliance_control"]
+ */
+export function getComplianceControlPDA(programId: PublicKey): PublicKey {
+  return PublicKey.findProgramAddressSync(
+    [Buffer.from('compliance_control')],
+    programId
+  )[0];
+}
+
+/**
+ * Derives the Investor Eligibility PDA.
+ * Seeds: [b"eligibility", wallet_pubkey]
+ */
+export function getEligibilityPDA(wallet: PublicKey, programId: PublicKey): PublicKey {
+  return PublicKey.findProgramAddressSync(
+    [Buffer.from('eligibility'), wallet.toBuffer()],
+    programId
+  )[0];
+}

@@ -18,3 +18,34 @@ Instead of relying on official Circle Devnet faucets which have strict limits an
    - To the smart contract, this operates exactly identically to real USDC.
    - We can build an admin debug button in the UI: "Fund Wallet with 50,000 Test USDC" to make onboarding test users completely frictionless.
 6. **Production Switch:** When migrating to Mainnet, we simply swap the `NEXT_PUBLIC_USDC_MINT` address back to the official Circle USDC Mainnet address (`EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v`). No code changes required.
+
+------------------------------------------*****************---------------------------------------------------------------------
+
+
+
+Implementation Plan: Industry-Grade RPC Optimization
+To resolve the 429 Too Many Requests errors from Solana Devnet, we will move away from individual component fetching and implement Request Batching and Client-Side Caching.
+
+User Review Required
+IMPORTANT
+
+The biggest "Industry Grade" fix is using a private RPC (like Helius or Alchemy). This plan implements the software-side optimizations (Batching) which are standard for high-performance dApps.
+
+Proposed Changes
+1. Unified Batch Fetcher
+[NEW] 
+complianceQueries.ts
+Implement a centralized useBulkWalletEligibility(wallets[]) hook.
+Logic: Uses connection.getMultipleAccountsInfo() to fetch state for all wallets in one single RPC call instead of individual calls.
+Library: Integrates with @tanstack/react-query (already in your package.json) to handle caching and automatic retries.
+2. Refactor Admin Dashboard
+[MODIFY] 
+ComplianceReviewList.tsx
+Use the new bulk hook at the top level of the list.
+Pass the cached eligibility data down to individual KycCard components as props.
+This eliminates the "thundering herd" of requests when the page loads.
+Verification Plan
+Automated Verification
+Observe the Network tab in the browser: Check that multiple getAccountInfo calls are replaced by a single getMultipleAccounts batch call.
+Manual Verification
+Verify that "ON-CHAIN VERIFIED" badges appear correctly for all items without triggering 429 errors.

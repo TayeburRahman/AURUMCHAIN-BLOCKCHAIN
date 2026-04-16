@@ -2,6 +2,38 @@
 
 ---
 
+## Feature: Compliance Program Integration & Admin Dashboard Stability
+**Timestamp:** 2026-04-16T15:45:00+06:00
+Finalized the full-stack integration of the `compliance_transfer` program. This update resolved critical visibility issues caused by Row-Level Security (RLS), eliminated 429 "Too Many Requests" RPC errors via UI throttling, and introduced a robust idempotent seeding system for test investors.
+
+### 1. Database & Security (RLS Bypass)
+| File | Line Numbers | Feature Added | Reason for Addition |
+| :--- | :--- | :--- | :--- |
+| **[actions.ts](file:///c:/Rupom/Projects/AURUMCHAIN/app/admin/compliance/actions.ts)** | **3, 15, 62** | `createAdminClient` Integration | Switched to the service-role client for all server actions. This allows admins to sync KYC data to the database by bypassing strict per-user RLS policies. |
+| **[page.tsx](file:///c:/Rupom/Projects/AURUMCHAIN/app/admin/compliance/page.tsx)** | **11, 14, 30, 59** | Admin-Gated Data Fetching | Switched the dashboard to use the Admin Client for initial data loads. Ensures all pending KYC requests across the platform are visible to authorized officials. |
+
+### 2. Frontend Performance & UX (RPC Throttling)
+| File | Line Numbers | Feature Added | Reason for Addition |
+| :--- | :--- | :--- | :--- |
+| **[ComplianceReviewList.tsx](file:///c:/Rupom/Projects/AURUMCHAIN/components/admin/ComplianceReviewList.tsx)** | **150-200** | Manual "Verify On-Chain" Button | Replaced automatic on-chain status checks with a manual trigger. This prevents 429 Rate Limit errors on Solana Devnet by stopping the browser from flooding the RPC with requests on page load. |
+| **[useWalletEligibility.ts](file:///c:/Rupom/Projects/AURUMCHAIN/hooks/useWalletEligibility.ts)** | **12, 22, 50** | `options.enabled` Flag | Added an execution gate to the hook. Allows components to prevent automatic on-chain lookups until explicitly requested by the user. |
+| **[page.tsx](file:///c:/Rupom/Projects/AURUMCHAIN/app/admin/compliance/page.tsx)** | **9** | `export const revalidate = 0` | Disables Next.js server-side caching for the admin dashboard, ensuring that newly seeded or approved users appear immediately on refresh. |
+
+### 3. Service Layer & Validation
+| File | Line Numbers | Feature Added | Reason for Addition |
+| :--- | :--- | :--- | :--- |
+| **[complianceService.ts](file:///c:/Rupom/Projects/AURUMCHAIN/lib/web3/services/complianceService.ts)** | **6, 45-148** | Anchor Enum Mapping | Implemented logic to map UI-friendly numbers (0, 1, 2) to Anchor-required enum objects (`{ approved: {} }`). Resolves the "unable to infer src variant" serialization error. |
+| **[complianceService.ts](file:///c:/Rupom/Projects/AURUMCHAIN/lib/web3/services/complianceService.ts)** | **-** | Server-Import Cleanup | Removed `lib/supabase/server` imports from the client-side service to fix build-time "Module Not Found" errors in the browser environment. |
+
+### 4. Testing & Infrastructure
+| File | Line Numbers | Feature Added | Reason for Addition |
+| :--- | :--- | :--- | :--- |
+| **[seed-test-users.ts](file:///c:/Rupom/Projects/AURUMCHAIN/scripts/seed-test-users.ts)** | **1-115** | Idempotent Seed Script | Created a robust script that creates 3 mock investors (Alice, Bob, Charlie). Uses `Keypair.generate()` to ensure every mock wallet address is a cryptographically valid Solana public key. |
+
+---
+
+---
+
 ## Feature: Investor Eligibility Refresh & On-Chain Transfer Validation (AC-BC-201 & 202)
 **Timestamp:** 2026-04-16T14:10:00+06:00
 Finalized the implementation of on-chain eligibility refresh logic and comprehensive transfer validation. This update ensures that investor KYC/AML status can be updated/extended Trustlessly and provides a robust unit testing suite embedded directly in the program for verification within Solana Playground.

@@ -1,0 +1,100 @@
+import { Program, BN } from '@coral-xyz/anchor';
+import { PublicKey, TransactionInstruction, SystemProgram } from '@solana/web3.js';
+import { getComplianceControlPDA, getEligibilityPDA } from '../utils/pdaHelpers';
+
+/**
+ * ComplianceRepository
+ * 
+ * Handles raw data access and instruction construction for the Compliance Transfer program.
+ */
+export class ComplianceRepository {
+  private program: Program;
+
+  constructor(program: Program) {
+    this.program = program;
+  }
+
+  getProgramId(): PublicKey {
+    return this.program.programId;
+  }
+
+  /**
+   * Constructs record_verified_wallet instruction.
+   */
+  async getRecordVerifiedWalletInstruction(
+    wallet: PublicKey,
+    params: {
+      kycStatus: any;
+      amlStatus: any;
+      identityHash: number[];
+      investmentAllowed: boolean;
+      transferAllowed: boolean;
+      expiryTimestamp: BN;
+    }
+  ): Promise<TransactionInstruction> {
+    return await this.program.methods
+      .recordVerifiedWallet(params)
+      .accounts({
+        eligibility: getEligibilityPDA(wallet, this.program.programId),
+        wallet: wallet,
+        control: getComplianceControlPDA(this.program.programId),
+        authority: this.program.provider.publicKey!,
+        systemProgram: SystemProgram.programId,
+      } as any)
+      .instruction();
+  }
+
+  /**
+   * Constructs refresh_eligibility instruction.
+   */
+  async getRefreshEligibilityInstruction(
+    wallet: PublicKey,
+    params: {
+      kycStatus: any;
+      amlStatus: any;
+      identityHash: number[];
+      investmentAllowed: boolean;
+      transferAllowed: boolean;
+      expiryTimestamp: BN;
+    }
+  ): Promise<TransactionInstruction> {
+    return await this.program.methods
+      .refreshEligibility(params)
+      .accounts({
+        eligibility: getEligibilityPDA(wallet, this.program.programId),
+        control: getComplianceControlPDA(this.program.programId),
+        authority: this.program.provider.publicKey!,
+      } as any)
+      .instruction();
+  }
+
+  /**
+   * Constructs revoke_wallet instruction.
+   */
+  async getRevokeWalletInstruction(wallet: PublicKey): Promise<TransactionInstruction> {
+    return await this.program.methods
+      .revokeWallet()
+      .accounts({
+        eligibility: getEligibilityPDA(wallet, this.program.programId),
+        control: getComplianceControlPDA(this.program.programId),
+        authority: this.program.provider.publicKey!,
+      } as any)
+      .instruction();
+  }
+
+  /**
+   * Fetches and deserializes an InvestorEligibilityAccount.
+   */
+  async fetchEligibilityAccount(wallet: PublicKey): Promise<any> {
+    const pda = getEligibilityPDA(wallet, this.program.programId);
+    return await this.program.account.investorEligibilityAccount.fetch(pda);
+  }
+
+  /**
+   * Fetches the global ComplianceControl account.
+   */
+  async fetchComplianceControl(): Promise<any> {
+    const pda = getComplianceControlPDA(this.program.programId);
+    return await this.program.account.complianceControl.fetch(pda);
+  }
+}
