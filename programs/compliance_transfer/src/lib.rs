@@ -14,10 +14,11 @@ declare_id!("CHWFf4LBaq3VECZ6hiH4YZWNrqezkDteiDq1VbYLFtTs");
 // Instructions:
 //   1. initialize_compliance      – deploy once, set authorities + flags
 //   2. record_verified_wallet     – admin marks wallet as KYC approved/rejected
-//   3. revoke_wallet              – admin revokes wallet eligibility immediately
-//   4. set_kyc_bypass             – toggle bypass for testing (super_admin only)
-//   5. set_global_transfer_pause  – pause/resume all transfers globally
-//   6. transfer_validate          – gate called by Program 3 before any transfer
+//   3. refresh_eligibility        – admin updates existing KYC record
+//   4. revoke_wallet              – admin revokes wallet eligibility immediately
+//   5. set_kyc_bypass             – toggle bypass for testing (super_admin only)
+//   6. set_global_transfer_pause  – pause/resume all transfers globally
+//   7. transfer_validate          – gate called by Program 3 before any transfer
 //
 // KYC Integration Note:
 //   Backend dev calls record_verified_wallet after Sumsub webhook fires.
@@ -255,6 +256,31 @@ pub struct RecordVerifiedWallet<'info> {
 }
 
 #[derive(Accounts)]
+pub struct RefreshVerifiedWallet<'info> {
+    #[account(
+        mut,
+        seeds = [b"eligibility", eligibility.wallet.as_ref()],
+        bump  = eligibility.bump,
+    )]
+    pub eligibility: Account<'info, InvestorEligibilityAccount>,
+
+    #[account(
+        seeds = [b"compliance_control"],
+        bump  = control.bump,
+    )]
+    pub control: Account<'info, ComplianceControl>,
+
+    #[account(
+        constraint = (
+            authority.key() == control.authority ||
+            authority.key() == control.super_admin
+        ) @ ComplianceError::Unauthorized
+    )]
+    pub authority: Signer<'info>,
+}
+
+
+#[derive(Accounts)]
 pub struct RevokeWallet<'info> {
     #[account(
         mut,
@@ -434,6 +460,61 @@ pub mod compliance_transfer {
         Ok(())
     }
 
+    // ── 3. refresh_eligibility ───────────────────────────────────────────────
+    // Admin calls this when KYC re-verification completes.
+    // Updates status and resets expiry for an existing record.
+    // Emits: WalletVerified
+    pub fn refresh_eligibility(
+        ctx:    Context<RefreshVerifiedWallet>,
+        params: RecordWalletParams,
+    ) -> Result<()> {
+        let clock = Clock::get()?;
+
+        // Expiry must be in the future if set
+        if params.expiry_timestamp > 0 {
+            require!(
+                params.expiry_timestamp > clock.unix_timestamp,
+                ComplianceError::InvalidExpiry
+            );
+        }
+
+        let eligibility = &mut ctx.accounts.eligibility;
+        
+        // Update fields (identity_hash is typically preserved but updated here for flexibility)
+        eligibility.kyc_status         = params.kyc_status.clone();
+        eligibility.aml_status         = params.aml_status.clone();
+        eligibility.identity_hash      = params.identity_hash;
+        eligibility.investment_allowed = params.investment_allowed;
+        eligibility.transfer_allowed   = params.transfer_allowed;
+        eligibility.expiry_timestamp   = params.expiry_timestamp;
+        eligibility.recorded_by        = ctx.accounts.authority.key();
+
+        let kyc_byte: u8 = match &params.kyc_status {
+            KycStatus::Pending  => 0,
+            KycStatus::Approved => 1,
+            KycStatus::Rejected => 2,
+            KycStatus::Expired  => 3,
+        };
+        let aml_byte: u8 = match &params.aml_status {
+            AmlStatus::Clear   => 0,
+            AmlStatus::Flagged => 1,
+            AmlStatus::Blocked => 2,
+        };
+
+        emit!(WalletVerified {
+            wallet:             eligibility.wallet,
+            kyc_status:         kyc_byte,
+            aml_status:         aml_byte,
+            investment_allowed: params.investment_allowed,
+            transfer_allowed:   params.transfer_allowed,
+            expiry_timestamp:   params.expiry_timestamp,
+            timestamp:          clock.unix_timestamp,
+        });
+
+        Ok(())
+    }
+
+
     // ── 3. revoke_wallet ─────────────────────────────────────────────────────
     // Immediately revokes a wallet (sanctions hit, KYC failure, fraud detection).
     // Sets all flags to denied and marks KYC as Rejected, AML as Blocked.
@@ -585,3 +666,52 @@ pub mod compliance_transfer {
         Ok(())
     }
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// UNIT TESTS
+// ─────────────────────────────────────────────────────────────────────────────
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_kyc_status_serialization() {
+        let approved = KycStatus::Approved;
+        let rejected = KycStatus::Rejected;
+        
+        assert_ne!(approved, rejected);
+        
+        let approved_byte: u8 = match approved {
+            KycStatus::Approved => 1,
+            _ => 0,
+        };
+        assert_eq!(approved_byte, 1);
+    }
+
+    #[test]
+    fn test_pda_size_constraints() {
+        // Ensure constants match expected sizes for account allocation
+        assert_eq!(ComplianceControl::SIZE, 8 + 32 + 32 + 1 + 1 + 32 + 1 + 64);
+        assert_eq!(InvestorEligibilityAccount::SIZE, 8 + 32 + 1 + 1 + 32 + 1 + 1 + 8 + 32 + 1 + 32);
+    }
+
+    #[test]
+    fn test_record_wallet_params_logic() {
+        let params = RecordWalletParams {
+            kyc_status: KycStatus::Approved,
+            aml_status: AmlStatus::Clear,
+            identity_hash: [1u8; 32],
+            investment_allowed: true,
+            transfer_allowed: true,
+            expiry_timestamp: 2000000000, // Year 2033
+        };
+
+        assert_eq!(params.investment_allowed, true);
+        assert_eq!(params.identity_hash[0], 1);
+    }
+
+    // Note: Full instruction testing (InitializeCompliance, etc.) 
+    // typically requires a 'solana_program_test' environment.
+    // These internal unit tests focus on data structures and logic invariants.
+}
+

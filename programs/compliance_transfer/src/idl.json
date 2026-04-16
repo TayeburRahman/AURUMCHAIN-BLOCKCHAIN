@@ -1,1 +1,265 @@
-{"version":"0.1.0","name":"hello_anchor","instructions":[{"name":"initialize","accounts":[{"name":"newAccount","isMut":true,"isSigner":true},{"name":"signer","isMut":true,"isSigner":true},{"name":"systemProgram","isMut":false,"isSigner":false}],"args":[{"name":"data","type":"u64"}]}],"accounts":[{"name":"NewAccount","type":{"kind":"struct","fields":[{"name":"data","type":"u64"}]}}]}
+{
+  "version": "0.1.0",
+  "name": "compliance_transfer",
+  "instructions": [
+    {
+      "name": "initializeCompliance",
+      "accounts": [
+        { "name": "control", "isMut": true, "isSigner": false },
+        { "name": "payer", "isMut": true, "isSigner": true },
+        { "name": "systemProgram", "isMut": false, "isSigner": false }
+      ],
+      "args": [
+        { "name": "authority", "type": "publicKey" },
+        { "name": "superAdmin", "type": "publicKey" },
+        { "name": "registryProgram", "type": "publicKey" }
+      ]
+    },
+    {
+      "name": "recordVerifiedWallet",
+      "accounts": [
+        { "name": "eligibility", "isMut": true, "isSigner": false },
+        { "name": "wallet", "isMut": false, "isSigner": false },
+        { "name": "control", "isMut": false, "isSigner": false },
+        { "name": "authority", "isMut": true, "isSigner": true },
+        { "name": "systemProgram", "isMut": false, "isSigner": false }
+      ],
+      "args": [
+        { "name": "params", "type": { "defined": "RecordWalletParams" } }
+      ]
+    },
+    {
+      "name": "refreshEligibility",
+      "accounts": [
+        { "name": "eligibility", "isMut": true, "isSigner": false },
+        { "name": "control", "isMut": false, "isSigner": false },
+        { "name": "authority", "isMut": false, "isSigner": true }
+      ],
+      "args": [
+        { "name": "params", "type": { "defined": "RecordWalletParams" } }
+      ]
+    },
+    {
+      "name": "revokeWallet",
+      "accounts": [
+        { "name": "eligibility", "isMut": true, "isSigner": false },
+        { "name": "control", "isMut": false, "isSigner": false },
+        { "name": "authority", "isMut": false, "isSigner": true }
+      ],
+      "args": []
+    },
+    {
+      "name": "setKycBypass",
+      "accounts": [
+        { "name": "control", "isMut": true, "isSigner": false },
+        { "name": "superAdmin", "isMut": false, "isSigner": true }
+      ],
+      "args": [{ "name": "enabled", "type": "bool" }]
+    },
+    {
+      "name": "setGlobalTransferPause",
+      "accounts": [
+        { "name": "control", "isMut": true, "isSigner": false },
+        { "name": "authority", "isMut": false, "isSigner": true }
+      ],
+      "args": [{ "name": "paused", "type": "bool" }]
+    },
+    {
+      "name": "transferValidate",
+      "accounts": [
+        { "name": "control", "isMut": false, "isSigner": false },
+        { "name": "senderEligibility", "isMut": false, "isSigner": false },
+        { "name": "receiverEligibility", "isMut": false, "isSigner": false },
+        { "name": "caller", "isMut": false, "isSigner": true }
+      ],
+      "args": [
+        { "name": "projectId", "type": "u64" },
+        { "name": "projectTransfersPaused", "type": "bool" },
+        { "name": "lockupEndTs", "type": "i64" }
+      ]
+    }
+  ],
+  "accounts": [
+    {
+      "name": "ComplianceControl",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          { "name": "authority", "type": "publicKey" },
+          { "name": "superAdmin", "type": "publicKey" },
+          { "name": "kycBypass", "type": "bool" },
+          { "name": "transfersPaused", "type": "bool" },
+          { "name": "registryProgram", "type": "publicKey" },
+          { "name": "bump", "type": "u8" }
+        ]
+      }
+    },
+    {
+      "name": "InvestorEligibilityAccount",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          { "name": "wallet", "type": "publicKey" },
+          { "name": "kycStatus", "type": { "defined": "KycStatus" } },
+          { "name": "amlStatus", "type": { "defined": "AmlStatus" } },
+          { "name": "identityHash", "type": { "array": ["u8", 32] } },
+          { "name": "investmentAllowed", "type": "bool" },
+          { "name": "transferAllowed", "type": "bool" },
+          { "name": "expiryTimestamp", "type": "i64" },
+          { "name": "recordedBy", "type": "publicKey" },
+          { "name": "bump", "type": "u8" }
+        ]
+      }
+    }
+  ],
+  "types": [
+    {
+      "name": "RecordWalletParams",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          { "name": "kycStatus", "type": { "defined": "KycStatus" } },
+          { "name": "amlStatus", "type": { "defined": "AmlStatus" } },
+          { "name": "identityHash", "type": { "array": ["u8", 32] } },
+          { "name": "investmentAllowed", "type": "bool" },
+          { "name": "transferAllowed", "type": "bool" },
+          { "name": "expiryTimestamp", "type": "i64" }
+        ]
+      }
+    },
+    {
+      "name": "KycStatus",
+      "type": {
+        "kind": "enum",
+        "variants": [
+          { "name": "Pending" },
+          { "name": "Approved" },
+          { "name": "Rejected" },
+          { "name": "Expired" }
+        ]
+      }
+    },
+    {
+      "name": "AmlStatus",
+      "type": {
+        "kind": "enum",
+        "variants": [
+          { "name": "Clear" },
+          { "name": "Flagged" },
+          { "name": "Blocked" }
+        ]
+      }
+    }
+  ],
+  "events": [
+    {
+      "name": "WalletVerified",
+      "fields": [
+        { "name": "wallet", "type": "publicKey", "index": false },
+        { "name": "kycStatus", "type": "u8", "index": false },
+        { "name": "amlStatus", "type": "u8", "index": false },
+        { "name": "investmentAllowed", "type": "bool", "index": false },
+        { "name": "transferAllowed", "type": "bool", "index": false },
+        { "name": "expiryTimestamp", "type": "i64", "index": false },
+        { "name": "timestamp", "type": "i64", "index": false }
+      ]
+    },
+    {
+      "name": "WalletRevoked",
+      "fields": [
+        { "name": "wallet", "type": "publicKey", "index": false },
+        { "name": "revokedBy", "type": "publicKey", "index": false },
+        { "name": "timestamp", "type": "i64", "index": false }
+      ]
+    },
+    {
+      "name": "TransferValidated",
+      "fields": [
+        { "name": "sender", "type": "publicKey", "index": false },
+        { "name": "receiver", "type": "publicKey", "index": false },
+        { "name": "projectId", "type": "u64", "index": false },
+        { "name": "allowed", "type": "bool", "index": false },
+        { "name": "bypassUsed", "type": "bool", "index": false },
+        { "name": "timestamp", "type": "i64", "index": false }
+      ]
+    },
+    {
+      "name": "GlobalPauseChanged",
+      "fields": [
+        { "name": "transfersPaused", "type": "bool", "index": false },
+        { "name": "changedBy", "type": "publicKey", "index": false },
+        { "name": "timestamp", "type": "i64", "index": false }
+      ]
+    },
+    {
+      "name": "KycBypassChanged",
+      "fields": [
+        { "name": "bypassEnabled", "type": "bool", "index": false },
+        { "name": "changedBy", "type": "publicKey", "index": false },
+        { "name": "timestamp", "type": "i64", "index": false }
+      ]
+    }
+  ],
+  "errors": [
+    {
+      "code": 6000,
+      "name": "Unauthorized",
+      "msg": "Caller is not authorized to perform this action"
+    },
+    {
+      "code": 6001,
+      "name": "GlobalTransfersPaused",
+      "msg": "Token transfers are globally paused by compliance admin"
+    },
+    {
+      "code": 6002,
+      "name": "ProjectTransfersPaused",
+      "msg": "Token transfers are paused for this project"
+    },
+    {
+      "code": 6003,
+      "name": "SenderNotApproved",
+      "msg": "Sender wallet is not KYC approved or transfer not allowed"
+    },
+    {
+      "code": 6004,
+      "name": "ReceiverNotApproved",
+      "msg": "Receiver wallet is not KYC approved or transfer not allowed"
+    },
+    {
+      "code": 6005,
+      "name": "SenderKycExpired",
+      "msg": "Sender KYC eligibility has expired – re-verification required"
+    },
+    {
+      "code": 6006,
+      "name": "ReceiverKycExpired",
+      "msg": "Receiver KYC eligibility has expired – re-verification required"
+    },
+    {
+      "code": 6007,
+      "name": "SenderAmlBlocked",
+      "msg": "Sender wallet is AML flagged or sanctioned"
+    },
+    {
+      "code": 6008,
+      "name": "ReceiverAmlBlocked",
+      "msg": "Receiver wallet is AML flagged or sanctioned"
+    },
+    {
+      "code": 6009,
+      "name": "LockupActive",
+      "msg": "Token lock-up period is still active for this project"
+    },
+    {
+      "code": 6010,
+      "name": "InvalidExpiry",
+      "msg": "Expiry timestamp must be in the future"
+    },
+    {
+      "code": 6011,
+      "name": "EmptyIdentityHash",
+      "msg": "Identity hash cannot be all zeros"
+    }
+  ]
+}

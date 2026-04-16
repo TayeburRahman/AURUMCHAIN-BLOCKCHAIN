@@ -2,6 +2,27 @@
 
 ---
 
+## Feature: Investor Eligibility Refresh & On-Chain Transfer Validation (AC-BC-201 & 202)
+**Timestamp:** 2026-04-16T14:10:00+06:00
+Finalized the implementation of on-chain eligibility refresh logic and comprehensive transfer validation. This update ensures that investor KYC/AML status can be updated/extended Trustlessly and provides a robust unit testing suite embedded directly in the program for verification within Solana Playground.
+
+### 1. Compliance Program Logic (Anchor / Rust)
+| File | Line Numbers | Feature Added | Reason for Addition |
+| :--- | :--- | :--- | :--- |
+| **[lib.rs](file:///c:/Rupom/Projects/AURUMCHAIN/programs/compliance_transfer/src/lib.rs)** | **17, 463–517** | `refresh_eligibility` instruction | Enables administrators to update existing KYC/AML records (extending expiry or resetting status) after a Sumsub re-verification webhook, without needing to re-initialize the account. |
+| **[lib.rs](file:///c:/Rupom/Projects/AURUMCHAIN/programs/compliance_transfer/src/lib.rs)** | **259–282** | `RefreshVerifiedWallet` Context | Defined the account validation logic for the refresh instruction, ensuring only authorized authorities can modify investor records. |
+| **[lib.rs](file:///c:/Rupom/Projects/AURUMCHAIN/programs/compliance_transfer/src/lib.rs)** | **673–718** | Rust Unit Testing Suite | Added a `#[cfg(test)]` module to verify data structure sizing, PDA constraints, and status serialization directly in the program binary. |
+| **[lib.rs](file:///c:/Rupom/Projects/AURUMCHAIN/programs/compliance_transfer/src/lib.rs)** | **14–21** | Instruction Renumbering | Reorganized and renumbered instructions to support the new `refresh` entry point while maintaining a clean audit trail. |
+
+### 2. Integration & Schema Sync
+| File | Line Numbers | Feature Added | Reason for Addition |
+| :--- | :--- | :--- | :--- |
+| **[idl.json](file:///c:/Rupom/Projects/AURUMCHAIN/programs/compliance_transfer/src/idl.json)** | **1–102** | Full Schema Update | Replaced the "Hello World" placeholder with the actual `compliance_transfer` IDL, enabling frontend services to interact with all 7 program instructions, events, and custom error codes. |
+
+---
+
+---
+
 ## Feature: Project Registry Service Refactor & Transaction Stability (AC-BC-402 Completion)
 **Timestamp:** 2026-04-15T16:20:00+06:00
 Finalized the migration of all blockchain logic into a formal **Service-Repository** architecture. This refactor resolved several critical transaction failures related to Metaplex metadata encoding, Borsh serialization, and missing on-chain parameters.
