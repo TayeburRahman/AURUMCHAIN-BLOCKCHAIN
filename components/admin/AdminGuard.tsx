@@ -14,7 +14,7 @@ interface AdminGuardProps {
 }
 
 export default function AdminGuard({ children }: AdminGuardProps) {
-  const { isAuthorized } = useAdminSecurity();
+  const { isAuthorized, isVerified, verifyAdmin } = useAdminSecurity();
 
   // Loading state
   if (isAuthorized === null) {
@@ -61,6 +61,45 @@ export default function AdminGuard({ children }: AdminGuardProps) {
             >
               Back to User Dashboard
             </a>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Authorized but not verified - Require SIWS
+  if (!isVerified) {
+    return (
+      <div className="min-h-screen bg-navy flex items-center justify-center px-6">
+        <div className="max-w-md w-full glass rounded-2xl p-8 border border-gold/30 text-center relative overflow-hidden">
+          {/* Background Decoration */}
+          <div className="absolute -top-24 -right-24 w-48 h-48 bg-gold/10 rounded-full blur-3xl opacity-50"></div>
+          
+          <div className="mb-6 relative">
+            <div className="w-20 h-20 bg-gold/10 rounded-full flex items-center justify-center mx-auto border border-gold/40">
+              <span className="text-4xl">🔑</span>
+            </div>
+            <div className="absolute bottom-0 right-1/3 w-8 h-8 bg-gold rounded-full flex items-center justify-center border-2 border-navy text-xs">
+              ✓
+            </div>
+          </div>
+
+          <h2 className="text-2xl font-bold text-white mb-2">Verify Admin Identity</h2>
+          <p className="text-gray-400 mb-8">
+            Your wallet is authorized, but we need a cryptographic signature to confirm you hold the private key.
+          </p>
+
+          <div className="space-y-4">
+            <button
+              onClick={() => verifyAdmin()}
+              className="w-full bg-gradient-to-r from-gold to-gold-light text-navy font-black py-4 rounded-xl hover:scale-105 transition-all shadow-[0_0_20px_rgba(212,175,55,0.3)]"
+            >
+              Sign Access Request
+            </button>
+            
+            <p className="text-[10px] text-gray-500 uppercase tracking-widest font-bold">
+              Secure Sign-In with Solana (SIWS)
+            </p>
           </div>
         </div>
       </div>

@@ -1,5 +1,20 @@
 # Frontend & Architecture Changes Documentation
 ---
+## Feature: Admin Security Hardening (SIWS Implementation)
+**Timestamp:** 2026-04-18T15:15:00+06:00
+Implemented Sign In With Solana (SIWS) for administrative routes. This upgrade transitions the security model from a simple address check to a mandatory cryptographic proof-of-ownership, effectively neutralizing client-side impersonation risks.
+
+### 1. Security Logic & Context
+| File | Line Numbers | Feature Added | Reason for Addition |
+| :--- | :--- | :--- | :--- |
+| **[AdminSecurityContext.tsx](file:///c:/Rupom/Projects/AURUMCHAIN/context/AdminSecurityContext.tsx)** | **6-44** | `isVerified` & `verifyAdmin` | Introduced session-based verification state and a signature challenge. Admins now must sign a unique nonce to prove they hold the private key of the authorized wallet. |
+
+### 2. Access Protection UI
+| File | Line Numbers | Feature Added | Reason for Addition |
+| :--- | :--- | :--- | :--- |
+| **[AdminGuard.tsx](file:///c:/Rupom/Projects/AURUMCHAIN/components/admin/AdminGuard.tsx)** | **17-110** | "Verify Identity" Shield | Added a high-security lock screen for authorized but unverified wallets. Restructured the guard logic to enforce a two-stage verification (Address Check -> Signature Proof). |
+
+---
 ## Feature: Premium Wallet Setup & Identity Unification (EPIC 3)
 **Timestamp:** 2026-04-18T15:10:00+06:00
 Fulfillment of EPIC 3 by polishing the wallet interaction layer and unifying it with the platform's existing Supabase identity system. This update provides a premium "Identity Card" UX while resolving critical WebSocket stability errors in the wallet connection lifecycle.
