@@ -5,10 +5,10 @@ use crate::RegistryError;
 #[derive(Accounts)]
 pub struct RevokeMintAuthority<'info> {
     #[account(
-        seeds = [b"registry"],
-        bump  = registry.bump,
+        seeds = [b"control"],
+        bump  = control.bump,
     )]
-    pub registry: Account<'info, RegistryConfig>,
+    pub control: Account<'info, ControlAccount>,
 
     #[account(
         mut,
@@ -18,12 +18,12 @@ pub struct RevokeMintAuthority<'info> {
     pub project: Account<'info, ProjectAccount>,
 
     #[account(
-        constraint = super_admin.key() == registry.super_admin @ RegistryError::Unauthorized
+        constraint = super_admin.key() == control.super_admin @ RegistryError::Unauthorized
     )]
     pub super_admin: Signer<'info>,
 }
 
-pub fn handler(ctx: Context<RevokeMintAuthority>) -> Result<()> {
+pub fn handle_revoke_mint_authority(ctx: Context<RevokeMintAuthority>) -> Result<()> {
     let project = &mut ctx.accounts.project;
 
     require!(

@@ -147,29 +147,67 @@ export class ProjectRegistryRepository {
   }
 
   /**
-   * Constructs the transferAuthority instruction.
+   * Constructs the initialize_control instruction.
    */
-  async getTransferAuthorityInstruction(
-    superAdmin: PublicKey,
-    authority: PublicKey,
-    newSuperAdmin: PublicKey | null,
-    newAuthority: PublicKey | null
+  async getInitializeControlInstruction(
+    operationalAdmin: PublicKey,
+    operationalLimits: BN
   ): Promise<TransactionInstruction> {
     return await this.program.methods
-      .transferAuthority(newSuperAdmin, newAuthority)
+      .initializeControl(operationalAdmin, operationalLimits)
       .accounts({
-        registry: getRegistryPDA(this.program.programId),
-        superAdmin,
-        authority,
+        control: getRegistryPDA(this.program.programId),
+        payer: this.program.provider.publicKey,
+        systemProgram: SystemProgram.programId,
       } as any)
       .instruction();
   }
 
   /**
-   * Fetches and deserializes the RegistryConfig account.
+   * Constructs the set_emergency_pause instruction.
+   */
+  async getSetEmergencyPauseInstruction(
+    isPaused: bool
+  ): Promise<TransactionInstruction> {
+    return await this.program.methods
+      .setEmergencyPause(isPaused)
+      .accounts({
+        control: getRegistryPDA(this.program.programId),
+        superAdmin: this.program.provider.publicKey,
+      } as any)
+      .instruction();
+  }
+
+  /**
+   * Constructs the transferAuthority instruction.
+   */
+  async getTransferAuthorityInstruction(
+    roleFlag: number,
+    newAdmin: PublicKey, // The key belonging to the candidate who MUST sign
+    newLimits: BN | null = null
+  ): Promise<TransactionInstruction> {
+    return await this.program.methods
+      .transferAuthority(roleFlag, newLimits)
+      .accounts({
+        control: getRegistryPDA(this.program.programId),
+        superAdmin: this.program.provider.publicKey, // Current Super Admin
+        newAdmin: newAdmin, // Candidate who must co-sign
+      } as any)
+      .instruction();
+  }
+
+  /**
+   * Fetches and deserializes the ControlAccount.
+   */
+  async fetchControlAccount(): Promise<any> {
+    return await this.program.account.controlAccount.fetch(getRegistryPDA(this.program.programId));
+  }
+
+  /**
+   * Alias for fetchControlAccount (backwards compatibility).
    */
   async fetchRegistryConfig(): Promise<any> {
-    return await this.program.account.registryConfig.fetch(getRegistryPDA(this.program.programId));
+    return this.fetchControlAccount();
   }
 
   /**

@@ -5,10 +5,10 @@ use crate::RegistryError;
 #[derive(Accounts)]
 pub struct SetProjectMint<'info> {
     #[account(
-        seeds = [b"registry"],
-        bump  = registry.bump,
+        seeds = [b"control"],
+        bump  = control.bump,
     )]
-    pub registry: Account<'info, RegistryConfig>,
+    pub control: Account<'info, ControlAccount>,
 
     #[account(
         mut,
@@ -19,14 +19,14 @@ pub struct SetProjectMint<'info> {
 
     #[account(
         constraint = (
-            admin.key() == registry.authority ||
-            admin.key() == registry.super_admin
+            admin.key() == control.super_admin ||
+            admin.key() == control.operational_admin
         ) @ RegistryError::Unauthorized
     )]
     pub admin: Signer<'info>,
 }
 
-pub fn handler(
+pub fn handle_set_project_mint(
     ctx:      Context<SetProjectMint>,
     mint_key: Pubkey,
 ) -> Result<()> {

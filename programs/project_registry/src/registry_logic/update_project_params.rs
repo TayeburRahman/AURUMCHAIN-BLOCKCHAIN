@@ -15,10 +15,10 @@ pub struct ProjectUpdateParams {
 #[derive(Accounts)]
 pub struct UpdateProjectParams<'info> {
     #[account(
-        seeds = [b"registry"],
-        bump  = registry.bump,
+        seeds = [b"control"],
+        bump  = control.bump,
     )]
-    pub registry: Account<'info, RegistryConfig>,
+    pub control: Account<'info, ControlAccount>,
 
     #[account(
         mut,
@@ -29,14 +29,14 @@ pub struct UpdateProjectParams<'info> {
 
     #[account(
         constraint = (
-            admin.key() == registry.authority ||
-            admin.key() == registry.super_admin
+            admin.key() == control.super_admin ||
+            admin.key() == control.operational_admin
         ) @ RegistryError::Unauthorized
     )]
     pub admin: Signer<'info>,
 }
 
-pub fn handler(
+pub fn handle_update_project_params(
     ctx:    Context<UpdateProjectParams>,
     params: ProjectUpdateParams,
 ) -> Result<()> {

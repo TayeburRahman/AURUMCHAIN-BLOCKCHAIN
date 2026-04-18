@@ -23,16 +23,16 @@ pub struct CreateProjectParams {
 pub struct CreateProject<'info> {
     #[account(
         mut,
-        seeds = [b"registry"],
-        bump  = registry.bump,
+        seeds = [b"control"],
+        bump  = control.bump,
     )]
-    pub registry: Account<'info, RegistryConfig>,
+    pub control: Account<'info, ControlAccount>,
 
     #[account(
         init,
         payer = admin,
         space = ProjectAccount::SIZE,
-        seeds = [b"project", registry.project_count.to_le_bytes().as_ref()],
+        seeds = [b"project", control.project_count.to_le_bytes().as_ref()],
         bump,
     )]
     pub project: Account<'info, ProjectAccount>,
@@ -40,8 +40,8 @@ pub struct CreateProject<'info> {
     #[account(
         mut,
         constraint = (
-            admin.key() == registry.authority ||
-            admin.key() == registry.super_admin
+            admin.key() == control.super_admin ||
+            admin.key() == control.operational_admin
         ) @ RegistryError::Unauthorized
     )]
     pub admin: Signer<'info>,
@@ -49,10 +49,12 @@ pub struct CreateProject<'info> {
     pub system_program: Program<'info, System>,
 }
 
-pub fn handler(
+pub fn handle_create_project(
     ctx:    Context<CreateProject>,
     params: CreateProjectParams,
 ) -> Result<()> {
+    // SECURITY: Global Pause Check
+    require!(!ctx.accounts.control.is_emergency_paused, RegistryError::Unauthorized);
     // Guard 1: string length bounds
     require!(
         params.name.len() <= ProjectAccount::MAX_NAME_LEN,
@@ -78,12 +80,21 @@ pub fn handler(
         RegistryError::InvalidSubscriptionWindow
     );
 
-    let registry = &mut ctx.accounts.registry;
-    let project  = &mut ctx.accounts.project;
+    let control = &mut ctx.accounts.control;
+    let project = &mut ctx.accounts.project;
+
+    // Safety Cap check for operational admin
+    if ctx.accounts.admin.key() == control.operational_admin && 
+       ctx.accounts.admin.key() != control.super_admin {
+        require!(
+            params.supply_cap <= control.operational_limits,
+            RegistryError::ExceedsOperationalLimit
+        );
+    }
 
     // Assign sequential ID and bump the counter
-    let project_id = registry.project_count;
-    registry.project_count = registry.project_count
+    let project_id = control.project_count;
+    control.project_count = control.project_count
         .checked_add(1)
         .ok_or(RegistryError::Overflow)?;
 
@@ -91,7 +102,7 @@ pub fn handler(
 
     // Populate project account
     project.project_id          = project_id;
-    project.registry            = registry.key();
+    project.registry            = control.key();
     project.creator             = ctx.accounts.admin.key();
     project.name                = params.name;
     project.symbol              = params.symbol;

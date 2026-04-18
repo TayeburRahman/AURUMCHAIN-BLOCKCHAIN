@@ -1,9 +1,9 @@
 use anchor_lang::prelude::*;
 
-pub mod state;
-pub mod instructions;
+mod state;
+mod registry_logic;
 
-use instructions::*;
+use crate::registry_logic::*;
 
 declare_id!("GcXxLjcCm7ov3i6QqQsL8zgjqiknWBswXn6jcwpEMYdC");
 
@@ -11,61 +11,68 @@ declare_id!("GcXxLjcCm7ov3i6QqQsL8zgjqiknWBswXn6jcwpEMYdC");
 pub mod project_registry {
     use super::*;
 
-    pub fn initialize_registry(
-        ctx: Context<InitializeRegistry>,
-        super_admin: Pubkey,
+    pub fn initialize_control(
+        ctx:                Context<InitializeControl>,
+        operational_admin:  Pubkey,
+        operational_limits: u64,
     ) -> Result<()> {
-        instructions::initialize_registry::handler(ctx, super_admin)
+        handle_initialize_control(ctx, operational_admin, operational_limits)
     }
 
     pub fn create_project(
         ctx:    Context<CreateProject>,
         params: CreateProjectParams,
     ) -> Result<()> {
-        instructions::create_project::handler(ctx, params)
+        handle_create_project(ctx, params)
     }
 
     pub fn set_project_mint(
         ctx:      Context<SetProjectMint>,
         mint_key: Pubkey,
     ) -> Result<()> {
-        instructions::set_project_mint::handler(ctx, mint_key)
+        handle_set_project_mint(ctx, mint_key)
     }
 
     pub fn revoke_mint_authority(ctx: Context<RevokeMintAuthority>) -> Result<()> {
-        instructions::revoke_mint_authority::handler(ctx)
+        handle_revoke_mint_authority(ctx)
     }
 
     pub fn update_project_params(
         ctx:    Context<UpdateProjectParams>,
         params: ProjectUpdateParams,
     ) -> Result<()> {
-        instructions::update_project_params::handler(ctx, params)
+        handle_update_project_params(ctx, params)
     }
 
-    // AC-BC-102: Unified project status control
     pub fn update_project_status(
         ctx:        Context<UpdateProjectStatus>,
         project_id: u64,
         is_active:  bool,
         is_paused:  bool,
     ) -> Result<()> {
-        instructions::update_project_status::handler(ctx, project_id, is_active, is_paused)
+        handle_update_project_status(ctx, project_id, is_active, is_paused)
     }
 
     pub fn record_tokens_issued(
         ctx:    Context<RecordTokensIssued>,
         amount: u64,
     ) -> Result<()> {
-        instructions::record_tokens_issued::handler(ctx, amount)
+        handle_record_tokens_issued(ctx, amount)
     }
 
     pub fn transfer_authority(
         ctx: Context<TransferAuthority>,
-        new_super_admin: Option<Pubkey>,
-        new_authority:   Option<Pubkey>,
+        role_flag:  u8,
+        new_limits: Option<u64>,
     ) -> Result<()> {
-        instructions::transfer_authority::handler(ctx, new_super_admin, new_authority)
+        handle_transfer_authority(ctx, role_flag, new_limits)
+    }
+
+    pub fn set_emergency_pause(
+        ctx: Context<SetEmergencyPause>,
+        is_paused: bool,
+    ) -> Result<()> {
+        handle_set_emergency_pause(ctx, is_paused)
     }
 }
 
@@ -93,4 +100,6 @@ pub enum RegistryError {
     MintAuthorityAlreadyRevoked,
     #[msg("Token issuance would exceed the project supply cap")]
     SupplyCapExceeded,
+    #[msg("Action exceeds the allowed operational limits")]
+    ExceedsOperationalLimit,
 }

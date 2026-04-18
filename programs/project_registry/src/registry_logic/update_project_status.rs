@@ -5,10 +5,10 @@ use crate::RegistryError; // I'll keep RegistryError in lib.rs for now or move i
 #[derive(Accounts)]
 pub struct UpdateProjectStatus<'info> {
     #[account(
-        seeds = [b"registry"],
-        bump  = registry.bump,
+        seeds = [b"control"],
+        bump  = control.bump,
     )]
-    pub registry: Account<'info, RegistryConfig>,
+    pub control: Account<'info, ControlAccount>,
 
     #[account(
         mut,
@@ -19,19 +19,22 @@ pub struct UpdateProjectStatus<'info> {
 
     #[account(
         constraint = (
-            admin.key() == registry.authority ||
-            admin.key() == registry.super_admin
+            admin.key() == control.super_admin ||
+            admin.key() == control.operational_admin
         ) @ RegistryError::Unauthorized
     )]
     pub admin: Signer<'info>,
 }
 
-pub fn handler(
+pub fn handle_update_project_status(
     ctx: Context<UpdateProjectStatus>,
     _project_id: u64, // project_id is in seeds, but provided as param for consistency
     is_active: bool,
     is_paused: bool,
 ) -> Result<()> {
+    // SECURITY: Global Pause Check
+    require!(!ctx.accounts.control.is_emergency_paused, RegistryError::Unauthorized);
+
     let project = &mut ctx.accounts.project;
 
     let old_is_active = project.is_active;

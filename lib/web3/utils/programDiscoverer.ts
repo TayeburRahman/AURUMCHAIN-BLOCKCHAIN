@@ -10,15 +10,10 @@ import complianceIdl from '@/programs/compliance_transfer/src/idl.json';
  * consistent instantiation across the application.
  */
 
-export const PROJECT_REGISTRY_PROGRAM_ID = new PublicKey(
-  process.env.NEXT_PUBLIC_PROJECT_REGISTRY_PROGRAM_ID || 
-  'GcXxLjcCm7ov3i6QqQsL8zgjqiknWBswXn6jcwpEMYdC'
-);
-
-export const COMPLIANCE_PROGRAM_ID = new PublicKey(
-  process.env.NEXT_PUBLIC_COMPLIANCE_PROGRAM_ID ||
-  'CHWFf4LBaq3VECZ6hiH4YZWNrqezkDteiDq1VbYLFtTs'
-);
+import { 
+  PROJECT_REGISTRY_PROGRAM_ID, 
+  COMPLIANCE_PROGRAM_ID 
+} from '../config/programs';
 
 /**
  * Factory to create an Anchor Program instance for the Project Registry.

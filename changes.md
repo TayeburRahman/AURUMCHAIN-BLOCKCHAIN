@@ -1,5 +1,25 @@
 # Frontend & Architecture Changes Documentation
 ---
+## Feature: Project Registry Security Hardening & Modular Stabilization (Epic 1 Finalization)
+**Timestamp:** 2026-04-18T10:57:00+06:00
+Finalized the security architecture for the Project Registry. Implemented a 3-tier authority system, a global emergency "Kill-Switch," and stabilized the modular architecture using the Unique Handler Pattern to resolve persistent Anchor macro resolution issues.
+
+### 1. Security & Authority Hardening (Anchor / Rust)
+| File | Line Numbers | Feature Added | Reason for Addition |
+| :--- | :--- | :--- | :--- |
+| **[lib.rs](file:///c:/Rupom/Projects/AURUMCHAIN/programs/project_registry/src/lib.rs)** | **8-106** | Unique Handler Dispatch | Refactored the entry point to call uniquely named handlers (e.g., `handle_create_project`). This resolves the "unresolved import crate" error permanently by eliminating namespace collisions in the `#[program]` macro. |
+| **[initialize_control.rs](file:///c:/Rupom/Projects/AURUMCHAIN/programs/project_registry/src/registry_logic/initialize_control.rs)** | **21-25** | Authority Initialization | Implemented the 3-tier role setup (Super Admin, Operational Admin, Upgrade Authority) as part of the production-ready security spec. |
+| **[transfer_authority.rs](file:///c:/Rupom/Projects/AURUMCHAIN/programs/project_registry/src/registry_logic/transfer_authority.rs)** | **19-25** | "Designate & Accept" logic | Added the secure authority transfer instruction requiring dual signatures to prevent accidental or malicious administrative hijacking. |
+| **[set_emergency_pause.rs](file:///c:/Rupom/Projects/AURUMCHAIN/programs/project_registry/src/registry_logic/set_emergency_pause.rs)** | **1-40** | Global Kill-Switch | **[NEW]** Added a protocol-level emergency pause toggled by the Super Admin to halt all administrative operations in case of a exploit detection. |
+| **Instruction Files (9x)** | **Varies** | Unique Handler Renaming | Renamed all internal `handler` functions to unique names (e.g., `handle_record_tokens_issued`) to ensure clean exports in the modular system. |
+
+### 2. Modular Architecture Stabilization
+| File | Line Numbers | Feature Added | Reason for Addition |
+| :--- | :--- | :--- | :--- |
+| **[mod.rs](file:///c:/Rupom/Projects/AURUMCHAIN/programs/project_registry/src/registry_logic/mod.rs)** | **1-22** | Encapsulated Glob Modularity | Switched to private sub-modules with glob re-exports. This surfaces hidden Anchor metadata types required for IDL generation while keeping each instruction in its own dedicated file. |
+| **All Instructions** | **Header** | Emergency Guard Integration | Added `require!(!control.is_emergency_paused)` to every critical path to ensure the security "Kill-Switch" is enforced on-chain. |
+
+---
 
 ## Feature: Modular Project Registry & Atomic Status Control (AC-BC-102 Implementation)
 **Timestamp:** 2026-04-18T08:50:00+06:00

@@ -1,5 +1,6 @@
-pub mod registry_config;
+pub mod control_account;
 pub mod project_account;
 
-pub use registry_config::*;
+// Re-expose accounts so they can be accessed via `use crate::state::*;`
+pub use control_account::*;
 pub use project_account::*;

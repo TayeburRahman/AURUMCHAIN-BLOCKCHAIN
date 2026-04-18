@@ -5,10 +5,10 @@ use crate::RegistryError;
 #[derive(Accounts)]
 pub struct RecordTokensIssued<'info> {
     #[account(
-        seeds = [b"registry"],
-        bump  = registry.bump,
+        seeds = [b"control"],
+        bump  = control.bump,
     )]
-    pub registry: Account<'info, RegistryConfig>,
+    pub control: Account<'info, ControlAccount>,
 
     #[account(
         mut,
@@ -18,15 +18,21 @@ pub struct RecordTokensIssued<'info> {
     pub project: Account<'info, ProjectAccount>,
 
     #[account(
-        constraint = caller.key() == registry.authority @ RegistryError::UnauthorizedCpiCaller
+        constraint = (
+            caller.key() == control.super_admin ||
+            caller.key() == control.operational_admin
+        ) @ RegistryError::Unauthorized
     )]
     pub caller: Signer<'info>,
 }
 
-pub fn handler(
+pub fn handle_record_tokens_issued(
     ctx:    Context<RecordTokensIssued>,
     amount: u64,
 ) -> Result<()> {
+    // SECURITY: Global Pause Check
+    require!(!ctx.accounts.control.is_emergency_paused, RegistryError::Unauthorized);
+
     let project = &mut ctx.accounts.project;
 
     let new_total = project.tokens_issued

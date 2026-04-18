@@ -71,6 +71,36 @@ export class ProjectRegistryService {
   }
 
   /**
+   * Initializes the registry control account (One-time setup).
+   */
+  async initializeControl(params: {
+    operationalAdmin: PublicKey;
+    operationalLimits: number;
+  }): Promise<string> {
+    try {
+      const instruction = await this.repository.getInitializeControlInstruction(
+        params.operationalAdmin,
+        new BN(params.operationalLimits).mul(new BN(1_000_000)) // Apply USDC decimals if it refers to amount
+      );
+      return await this.sendAndConfirm(instruction);
+    } catch (error: any) {
+      throw this.handleError(error);
+    }
+  }
+
+  /**
+   * Sets the registry-wide emergency pause state.
+   */
+  async setEmergencyPause(isPaused: boolean): Promise<string> {
+    try {
+      const instruction = await this.repository.getSetEmergencyPauseInstruction(isPaused);
+      return await this.sendAndConfirm(instruction);
+    } catch (error: any) {
+      throw this.handleError(error);
+    }
+  }
+
+  /**
    * ATOMIC PROJECT CREATION:
    * 1. Creates SPL Mint account
    * 2. Initializes Mint (6 decimals)
@@ -250,19 +280,21 @@ export class ProjectRegistryService {
   }
 
   /**
-   * Transfers registry authority.
+   * Transfers registry authority roles (AC-BC-103-3).
+   * Note: The newAdmin must also be present (or signed) for the multi-sig logic.
+   * 
+   * @param params - target role, new admin address, and optional limits.
    */
   async transferAuthority(params: {
-    newSuperAdmin?: PublicKey | null;
-    newAuthority?: PublicKey | null;
+    roleFlag: number; // 0: operational_admin, 1: upgrade_authority, 2: limits
+    newAdmin: PublicKey;
+    newLimits?: number;
   }): Promise<string> {
     try {
-      const config = await this.repository.fetchRegistryConfig();
       const instruction = await this.repository.getTransferAuthorityInstruction(
-        config.superAdmin,
-        config.authority,
-        params.newSuperAdmin ?? null,
-        params.newAuthority ?? null
+        params.roleFlag,
+        params.newAdmin,
+        params.newLimits ? new BN(params.newLimits).mul(new BN(1_000_000)) : null
       );
       return await this.sendAndConfirm(instruction);
     } catch (error: any) {
@@ -300,6 +332,11 @@ export class ProjectRegistryService {
         const match = log.match(pattern);
         if (match) return new Error(`BLOCKCHAIN_ERROR: Custom Program Error ${match[1]}`);
       }
+    }
+    
+    // Check for uninitialized registry
+    if (error.message && error.message.includes("Account does not exist")) {
+      return new Error("NOT_INITIALIZED");
     }
     
     // Check for Account size mismatch (indicates old schema)

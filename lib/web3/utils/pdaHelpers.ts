@@ -11,7 +11,7 @@ import { BN } from '@coral-xyz/anchor';
  */
 export function getRegistryPDA(programId: PublicKey): PublicKey {
   return PublicKey.findProgramAddressSync(
-    [Buffer.from('registry')],
+    [Buffer.from('control')],
     programId
   )[0];
 }
