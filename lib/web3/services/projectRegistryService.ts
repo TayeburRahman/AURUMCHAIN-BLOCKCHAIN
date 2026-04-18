@@ -230,15 +230,19 @@ export class ProjectRegistryService {
   }
 
   /**
-   * Toggles on-chain project flags.
+   * Updates on-chain project status flags (AC-BC-102).
    */
-  async toggleStatus(
-    method: 'pauseInvestments' | 'pauseTransfers' | 'setProjectActive',
+  async updateProjectStatus(
     projectId: number,
-    value: boolean
+    isActive: boolean,
+    isPaused: boolean
   ): Promise<string> {
     try {
-      const instruction = await this.repository.getToggleInstruction(method, projectId, value);
+      const instruction = await this.repository.getUpdateProjectStatusInstruction(
+        projectId,
+        isActive,
+        isPaused
+      );
       return await this.sendAndConfirm(instruction);
     } catch (error: any) {
       throw this.handleError(error);
@@ -289,14 +293,21 @@ export class ProjectRegistryService {
   }
 
   private handleError(error: any): Error {
-    console.error("ProjectRegistryService failure:", error);
     if (error.logs) {
+      console.error("ProjectRegistryService failure logs:", error.logs);
       const pattern = /custom program error: (0x[0-9a-fA-F]+)/;
       for (const log of error.logs) {
         const match = log.match(pattern);
         if (match) return new Error(`BLOCKCHAIN_ERROR: Custom Program Error ${match[1]}`);
       }
     }
-    return error;
+    
+    // Check for Account size mismatch (indicates old schema)
+    if (error.message && (error.message.includes("Account layout mismatch") || error.message.includes("could not deserialize"))) {
+      return new Error("SCHEMA_MISMATCH: This project was created with an old version of the program. Please create a NEW project.");
+    }
+
+    console.error("ProjectRegistryService failure detailed:", error);
+    return error instanceof Error ? error : new Error(JSON.stringify(error));
   }
 }

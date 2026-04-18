@@ -112,18 +112,20 @@ export class ProjectRegistryRepository {
   }
 
   /**
-   * Constructs any boolean toggle instruction (pause_investments, pause_transfers, etc).
+   * Constructs the update_project_status instruction (AC-BC-102).
    */
-  async getToggleInstruction(
-    method: 'pauseInvestments' | 'pauseTransfers' | 'setProjectActive',
+  async getUpdateProjectStatusInstruction(
     projectId: number,
-    value: boolean
+    isActive: boolean,
+    isPaused: boolean
   ): Promise<TransactionInstruction> {
-    return await (this.program.methods as any)[method](value)
+    const idBN = new BN(projectId);
+    return await this.program.methods
+      .updateProjectStatus(idBN, isActive, isPaused)
       .accounts({
-        project: getProjectPDA(projectId, this.program.programId),
+        project: getProjectPDA(idBN, this.program.programId),
         registry: getRegistryPDA(this.program.programId),
-        authority: this.program.provider.publicKey,
+        admin: this.program.provider.publicKey,
       } as any)
       .instruction();
   }
