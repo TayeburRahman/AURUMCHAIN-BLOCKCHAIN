@@ -7,7 +7,6 @@ import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
 import { AdminService } from '@/lib/domains/admin/service';
 import ProjectsManagement from '@/components/admin/ProjectsManagement';
-import AdminWalletButton from '@/components/admin/AdminWalletButton';
 
 export default async function AdminProjectsPage() {
   const supabase = await createClient();
@@ -40,7 +39,6 @@ export default async function AdminProjectsPage() {
               <p className="text-gray-400">Manage mining project listings</p>
             </div>
             <div className="flex flex-col items-end gap-3 w-full md:w-auto">
-              <AdminWalletButton />
               <a
                 href="/admin"
                 className="px-4 py-2 glass rounded-lg border border-gold/20 text-gray-300 hover:text-gold transition-colors text-sm"

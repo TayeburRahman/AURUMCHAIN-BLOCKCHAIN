@@ -7,7 +7,6 @@ import { redirect } from 'next/navigation';
 import { createClient, createAdminClient } from '@/lib/supabase/server';
 import { AdminService } from '@/lib/domains/admin/service';
 import { ComplianceReviewList } from '@/components/admin/ComplianceReviewList';
-import AdminWalletButton from '@/components/admin/AdminWalletButton';
 
 export const revalidate = 0; // Force dynamic fetching for admin dashboard
 
@@ -85,10 +84,6 @@ export default async function AdminCompliancePage() {
             </a>
             <h1 className="text-5xl font-black gradient-text mb-2 tracking-tight">Compliance & KYC</h1>
             <p className="text-gray-400 text-lg">On-chain identity verification and investor allow-listing</p>
-          </div>
-          <div className="flex flex-col items-end gap-2">
-            <span className="text-[10px] text-gray-500 uppercase font-black tracking-widest px-2">Compliance Wallet</span>
-            <AdminWalletButton />
           </div>
         </div>
 

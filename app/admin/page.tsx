@@ -6,7 +6,6 @@
 import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
 import { AdminService } from '@/lib/domains/admin/service';
-import AdminWalletButton from '@/components/admin/AdminWalletButton';
 
 export default async function AdminPage() {
   const supabase = await createClient();
@@ -35,7 +34,6 @@ export default async function AdminPage() {
               ))}
             </div>
           </div>
-          <AdminWalletButton />
         </div>
 
         {/* Quick Stats */}
