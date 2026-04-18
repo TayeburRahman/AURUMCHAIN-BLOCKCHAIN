@@ -1,4 +1,30 @@
 # Frontend & Architecture Changes Documentation
+
+## [2026-04-18 15:50] - Test Environment Optimization & Final SIWS Polish
+### Features: 100% Green Test Suite, Environment Polyfills, Clean Console
+
+| File Name | Line Range | Feature | Reason for Change |
+| :--- | :--- | :--- | :--- |
+| `jest.setup.js` | 2-5 | **Env Polyfills** | Added `TextEncoder`/`TextDecoder` globals to resolve ReferenceErrors in blockchain service tests. |
+| `WalletButton.test.tsx` | 10-25 | **Mock Stabilization** | Consolidated `next/dynamic` mocks to eliminate React `act()` warnings and fix rendering errors. |
+| `package.json` | 55 | **Security Logic** | Integrated `tweetnacl` for Ed25519 cryptographic signature verification in SIWS flow. |
+
+---
+
+## [2026-04-18 15:45] - Admin Security (Hardened) & Testing Infrastructure
+### Features: SIWS Compliance, Automated Verification, Logic Hardening
+
+| File Name | Line Range | Feature | Reason for Change |
+| :--- | :--- | :--- | :--- |
+| `context/AdminSecurityContext.tsx` | 16, 60-102 | **SIWS Hardening** | Implemented Ed25519 signature verification and secure nonces for real cryptographic security. |
+| `components/blockchain/WalletStatusBadge.tsx` | 33-85 | **Enum Refinement** | Updated logic to handle Anchor enums and added interactive status tooltips. |
+| `package.json` | 8-9, 40-55 | **Test Integration** | Added Jest scripts and dependencies for automated frontend verification. |
+| `jest.config.js` | 1-20 | **Test Runner Config** | Established Next.js-optimized Jest configuration with Solana ESM support. |
+| `tsconfig.json` | 25 | **Type Definition** | Included `@testing-library/jest-dom` types for specialized unit test matchers. |
+| `WalletButton.test.tsx` [NEW] | 1-60 | **Unit Testing** | Created automated tests for Wallet connection, balance, and truncation logic. |
+| `WalletStatusBadge.test.tsx` [NEW] | 1-70 | **Role Verification** | Created automated tests for Admin/Verified/Restricted role detection. |
+
+---
 ---
 ## Feature: Admin Security Hardening (SIWS Implementation)
 **Timestamp:** 2026-04-18T15:15:00+06:00

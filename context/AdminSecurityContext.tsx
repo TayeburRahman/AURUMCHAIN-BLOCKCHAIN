@@ -13,6 +13,7 @@ interface AdminSecurityContextType {
 const AdminSecurityContext = createContext<AdminSecurityContextType | undefined>(undefined);
 
 import bs58 from "bs58";
+import nacl from "tweetnacl";
 
 export function AdminSecurityProvider({ children }: { children: ReactNode }) {
   const { publicKey, connected, signMessage } = useWallet();
@@ -55,23 +56,48 @@ export function AdminSecurityProvider({ children }: { children: ReactNode }) {
 
     try {
       const address = publicKey.toBase58();
-      const nonce = Math.random().toString(36).substring(7);
-      const message = `AURUMCHAIN Admin Access Request\n\nWallet: ${address}\nNonce: ${nonce}\n\nWarning: Only sign this if you are the authorized platform administrator.`;
+      
+      // 1. Generate SECURE Cryptographic Nonce
+      const nonceBuffer = new Uint8Array(16);
+      window.crypto.getRandomValues(nonceBuffer);
+      const nonce = bs58.encode(nonceBuffer);
+      
+      const domain = window.location.host;
+      const uri = window.location.origin;
+      const issuedAt = new Date().toISOString();
+      
+      // 2. Construct Standardized SIWS Message
+      const message = `${domain} wants you to sign in with your Solana account:
+${address}
+
+Verify that you are the authorized platform administrator.
+
+URI: ${uri}
+Version: 1
+Nonce: ${nonce}
+Issued At: ${issuedAt}`;
       
       const messageBytes = new TextEncoder().encode(message);
       const signatureBytes = await signMessage(messageBytes);
-      const signature = bs58.encode(signatureBytes);
 
-      // In a production environment, we would verify this signature on the backend.
-      // For now, we establish the cryptographic proof and mark verified.
-      if (signature) {
+      // 3. CRYPTOGRAPHIC VERIFICATION (Ed25519)
+      // We verify the signature against the public key to prove possession
+      const isValid = nacl.sign.detached.verify(
+        messageBytes,
+        signatureBytes,
+        publicKey.toBytes()
+      );
+
+      if (isValid) {
         setIsVerified(true);
         sessionStorage.setItem(`admin_verified_${address}`, 'true');
         return true;
+      } else {
+        console.error("Signature verification failed: Invalid proof");
+        return false;
       }
-      return false;
     } catch (error) {
-      console.error("Admin verification failed:", error);
+      console.error("Admin verification process failed:", error);
       return false;
     }
   };
