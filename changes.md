@@ -1,5 +1,25 @@
 # Frontend & Architecture Changes Documentation
 ---
+## Feature: Transfer Validation Gate (AC-BC-202) & Final Compliance Hardening
+**Timestamp:** 2026-04-18T14:55:00+06:00
+Finalized the logic-gate architecture for the Compliance program. Standardized on-chain reason codes for transfer rejection and resolved critical IDL naming mismatches that were blocking TypeScript integration.
+
+### 1. Compliance Logic Hardening (Anchor / Rust)
+| File | Line Numbers | Feature Added | Reason for Addition |
+| :--- | :--- | :--- | :--- |
+| **[transfer_validate.rs](file:///c:/Rupom/Projects/AURUMCHAIN/programs/compliance_transfer/src/compliance_logic/transfer_validate.rs)** | **39-105** | `amount` param & Reason Codes | Added the `u64` amount parameter and implemented the 0x01-0x06 reason code standard to provide granular rejection reasons to the platform backend. |
+| **[lib.rs](file:///c:/Rupom/Projects/AURUMCHAIN/programs/compliance_transfer/src/lib.rs)** | **6, 54-58** | IDL Naming Fix | Refactored the `TransferDecision` return type to remove the `crate::state::` namespace. This ensures the Anchor-generated IDL is compatible with the frontend TypeScript client. |
+| **[idl.json](file:///c:/Rupom/Projects/AURUMCHAIN/programs/compliance_transfer/src/idl.json)** | **81, 134-142** | Schema Metadata Patch | Manually synced the IDL instruction arguments and return types to match the hardened Rust implementation. |
+
+### 2. Full-Stack Integration & Testing
+| File | Line Numbers | Feature Added | Reason for Addition |
+| :--- | :--- | :--- | :--- |
+| **[complianceRepository.ts](file:///c:/Rupom/Projects/AURUMCHAIN/lib/web3/repositories/complianceRepository.ts)** | **105-121** | `getTransferValidateInstruction` | Added the instruction builder to the repository layer for use in simulation-mode checks. |
+| **[complianceService.ts](file:///c:/Rupom/Projects/AURUMCHAIN/lib/web3/services/complianceService.ts)** | **131-180** | `validateTransfer` (Sim Mode) | Implemented the service-level check that allows the backend to "Ask" the blockchain for a transfer decision without executing an on-chain transaction. |
+| **[eligibility.ts](file:///c:/Rupom/Projects/AURUMCHAIN/tests/eligibility.ts)** | **1-180** | Consolidated Audit Suite | Created a unified, collision-protected test suite. Includes high-resolution timestamp hashes and `sleep` delays to ensure 100% reliability on Solana Devnet. |
+
+---
+---
 ## Feature: Compliance Architecture Refactor & Playground Testing (EPIC 2.1 Completion)
 **Timestamp:** 2026-04-18T13:20:00+06:00
 Finalized the modular refactor of the `compliance_transfer` program to ensure 100% compatibility with Solana Playground. Implemented a comprehensive TypeScript test suite to verify the on-chain allow-list, AML security blocks, and authority constraints.

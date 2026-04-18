@@ -74,10 +74,11 @@
       ],
       "args": [
         { "name": "projectId", "type": "u64" },
+        { "name": "amount", "type": "u64" },
         { "name": "projectTransfersPaused", "type": "bool" },
         { "name": "lockupEndTs", "type": "i64" }
       ],
-      "returns": { "defined": "crate::state::TransferDecision" }
+      "returns": { "defined": "TransferDecision" }
     },
     {
       "name": "subscribeInvestment",
@@ -297,6 +298,7 @@
         { "name": "sender", "type": "publicKey", "index": false },
         { "name": "receiver", "type": "publicKey", "index": false },
         { "name": "projectId", "type": "u64", "index": false },
+        { "name": "amount", "type": "u64", "index": false },
         { "name": "allowed", "type": "bool", "index": false },
         { "name": "bypassUsed", "type": "bool", "index": false },
         { "name": "reasonCode", "type": "u8", "index": false },

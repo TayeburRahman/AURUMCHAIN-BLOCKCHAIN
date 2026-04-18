@@ -4,6 +4,7 @@ mod state;
 mod compliance_logic;
 
 use crate::compliance_logic::*;
+use crate::state::TransferDecision;
 
 declare_id!("CHWFf4LBaq3VECZ6hiH4YZWNrqezkDteiDq1VbYLFtTs");
 
@@ -52,10 +53,11 @@ pub mod compliance_transfer {
     pub fn transfer_validate(
         ctx:                      Context<TransferValidate>,
         project_id:               u64,
+        amount:                   u64,
         project_transfers_paused: bool,
         lockup_end_ts:            i64,
-    ) -> Result<crate::state::TransferDecision> {
-        handle_transfer_validate(ctx, project_id, project_transfers_paused, lockup_end_ts)
+    ) -> Result<TransferDecision> {
+        handle_transfer_validate(ctx, project_id, amount, project_transfers_paused, lockup_end_ts)
     }
 
     pub fn subscribe_investment(

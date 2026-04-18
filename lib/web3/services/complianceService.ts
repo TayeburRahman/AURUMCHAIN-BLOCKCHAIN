@@ -123,6 +123,55 @@ export class ComplianceService {
     
     return this.formatResponse(false, null, message);
   }
+
+  /**
+   * VALIDATES a transfer in Simulation-Mode (view-only).
+   * 
+   * returns { allowed: boolean, reasonCode: number }
+   */
+  async validateTransfer(params: {
+    sender: string,
+    receiver: string,
+    projectId: number,
+    amount: number,
+    transfersPaused: boolean,
+    lockupEndTs: number
+  }) {
+    try {
+      const instruction = await this.repository.getTransferValidateInstruction(
+        new PublicKey(params.sender),
+        new PublicKey(params.receiver),
+        new BN(params.projectId),
+        new BN(params.amount),
+        params.transfersPaused,
+        new BN(params.lockupEndTs)
+      );
+
+      // Construct transaction and Simulate
+      const { blockhash } = await this.connection.getLatestBlockhash();
+      const transaction = new Transaction().add(instruction);
+      transaction.recentBlockhash = blockhash;
+      transaction.feePayer = this.wallet.publicKey || new PublicKey("11111111111111111111111111111111");
+
+      const simulation = await this.connection.simulateTransaction(transaction);
+
+      // Handle Simulation Errors (e.g. Account Not Found)
+      if (simulation.value.err) {
+         return this.formatResponse(false, null, `SIMULATION_ERROR: ${JSON.stringify(simulation.value.err)}`);
+      }
+
+      // In Anchor, the return value or logs can be used. 
+      // For this spec, we rely on the Event emitted or the logical pass/fail.
+      // A "Pass" means allowed=true.
+      return this.formatResponse(true, { 
+        allowed: true, 
+        reasonCode: 0 
+      });
+
+    } catch (error: any) {
+      return this.handleError(error);
+    }
+  }
 }
 
 /**

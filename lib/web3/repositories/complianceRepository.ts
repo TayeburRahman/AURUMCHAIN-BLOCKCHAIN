@@ -97,4 +97,26 @@ export class ComplianceRepository {
     const pda = getComplianceControlPDA(this.program.programId);
     return await this.program.account.complianceControl.fetch(pda);
   }
+
+  /**
+   * Constructs transfer_validate instruction.
+   */
+  async getTransferValidateInstruction(
+    sender:       PublicKey,
+    receiver:     PublicKey,
+    projectId:    BN,
+    amount:       BN,
+    transfersPaused: boolean,
+    lockupEndTs:     BN
+  ): Promise<TransactionInstruction> {
+    return await this.program.methods
+      .transferValidate(projectId, amount, transfersPaused, lockupEndTs)
+      .accounts({
+        control:            getComplianceControlPDA(this.program.programId),
+        senderEligibility:  getEligibilityPDA(sender, this.program.programId),
+        receiverEligibility:getEligibilityPDA(receiver, this.program.programId),
+        caller:             this.program.provider.publicKey!,
+      } as any)
+      .instruction();
+  }
 }
