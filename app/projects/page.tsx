@@ -22,10 +22,10 @@ interface OnChainData {
   lockupEndTs: number;
   subscriptionStart: number;
   subscriptionEnd: number;
+  createdAt: number;
   distributionCadence: number;
   isActive: boolean;
-  investmentsPaused: boolean;
-  transfersPaused: boolean;
+  isPaused: boolean;
   mintAuthorityRevoked: boolean;
   creator: string;
   pda: string;
@@ -206,7 +206,7 @@ function ProjectCard({
               ⛓ On-Chain
             </span>
           )}
-          {chain?.investmentsPaused && (
+          {chain?.isPaused && (
             <span className="px-3 py-1 rounded-full text-xs font-bold bg-orange-500/80 text-white backdrop-blur-sm">
               ⚠ Paused
             </span>
@@ -351,13 +351,13 @@ function ProjectCard({
         {/* CTA */}
         <button
           className={`w-full font-bold py-3.5 px-6 rounded-xl transition-all duration-300 mt-auto ${
-            project.status === "funding" && (!chain || !chain.investmentsPaused)
+            project.status === "funding" && (!chain || !chain.isPaused)
               ? "bg-gradient-to-r from-gold to-gold-light hover:from-gold-light hover:to-gold text-navy shadow-lg shadow-gold/20 hover:shadow-gold/40 hover:scale-[1.02]"
               : "bg-gray-700/50 text-gray-400 cursor-not-allowed"
           }`}
-          disabled={project.status !== "funding" || (!!chain && chain.investmentsPaused)}
+          disabled={project.status !== "funding" || (!!chain && chain.isPaused)}
         >
-          {chain?.investmentsPaused
+          {chain?.isPaused
             ? "Investments Paused"
             : project.status === "funding"
             ? <span className="flex items-center justify-center gap-2">

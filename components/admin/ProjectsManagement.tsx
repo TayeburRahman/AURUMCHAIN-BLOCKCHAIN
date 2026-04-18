@@ -333,36 +333,26 @@ export default function ProjectsManagement({ initialProjects, userId }: Projects
   // ── On-chain boolean toggles (pause/resume/activate) ─────────────────────
   const handleChainToggle = async (
     project: Project,
-    action: 'pauseInvestments' | 'resumeInvestments' | 'pauseTransfers' | 'resumeTransfers' | 'activate' | 'deactivate'
+    action: 'pauseInvestments' | 'resumeInvestments' | 'pauseTransfers' | 'resumeTransfers' | 'activate' | 'deactivate' | 'revokeMintAuthority'
   ) => {
     if (project.blockchain_project_id === null || project.blockchain_project_id === undefined) {
       setError('This project has no on-chain record.'); return;
     }
     if (!wallet.connected) { setError('Connect your Phantom wallet first.'); return; }
     if (statusChanging) return;
+    
     setStatusChanging(project.id);
     try {
       const service = new ProjectRegistryService(connection, wallet);
-      if (action === 'pauseInvestments')
-        await service.toggleStatus('pauseInvestments', project.blockchain_project_id, true);
-      else if (action === 'resumeInvestments')
-        await service.toggleStatus('pauseInvestments', project.blockchain_project_id, false);
-      else if (action === 'pauseTransfers')
-        await service.toggleStatus('pauseTransfers', project.blockchain_project_id, true);
-      else if (action === 'resumeTransfers')
-        await service.toggleStatus('pauseTransfers', project.blockchain_project_id, false);
-      else if (action === 'activate')
-        await service.toggleStatus('setProjectActive', project.blockchain_project_id, true);
-      else if (action === 'deactivate')
-        await service.toggleStatus('setProjectActive', project.blockchain_project_id, false);
-      else if (action === 'revokeMintAuthority') {
+      
+      // Special case: Revoke is its own instruction
+      if (action === 'revokeMintAuthority') {
         if (!confirm('WARNING: Revoking mint authority is irreversible. You will not be able to issue any more tokens for this project. PROCEED?')) {
           setStatusChanging(null);
           return;
         }
         const signature = await service.revokeMintAuthority(project.blockchain_project_id);
         
-        // Sync with Supabase
         await fetch(`/api/admin/projects/${project.id}`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
@@ -370,7 +360,37 @@ export default function ProjectsManagement({ initialProjects, userId }: Projects
         });
         
         alert(`Success! Mint authority revoked.\nTX: ${signature}`);
+        return;
       }
+
+      // 1. Fetch current on-chain state to avoid overwriting flags
+      const currentAccount = await service.fetchProject(project.blockchain_project_id);
+      if (!currentAccount) throw new Error("Could not fetch on-chain project state.");
+
+      let newIsActive = currentAccount.isActive;
+      let newIsPaused = currentAccount.isPaused;
+
+      // 2. Determine new state based on action
+      // Note: we now use a smart toggle. If we trigger any pause action, it flips the current state.
+      if (action === 'pauseInvestments' || action === 'pauseTransfers') {
+        newIsPaused = !currentAccount.isPaused; 
+      } else if (action === 'resumeInvestments' || action === 'resumeTransfers') {
+        newIsPaused = false;
+      } else if (action === 'activate') {
+        newIsActive = true;
+      } else if (action === 'deactivate') {
+        newIsActive = false;
+      }
+
+      // 3. Perform atomic update
+      const signature = await service.updateProjectStatus(
+        project.blockchain_project_id,
+        newIsActive,
+        newIsPaused
+      );
+
+      console.log(`[StatusUpdate] Project ${project.id} updated. TX: ${signature}`);
+      
     } catch (err: any) {
       setError(err.message);
     } finally {
@@ -936,24 +956,16 @@ export default function ProjectsManagement({ initialProjects, userId }: Projects
                 {project.blockchain_project_id !== null && project.blockchain_project_id !== undefined && (
                   <div className="flex gap-1 flex-wrap justify-end">
                     <button
-                      title="Toggle investment subscriptions on-chain"
+                      title="Toggle project operations (Pause/Resume everything)"
                       disabled={statusChanging === project.id}
                       onClick={() => handleChainToggle(
                         project,
-                        /* derive current state from last known chain snapshot via status */
-                        project.status === 'funding' ? 'pauseInvestments' : 'resumeInvestments'
+                        /* We check current state in handleChainToggle, so we just need a generic toggle intent here */
+                        'pauseInvestments' 
                       )}
-                      className="px-2 py-1 rounded text-xs font-medium bg-orange-500/20 text-orange-400 hover:bg-orange-500/30 transition-colors disabled:opacity-40"
+                      className="px-2 py-1 rounded text-xs font-medium bg-orange-500/20 text-orange-400 hover:bg-orange-500/30 transition-colors disabled:opacity-40 border border-orange-500/30"
                     >
-                      {project.status === 'funding' ? '⏸ Pause Inv.' : '▶ Resume Inv.'}
-                    </button>
-                    <button
-                      title="Toggle token transfers on-chain"
-                      disabled={statusChanging === project.id}
-                      onClick={() => handleChainToggle(project, 'pauseTransfers')}
-                      className="px-2 py-1 rounded text-xs font-medium bg-yellow-500/20 text-yellow-400 hover:bg-yellow-500/30 transition-colors disabled:opacity-40"
-                    >
-                      🔒 Pause Tx
+                      ⏸ Pause/Resume Project
                     </button>
 
                     {/* Set Mint Button */}

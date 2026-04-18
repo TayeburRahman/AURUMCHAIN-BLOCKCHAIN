@@ -1,4 +1,32 @@
 # Frontend & Architecture Changes Documentation
+---
+
+## Feature: Modular Project Registry & Atomic Status Control (AC-BC-102 Implementation)
+**Timestamp:** 2026-04-18T08:50:00+06:00
+Transformed the project registry from a monolithic program into a modular, instruction-based architecture. Implemented the unified `update_project_status` instruction, corrected data schemas, and synced the entire integration layer (IDL, Repository, Service, and Admin Dashboard) to support atomic compliance holds.
+
+### 1. Smart Contract Refactor (Anchor / Rust)
+| File | Line Numbers | Feature Added | Reason for Addition |
+| :--- | :--- | :--- | :--- |
+| **[lib.rs](file:///c:/Rupom/Projects/AURUMCHAIN/programs/project_registry/src/lib.rs)** | **1-85** | Modular Entry Point | Refactored into separate `instructions` and `state` modules. The main file now only acts as a clean dispatcher. |
+| **[project_account.rs](file:///c:/Rupom/Projects/AURUMCHAIN/programs/project_registry/src/state/project_account.rs)** | **1-55** | Schema Correction & Timestamps | Fixed `distribution_cadence` to `u8`, added `created_at: i64`, and consolidated pause flags into a single `is_paused` field. |
+| **[update_project_status.rs](file:///c:/Rupom/Projects/AURUMCHAIN/programs/project_registry/src/instructions/update_project_status.rs)** | **1-54** | `update_project_status` Instruction | Implemented atomic status management (Active/Paused). Emits `PauseStateChanged` event with before/after snapshots for better auditing. |
+| **[create_project.rs](file:///c:/Rupom/Projects/AURUMCHAIN/programs/project_registry/src/instructions/create_project.rs)** | **105-115** | Timestamp Initialization | Added logic to capture `Clock::get()?.unix_timestamp` during project creation. |
+| **[update_project_status_test.rs](file:///c:/Rupom/Projects/AURUMCHAIN/programs/project_registry/tests/update_project_status_test.rs)** | **1-44** | Status Logic Unit Tests | New test suite verifying happy paths and authority constraints for the new status control instruction. |
+
+### 2. Integration Layer (Web3 & IDL)
+| File | Line Numbers | Feature Added | Reason for Addition |
+| :--- | :--- | :--- | :--- |
+| **[idl.json](file:///c:/Rupom/Projects/AURUMCHAIN/programs/project_registry/src/idl.json)** | **Full Update** | Refined IDL | Updated schema definitions and instruction names to match the modular program structure. |
+| **[projectRegistryRepository.ts](file:///c:/Rupom/Projects/AURUMCHAIN/lib/web3/repositories/projectRegistryRepository.ts)** | **115-135** | `getUpdateProjectStatusInstruction` | Replaced legacy individual toggle builders with a single, type-safe instruction builder for status updates. |
+| **[projectRegistryService.ts](file:///c:/Rupom/Projects/AURUMCHAIN/lib/web3/services/projectRegistryService.ts)** | **232-250** | `updateProjectStatus` & Error Recovery | Added high-level update method and improved error parsing to catch "Account layout mismatch" (schema versions). |
+
+### 3. Frontend & UI Sync
+| File | Line Numbers | Feature Added | Reason for Addition |
+| :--- | :--- | :--- | :--- |
+| **[ProjectsManagement.tsx](file:///c:/Rupom/Projects/AURUMCHAIN/components/admin/ProjectsManagement.tsx)** | **334-386, 958-977** | Consolidated "Pause" Toggle | Merged "Pause Inv." and "Pause Tx" into a single smart toggle. Implemented pre-update state fetching to prevent data race conditions on-chain. |
+| **[page.tsx](file:///c:/Rupom/Projects/AURUMCHAIN/app/projects/page.tsx)** | **12-32, 209, 354-365** | Gallery Sync | Updated Public Gallery to read the new `isPaused` and `createdAt` fields. Synced the "Invest" button disable logic with the new flag. |
+| **[route.ts](file:///c:/Rupom/Projects/AURUMCHAIN/app/api/projects/route.ts)** | **50-70** | Hybrid Data Mapping Fix | Updated the API route that merges Supabase + Blockchain data to correctly map the new schema fields to the frontend. |
 
 ---
 

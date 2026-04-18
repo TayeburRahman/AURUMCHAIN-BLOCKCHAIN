@@ -60,13 +60,13 @@ export async function GET() {
           lockupEndTs:         chainData.lockupEndTs.toNumber(),
           subscriptionStart:   chainData.subscriptionStart.toNumber(),
           subscriptionEnd:     chainData.subscriptionEnd.toNumber(),
+          createdAt:           chainData.createdAt.toNumber(),
           distributionCadence: chainData.distributionCadence,
           isActive:            chainData.isActive,
-          investmentsPaused:   chainData.investmentsPaused,
-          transfersPaused:     chainData.transfersPaused,
+          isPaused:            chainData.isPaused,
           mintAuthorityRevoked: chainData.mintAuthorityRevoked,
           creator:             chainData.creator.toString(),
-          pda:                 '', // PDA can be derived if needed, but rarely used in public API
+          pda:                 '', 
         } : null,
       };
     });
