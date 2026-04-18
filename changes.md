@@ -1,5 +1,25 @@
 # Frontend & Architecture Changes Documentation
 ---
+## Feature: Compliance Architecture Refactor & Playground Testing (EPIC 2.1 Completion)
+**Timestamp:** 2026-04-18T13:20:00+06:00
+Finalized the modular refactor of the `compliance_transfer` program to ensure 100% compatibility with Solana Playground. Implemented a comprehensive TypeScript test suite to verify the on-chain allow-list, AML security blocks, and authority constraints.
+
+### 1. Smart Contract Modularization (Anchor / Rust)
+| File | Line Numbers | Feature Added | Reason for Addition |
+| :--- | :--- | :--- | :--- |
+| **[lib.rs](file:///c:/Rupom/Projects/AURUMCHAIN/programs/compliance_transfer/src/lib.rs)** | **1-133** | Pure Modular Refactor | Restored the program to the "Logic-First" pattern used in Project Registry. Resolves persistent `E0583` resolution errors on Devnet. |
+| **[state/mod.rs](file:///c:/Rupom/Projects/AURUMCHAIN/programs/compliance_transfer/src/state/mod.rs)** | **1-40** | Centralized State Exports | Consolidated account structs and enums with glob re-exports for cleaner IDL generation and instruction accessibility. |
+| **[compliance_logic/mod.rs](file:///c:/Rupom/Projects/AURUMCHAIN/programs/compliance_transfer/src/compliance_logic/mod.rs)** | **1-35** | Instruction Glob Exports | Re-aligned logic handlers to ensure the `#[program]` macro can resolve hidden Anchor context types. |
+| **[idl.json](file:///c:/Rupom/Projects/AURUMCHAIN/programs/compliance_transfer/src/idl.json)** | **76-364** | Schema Hardening | Updated events and instruction definitions to support the full compliance logic gate. |
+
+### 2. Testing & Verification (Solana Playground)
+| File | Line Numbers | Feature Added | Reason for Addition |
+| :--- | :--- | :--- | :--- |
+| **[eligibility.ts](file:///c:/Rupom/Projects/AURUMCHAIN/tests/eligibility.ts)** | **1-137** | **[NEW]** TS Test Suite | Implemented a high-coverage test suite for the Playground "Test" tab. Verifies Happy Paths (KYC Approved), AML Security Blocks, and Unauthorized Access rejection. |
+| **[task.md](file:///c:/Users/radwa/.gemini/antigravity/brain/722e2685-c48f-4809-81de-5cd38505a9db/task.md)** | **30-45** | Progress Tracking | Updated EPIC 2 tracking to reflect the shift to Playground-native testing and the completion of sub-task 201-4. |
+
+---
+---
 ## Feature: Project Registry Security Hardening & Modular Stabilization (Epic 1 Finalization)
 **Timestamp:** 2026-04-18T10:57:00+06:00
 Finalized the security architecture for the Project Registry. Implemented a 3-tier authority system, a global emergency "Kill-Switch," and stabilized the modular architecture using the Unique Handler Pattern to resolve persistent Anchor macro resolution issues.

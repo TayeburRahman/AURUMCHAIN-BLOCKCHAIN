@@ -76,6 +76,35 @@
         { "name": "projectId", "type": "u64" },
         { "name": "projectTransfersPaused", "type": "bool" },
         { "name": "lockupEndTs", "type": "i64" }
+      ],
+      "returns": { "defined": "crate::state::TransferDecision" }
+    },
+    {
+      "name": "subscribeInvestment",
+      "accounts": [
+        { "name": "subscription", "isMut": true, "isSigner": false },
+        { "name": "investor", "isMut": true, "isSigner": true },
+        { "name": "eligibility", "isMut": false, "isSigner": false },
+        { "name": "control", "isMut": false, "isSigner": false },
+        { "name": "systemProgram", "isMut": false, "isSigner": false }
+      ],
+      "args": [
+        { "name": "subscriptionId", "type": "u64" },
+        { "name": "projectId", "type": "u64" },
+        { "name": "investmentAmount", "type": "u64" },
+        { "name": "paymentAsset", "type": "publicKey" }
+      ]
+    },
+    {
+      "name": "finalizeSubscription",
+      "accounts": [
+        { "name": "subscription", "isMut": true, "isSigner": false },
+        { "name": "control", "isMut": false, "isSigner": false },
+        { "name": "authority", "isMut": false, "isSigner": true }
+      ],
+      "args": [
+        { "name": "settlementTxHash", "type": { "array": ["u8", 64] } },
+        { "name": "allocatedTokenAmount", "type": "u64" }
       ]
     }
   ],
@@ -87,9 +116,9 @@
         "fields": [
           { "name": "authority", "type": "publicKey" },
           { "name": "superAdmin", "type": "publicKey" },
+          { "name": "registryProgram", "type": "publicKey" },
           { "name": "kycBypass", "type": "bool" },
           { "name": "transfersPaused", "type": "bool" },
-          { "name": "registryProgram", "type": "publicKey" },
           { "name": "bump", "type": "u8" }
         ]
       }
@@ -106,7 +135,30 @@
           { "name": "investmentAllowed", "type": "bool" },
           { "name": "transferAllowed", "type": "bool" },
           { "name": "expiryTimestamp", "type": "i64" },
+          { "name": "updatedAt", "type": "i64" },
+          { "name": "approvalTimestamp", "type": "i64" },
+          { "name": "reverificationRequired", "type": "bool" },
           { "name": "recordedBy", "type": "publicKey" },
+          { "name": "bump", "type": "u8" }
+        ]
+      }
+    },
+    {
+      "name": "InvestmentSubscriptionAccount",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          { "name": "subscriptionId", "type": "u64" },
+          { "name": "investor", "type": "publicKey" },
+          { "name": "projectId", "type": "u64" },
+          { "name": "investmentAmount", "type": "u64" },
+          { "name": "paymentAsset", "type": "publicKey" },
+          { "name": "status", "type": { "defined": "SubscriptionStatus" } },
+          { "name": "allocatedTokenAmount", "type": "u64" },
+          { "name": "settlementTxHash", "type": { "array": ["u8", 64] } },
+          { "name": "settledAt", "type": "i64" },
+          { "name": "createdAt", "type": "i64" },
+          { "name": "updatedAt", "type": "i64" },
           { "name": "bump", "type": "u8" }
         ]
       }
@@ -124,6 +176,16 @@
           { "name": "investmentAllowed", "type": "bool" },
           { "name": "transferAllowed", "type": "bool" },
           { "name": "expiryTimestamp", "type": "i64" }
+        ]
+      }
+    },
+    {
+      "name": "TransferDecision",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          { "name": "allowed", "type": "bool" },
+          { "name": "reasonCode", "type": "u8" }
         ]
       }
     },
@@ -149,9 +211,56 @@
           { "name": "Blocked" }
         ]
       }
+    },
+    {
+      "name": "SubscriptionStatus",
+      "type": {
+        "kind": "enum",
+        "variants": [
+          { "name": "Pending" },
+          { "name": "Settled" },
+          { "name": "Allocated" },
+          { "name": "Refunded" }
+        ]
+      }
     }
   ],
   "events": [
+    {
+      "name": "GlobalPauseChanged",
+      "fields": [
+        { "name": "transfersPaused", "type": "bool", "index": false },
+        { "name": "changedBy", "type": "publicKey", "index": false },
+        { "name": "timestamp", "type": "i64", "index": false }
+      ]
+    },
+    {
+      "name": "KycBypassChanged",
+      "fields": [
+        { "name": "bypassEnabled", "type": "bool", "index": false },
+        { "name": "changedBy", "type": "publicKey", "index": false },
+        { "name": "timestamp", "type": "i64", "index": false }
+      ]
+    },
+    {
+      "name": "InvestmentSettled",
+      "fields": [
+        { "name": "subscriptionId", "type": "u64", "index": false },
+        { "name": "investor", "type": "publicKey", "index": false },
+        { "name": "projectId", "type": "u64", "index": false },
+        { "name": "txHash", "type": { "array": ["u8", 64] }, "index": false },
+        { "name": "timestamp", "type": "i64", "index": false }
+      ]
+    },
+    {
+      "name": "TokensAllocated",
+      "fields": [
+        { "name": "subscriptionId", "type": "u64", "index": false },
+        { "name": "investor", "type": "publicKey", "index": false },
+        { "name": "amount", "type": "u64", "index": false },
+        { "name": "timestamp", "type": "i64", "index": false }
+      ]
+    },
     {
       "name": "WalletVerified",
       "fields": [
@@ -173,6 +282,16 @@
       ]
     },
     {
+      "name": "InvestmentSubscribed",
+      "fields": [
+        { "name": "subscriptionId", "type": "u64", "index": false },
+        { "name": "investor", "type": "publicKey", "index": false },
+        { "name": "projectId", "type": "u64", "index": false },
+        { "name": "investmentAmount", "type": "u64", "index": false },
+        { "name": "timestamp", "type": "i64", "index": false }
+      ]
+    },
+    {
       "name": "TransferValidated",
       "fields": [
         { "name": "sender", "type": "publicKey", "index": false },
@@ -180,22 +299,7 @@
         { "name": "projectId", "type": "u64", "index": false },
         { "name": "allowed", "type": "bool", "index": false },
         { "name": "bypassUsed", "type": "bool", "index": false },
-        { "name": "timestamp", "type": "i64", "index": false }
-      ]
-    },
-    {
-      "name": "GlobalPauseChanged",
-      "fields": [
-        { "name": "transfersPaused", "type": "bool", "index": false },
-        { "name": "changedBy", "type": "publicKey", "index": false },
-        { "name": "timestamp", "type": "i64", "index": false }
-      ]
-    },
-    {
-      "name": "KycBypassChanged",
-      "fields": [
-        { "name": "bypassEnabled", "type": "bool", "index": false },
-        { "name": "changedBy", "type": "publicKey", "index": false },
+        { "name": "reasonCode", "type": "u8", "index": false },
         { "name": "timestamp", "type": "i64", "index": false }
       ]
     }
@@ -260,6 +364,31 @@
       "code": 6011,
       "name": "EmptyIdentityHash",
       "msg": "Identity hash cannot be all zeros"
+    },
+    {
+      "code": 6012,
+      "name": "InvestmentTooLow",
+      "msg": "Investment amount is below project minimum"
+    },
+    {
+      "code": 6013,
+      "name": "InvestmentTooHigh",
+      "msg": "Investment amount exceeds project maximum"
+    },
+    {
+      "code": 6014,
+      "name": "ProjectNotActive",
+      "msg": "Project is not active or is paused"
+    },
+    {
+      "code": 6015,
+      "name": "AlreadySettled",
+      "msg": "Subscription is already settled or allocated"
+    },
+    {
+      "code": 6016,
+      "name": "InvalidStatus",
+      "msg": "Invalid subscription status for this operation"
     }
   ]
 }
