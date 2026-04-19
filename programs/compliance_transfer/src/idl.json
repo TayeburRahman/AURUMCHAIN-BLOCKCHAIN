@@ -54,7 +54,10 @@
         { "name": "control", "isMut": true, "isSigner": false },
         { "name": "superAdmin", "isMut": false, "isSigner": true }
       ],
-      "args": [{ "name": "enabled", "type": "bool" }]
+      "args": [
+        { "name": "enabled", "type": "bool" },
+        { "name": "nonce", "type": "u64" }
+      ]
     },
     {
       "name": "setGlobalTransferPause",
@@ -62,7 +65,10 @@
         { "name": "control", "isMut": true, "isSigner": false },
         { "name": "authority", "isMut": false, "isSigner": true }
       ],
-      "args": [{ "name": "paused", "type": "bool" }]
+      "args": [
+        { "name": "paused", "type": "bool" },
+        { "name": "nonce", "type": "u64" }
+      ]
     },
     {
       "name": "transferValidate",

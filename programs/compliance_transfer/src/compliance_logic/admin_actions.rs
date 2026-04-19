@@ -36,7 +36,11 @@ pub struct AdminAction<'info> {
     pub authority: Signer<'info>,
 }
 
-pub fn handle_set_kyc_bypass(ctx: Context<SuperAdminAction>, enabled: bool) -> Result<()> {
+pub fn handle_set_kyc_bypass(
+    ctx:     Context<SuperAdminAction>,
+    enabled: bool,
+    _nonce:  u64,
+) -> Result<()> {
     let clock = Clock::get()?;
     ctx.accounts.control.kyc_bypass = enabled;
 
@@ -52,6 +56,7 @@ pub fn handle_set_kyc_bypass(ctx: Context<SuperAdminAction>, enabled: bool) -> R
 pub fn handle_set_global_transfer_pause(
     ctx:    Context<AdminAction>,
     paused: bool,
+    _nonce: u64,
 ) -> Result<()> {
     let clock = Clock::get()?;
     ctx.accounts.control.transfers_paused = paused;

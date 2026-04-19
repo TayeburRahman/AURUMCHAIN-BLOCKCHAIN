@@ -39,15 +39,16 @@ pub mod compliance_transfer {
         handle_revoke_wallet(ctx)
     }
 
-    pub fn set_kyc_bypass(ctx: Context<SuperAdminAction>, enabled: bool) -> Result<()> {
-        handle_set_kyc_bypass(ctx, enabled)
+    pub fn set_kyc_bypass(ctx: Context<SuperAdminAction>, enabled: bool, nonce: u64) -> Result<()> {
+        handle_set_kyc_bypass(ctx, enabled, nonce)
     }
 
     pub fn set_global_transfer_pause(
         ctx:    Context<AdminAction>,
         paused: bool,
+        nonce:  u64,
     ) -> Result<()> {
-        handle_set_global_transfer_pause(ctx, paused)
+        handle_set_global_transfer_pause(ctx, paused, nonce)
     }
 
     pub fn transfer_validate(

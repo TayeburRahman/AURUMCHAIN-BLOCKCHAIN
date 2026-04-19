@@ -49,3 +49,7 @@ Automated Verification
 Observe the Network tab in the browser: Check that multiple getAccountInfo calls are replaced by a single getMultipleAccounts batch call.
 Manual Verification
 Verify that "ON-CHAIN VERIFIED" badges appear correctly for all items without triggering 429 errors.
+
+
+
+Added tweetnacl (L55) to support the new cryptographic signature verification. for investor too 
