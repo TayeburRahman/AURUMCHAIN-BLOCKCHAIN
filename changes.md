@@ -432,7 +432,26 @@ Implemented a secure, dual-signer authority transfer mechanism for the Project R
 
 | Line Numbers | Feature Added                   | Reason for Addition                                                                                                 |
 | :----------- | :------------------------------ | :------------------------------------------------------------------------------------------------------------------ |
-| **All New**  | Integration Verification Script | Lightweight CLI tool to verify that the Service Layer is correctly communicating with the on-chain Devnet registry. |
+| **All New**  | Integration Verification Script | Lightweight CLI tool to verify that the Service Layer is correctly communicating with the# AurumChain Development Logs
+
+## [2026-04-19 15:52] - Epic 1 Stability & Type Hardening
+- **File:** `lib/web3/repositories/projectRegistryRepository.ts`
+  - **Lines:** 170
+  - **Feature:** Infrastructure Type Safety
+  - **Reason:** Fixed Rust-style `bool` to TypeScript `boolean` to resolve compilation error blocking the build.
+- **File:** `lib/web3/services/projectRegistryService.ts`
+  - **Lines:** 194-220, 304-362
+  * **Feature:** Transaction Stability (Priority Fees & Polling Fallback)
+  * **Reason:** Implemented manual polling and priority fees (50k microlamports) to bypass Devnet congestion and Alchemy RPC websocket limitations (429 errors).
+- **File:** `tests/verify-project-registry.ts`
+  - **Lines:** 78-102
+  * **Feature:** Dynamic Integration Testing
+  * **Reason:** Updated test suite to sync with existing Project ID 16 ("18 April 2026") after discovering that ID 0 was blocked by stale data on-chain.
+- **File:** `lib/web3/services/projectRegistryService.ts`
+  - **Lines:** 37
+  * **Feature:** API Exposure
+  * **Reason:** Added `getProgramId()` to the service layer to allow tests and frontend to dynamically derive PDAs.
+istry. |
 
 ---
 

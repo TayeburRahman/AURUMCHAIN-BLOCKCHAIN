@@ -1,4 +1,4 @@
-import { Connection, PublicKey, Transaction, Keypair, SystemProgram } from '@solana/web3.js';
+import { Connection, PublicKey, Transaction, Keypair, SystemProgram, ComputeBudgetProgram } from '@solana/web3.js';
 import { Program, BN } from '@coral-xyz/anchor';
 import { 
   MINT_SIZE, 
@@ -31,6 +31,13 @@ export class ProjectRegistryService {
     this.wallet = wallet;
     const program = getRegistryProgram(connection, wallet);
     this.repository = new ProjectRegistryRepository(program);
+  }
+
+  /**
+   * Returns the program ID used by this service.
+   */
+  getProgramId(): PublicKey {
+    return this.repository.getProgramId();
   }
 
   /**
@@ -195,7 +202,12 @@ export class ProjectRegistryService {
 
       // 3. Assemble and Send Transaction
       const { blockhash, lastValidBlockHeight } = await this.connection.getLatestBlockhash('finalized');
+      const priorityFeeIx = ComputeBudgetProgram.setComputeUnitPrice({
+        microLamports: 50000, // Increased priority fee for congested Devnet
+      });
+
       const transaction = new Transaction().add(
+        priorityFeeIx,
         createMintAccIx,
         initMintIx,
         metadataIx,
@@ -211,11 +223,8 @@ export class ProjectRegistryService {
         skipPreflight: true,
       });
 
-      await this.connection.confirmTransaction({
-        signature,
-        blockhash,
-        lastValidBlockHeight
-      }, 'confirmed');
+      // Robust confirmation with polling fallback
+      await this.confirmTransactionInternally(signature, blockhash, lastValidBlockHeight);
 
       return { signature, projectId: nextId, mintAddress: mintAddress.toString() };
     } catch (error: any) {
@@ -307,7 +316,12 @@ export class ProjectRegistryService {
    */
   private async sendAndConfirm(instruction: any): Promise<string> {
     const { blockhash, lastValidBlockHeight } = await this.connection.getLatestBlockhash('confirmed');
-    const transaction = new Transaction().add(instruction);
+    
+    const priorityFeeIx = ComputeBudgetProgram.setComputeUnitPrice({
+      microLamports: 50000, 
+    });
+
+    const transaction = new Transaction().add(priorityFeeIx, instruction);
     transaction.recentBlockhash = blockhash;
     transaction.feePayer = this.wallet.publicKey;
 
@@ -315,13 +329,51 @@ export class ProjectRegistryService {
       skipPreflight: true,
     });
 
-    await this.connection.confirmTransaction({
-      signature,
-      blockhash,
-      lastValidBlockHeight
-    }, 'confirmed');
+    await this.confirmTransactionInternally(signature, blockhash, lastValidBlockHeight);
 
     return signature;
+  }
+
+  /**
+   * Internal helper using a pure polling strategy. 
+   * Bypasses the problematic websocket 'signatureSubscribe' method.
+   */
+  private async confirmTransactionInternally(signature: string, blockhash: string, lastValidBlockHeight: number) {
+    console.log(`[ProjectRegistryService] Polling for confirmation: ${signature.slice(0, 8)}...`);
+    
+    let confirmed = false;
+    let attempts = 0;
+    const maxAttempts = 45; // ~90 seconds total
+
+    while (!confirmed && attempts < maxAttempts) {
+      const status = await this.connection.getSignatureStatus(signature, {
+        searchTransactionHistory: false
+      });
+
+      if (status.value?.err) {
+        throw new Error(`Transaction failed on-chain: ${JSON.stringify(status.value.err)}`);
+      }
+
+      const confirmationStatus = status.value?.confirmationStatus;
+      
+      if (confirmationStatus === 'confirmed' || confirmationStatus === 'finalized') {
+        confirmed = true;
+        console.log(`[ProjectRegistryService] Transaction ${confirmationStatus}!`);
+      } else {
+        // Check if the blockheight has been exceeded (timeout)
+        const currentBlockHeight = await this.connection.getBlockHeight();
+        if (currentBlockHeight > lastValidBlockHeight) {
+          throw new Error("Transaction expired: block height exceeded during polling.");
+        }
+
+        await new Promise(resolve => setTimeout(resolve, 2000));
+        attempts++;
+      }
+    }
+
+    if (!confirmed) {
+      throw new Error("Transaction confirmation timed out after 90 seconds of polling.");
+    }
   }
 
   private handleError(error: any): Error {

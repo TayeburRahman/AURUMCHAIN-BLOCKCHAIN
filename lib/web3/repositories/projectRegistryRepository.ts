@@ -63,7 +63,7 @@ export class ProjectRegistryRepository {
       })
       .accounts({
         project: getProjectPDA(idBN, this.program.programId),
-        registry: getRegistryPDA(this.program.programId),
+        control: getRegistryPDA(this.program.programId),
         admin: this.program.provider.publicKey,
         systemProgram: SystemProgram.programId,
       } as any)
@@ -88,7 +88,7 @@ export class ProjectRegistryRepository {
       .updateProjectParams(params)
       .accounts({
         project: getProjectPDA(projectId, this.program.programId),
-        registry: getRegistryPDA(this.program.programId),
+        control: getRegistryPDA(this.program.programId),
         admin: this.program.provider.publicKey,
       } as any)
       .instruction();
@@ -105,8 +105,8 @@ export class ProjectRegistryRepository {
       .setProjectMint(mint)
       .accounts({
         project: getProjectPDA(projectId, this.program.programId),
-        registry: getRegistryPDA(this.program.programId),
-        authority: this.program.provider.publicKey,
+        control: getRegistryPDA(this.program.programId),
+        admin: this.program.provider.publicKey,
       } as any)
       .instruction();
   }
@@ -124,7 +124,7 @@ export class ProjectRegistryRepository {
       .updateProjectStatus(idBN, isActive, isPaused)
       .accounts({
         project: getProjectPDA(idBN, this.program.programId),
-        registry: getRegistryPDA(this.program.programId),
+        control: getRegistryPDA(this.program.programId),
         admin: this.program.provider.publicKey,
       } as any)
       .instruction();
@@ -140,8 +140,8 @@ export class ProjectRegistryRepository {
       .revokeMintAuthority()
       .accounts({
         project: getProjectPDA(projectId, this.program.programId),
-        registry: getRegistryPDA(this.program.programId),
-        authority: this.program.provider.publicKey,
+        control: getRegistryPDA(this.program.programId),
+        superAdmin: this.program.provider.publicKey,
       } as any)
       .instruction();
   }
@@ -167,7 +167,7 @@ export class ProjectRegistryRepository {
    * Constructs the set_emergency_pause instruction.
    */
   async getSetEmergencyPauseInstruction(
-    isPaused: bool
+    isPaused: boolean
   ): Promise<TransactionInstruction> {
     return await this.program.methods
       .setEmergencyPause(isPaused)
