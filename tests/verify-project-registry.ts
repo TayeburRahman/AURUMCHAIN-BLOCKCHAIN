@@ -1,42 +1,29 @@
-import { Connection, Keypair, PublicKey } from '@solana/web3.js';
+import { Keypair, PublicKey } from '@solana/web3.js';
 import bs58 from 'bs58';
 import { ProjectRegistryService } from '../lib/web3/services/projectRegistryService';
 import { getProjectPDA } from '../lib/web3/utils/pdaHelpers';
+import { SOLANA_RPC_URL, createDefaultConnection } from '../lib/web3/config/rpc';
 import * as fs from 'fs';
 import * as path from 'path';
 
 /**
  * AURUMCHAIN - Epic 1 Integration Test Suite
- * 
- * This script verifies:
- * 1. Atomic Project Creation (Mint + Metadata + Registry)
- * 2. On-chain state persistence
- * 3. Status control (Pause/Unpause)
- * 
- * Run: npx tsx tests/verify-project-registry.ts
  */
 
-function getEnv() {
+async function main() {
   const envPath = path.resolve(process.cwd(), '.env');
-  if (!fs.existsSync(envPath)) return {};
-  const content = fs.readFileSync(envPath, 'utf-8');
-  return content.split('\n').reduce((acc, line) => {
+  const env = fs.readFileSync(envPath, 'utf-8').split('\n').reduce((acc, line) => {
     const [key, ...value] = line.split('=');
     if (key && value.length) acc[key.trim()] = value.join('=').trim();
     return acc;
-  }, {} as Record<string, string>);
-}
+  }, {} as any);
 
-async function main() {
-  const env = getEnv();
-  const RPC_URL = env['NEXT_PUBLIC_SOLANA_RPC_URL'] || 'https://api.devnet.solana.com';
   const privateKeyStr = env['WALLET_PRIVATE_KEY'];
-
   if (!privateKeyStr) {
     throw new Error("WALLET_PRIVATE_KEY not found in .env");
   }
 
-  // Parse private key (handles both Array and Base58 formats)
+  // Parse private key
   let secretKey: Uint8Array;
   if (privateKeyStr.trim().startsWith('[')) {
     secretKey = Uint8Array.from(JSON.parse(privateKeyStr));
@@ -48,23 +35,14 @@ async function main() {
   console.log("--------------------------------------------------");
   console.log("AURUMCHAIN - EPIC 1 INTEGRATION TEST");
   console.log("--------------------------------------------------");
-  console.log(`RPC Endpoint: ${RPC_URL}`);
+  console.log(`RPC Endpoint: ${SOLANA_RPC_URL}`);
   console.log(`Admin Wallet: ${payer.publicKey.toBase58()}`);
   
-  const connection = new Connection(RPC_URL, 'confirmed');
-
-  // Verify Balance
-  const balance = await connection.getBalance(payer.publicKey);
-  console.log(`Current Balance: ${(balance / 1e9).toFixed(4)} SOL`);
-  
-  if (balance < 0.02 * 1e9) {
-    console.warn("⚠️  WARNING: Balance might be too low for multiple account creations.");
-    console.log("Run: solana airdrop 1 " + payer.publicKey.toBase58() + " --url devnet");
-  }
+  const connection = createDefaultConnection();
 
   const wallet = {
     publicKey: payer.publicKey,
-    sendTransaction: async (tx: any, connection: Connection, options?: any) => {
+    sendTransaction: async (tx: any, connection: any, options?: any) => {
       tx.partialSign(payer);
       const signature = await connection.sendRawTransaction(tx.serialize(), options);
       return signature;

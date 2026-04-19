@@ -434,6 +434,17 @@ Implemented a secure, dual-signer authority transfer mechanism for the Project R
 | :----------- | :------------------------------ | :------------------------------------------------------------------------------------------------------------------ |
 | **All New**  | Integration Verification Script | Lightweight CLI tool to verify that the Service Layer is correctly communicating with the# AurumChain Development Logs
 
+## [2026-04-19 15:58] - Global RPC Centralization
+- **File:** `lib/web3/config/rpc.ts` [NEW]
+  - **Feature:** Unified RPC Source of Truth
+  - **Reason:** Created a central hub for all Solana connections. This allows the entire project to be swapped to a new provider by updating a single line in `.env`.
+- **File:** `app/components/SolanaProvider.tsx`
+  - **Feature:** Frontend RPC Synchronization
+  - **Reason:** Linked the main React context to the global RPC hub to ensure the dashboard follows the Alchemy default.
+- **File:** `scripts/*.ts`, `tests/*.ts`
+  - **Feature:** Script & Tooling Synchronization
+  - **Reason:** Migrated all maintenance tools to use the global RPC hub and the newly installed `dotenv` dependency for seamless environment loading.
+
 ## [2026-04-19 15:52] - Epic 1 Stability & Type Hardening
 - **File:** `lib/web3/repositories/projectRegistryRepository.ts`
   - **Lines:** 170
