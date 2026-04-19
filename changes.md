@@ -603,3 +603,64 @@ Added a quick-access Wallet Connect button natively into the Admin interface hea
 | Line Numbers | Feature Added | Reason for Addition |
 | :--- | :--- | :--- |
 | **(Header blocks)** | Inserted Button Component | Displayed the `<AdminWalletButton />` structurally aligned to the top-right flexbox rows so the admin can link their Supabase identity directly while viewing projects/stats. |
+
+## Feature: Solana Wallet Linking (Handshake)
+**Timestamp:** 2026-04-19T14:35:44+06:00
+Migrated the existing EVM-based wallet connection to a Solana-native cryptographic verify-on-connect flow.
+
+### `supabase/migrations/010_update_wallet_address_constraint.sql`
+| Line Numbers | Feature Added | Reason for Addition |
+| :--- | :--- | :--- |
+| **1-22 (All)** | Database Migration | Dropped the EVM-specific hex address constraint and replaced it with a Base58-compliant alphanumeric constraint (32-44 chars). |
+
+### `lib/domains/shared/schemas.ts`
+| Line Numbers | Feature Added | Reason for Addition |
+| :--- | :--- | :--- |
+| **8** | Updated Validation | Renamed `ethereumAddressSchema` to `walletAddressSchema` and updated the regex to support Solana public key formats. |
+
+### `lib/domains/wallet/models.ts`
+| Line Numbers | Feature Added | Reason for Addition |
+| :--- | :--- | :--- |
+| **6, 12, 40** | Domain Schema Shift | Replaced the Ethereum-specific address requirements with the new generic `walletAddressSchema` for all linking models. |
+
+### `lib/domains/wallet/service.ts`
+| Line Numbers | Feature Added | Reason for Addition |
+| :--- | :--- | :--- |
+| **9-10** | New Dependencies | Integrated `tweetnacl` and `bs58` for server-side Solana signature processing. |
+| **22, 42, 62** | Case Sensitivity | Removed `.toLowerCase()` from wallet address processing to preserve the accuracy of Solana Base58 strings. |
+| **90-101** | Handshake Verification | Implemented `nacl.sign.detached.verify` to perform 100% secure, offline-safe cryptographic verification of wallet ownership. |
+
+### `app/api/wallet/active/route.ts`
+| Line Numbers | Feature Added | Reason for Addition |
+| :--- | :--- | :--- |
+| **1-32 (All)** | Active Wallet API | Created a new endpoint to allow the frontend to detect if the currently connected wallet has already been linked and verified. |
+
+### `lib/web3/wallet/walletLinkService.ts`
+| Line Numbers | Feature Added | Reason for Addition |
+| :--- | :--- | :--- |
+| **1-76 (All)** | Web3 Client Service | Developed the two-step linking orchestrator (Register intent -> Request Signature -> Submit for Backend Verification). |
+
+### `hooks/useWalletLink.ts`
+| Line Numbers | Feature Added | Reason for Addition |
+| :--- | :--- | :--- |
+| **1-71 (All)** | React Security Hook | Managed complex UI states (linking, verified, error) for the handshake, ensuring a smooth user onboarding flow. |
+
+### `components/blockchain/WalletStatusBadge.tsx`
+| Line Numbers | Feature Added | Reason for Addition |
+| :--- | :--- | :--- |
+| **6, 19, 43-51** | Verification Prompt | Integrated logic to detect unverified wallets and display a blue "Ownership Not Verified" badge with a click-to-verify action. |
+
+### `tests/mocks/supabaseMock.ts`
+| Line Numbers | Feature Added | Reason for Addition |
+| :--- | :--- | :--- |
+| **1-30 (All)** | Mocking Utility | Created a reusable chainable mock for Supabase Select/Insert/Update/Single operations to facilitate backend unit testing. |
+
+### `lib/domains/wallet/__tests__/service.test.ts`
+| Line Numbers | Feature Added | Reason for Addition |
+| :--- | :--- | :--- |
+| **1-137 (All)** | Security Unit Suite | Implemented comprehensive tests for happy paths, forgeries, and malformed inputs to ensure the handshake is tamper-proof. |
+
+### `wallet_linking_guide.md`
+| Line Numbers | Feature Added | Reason for Addition |
+| :--- | :--- | :--- |
+| **1-38 (All)** | User Documentation | Created a simple "Digital Handshake" guide for non-technical users explaining the security benefits of wallet linking. |

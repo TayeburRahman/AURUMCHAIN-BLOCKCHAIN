@@ -3,13 +3,13 @@
  */
 
 import { z } from 'zod';
-import { ethereumAddressSchema, uuidSchema } from '../shared/schemas';
+import { walletAddressSchema, uuidSchema } from '../shared/schemas';
 
 // Wallet link model - separates connection from verification
 export const walletLinkSchema = z.object({
   id: uuidSchema,
   userId: uuidSchema,
-  walletAddress: ethereumAddressSchema,
+  walletAddress: walletAddressSchema,
   chainId: z.number(),
   walletType: z.string().optional(), // metamask, coinbase, etc
 
@@ -37,7 +37,7 @@ export type WalletLink = z.infer<typeof walletLinkSchema>;
 // Wallet link creation input
 export const createWalletLinkSchema = z.object({
   userId: uuidSchema,
-  walletAddress: ethereumAddressSchema,
+  walletAddress: walletAddressSchema,
   chainId: z.number(),
   walletType: z.string().optional(),
 });

@@ -4,8 +4,8 @@
 
 import { z } from 'zod';
 
-// Ethereum address schema
-export const ethereumAddressSchema = z.string().regex(/^0x[a-fA-F0-9]{40}$/, 'Invalid Ethereum address');
+// Solana/General wallet address schema (supports Base58 32-44 chars)
+export const walletAddressSchema = z.string().regex(/^[1-9A-HJ-NP-Za-km-z]{32,44}$/, 'Invalid wallet address');
 
 // UUID schema
 export const uuidSchema = z.string().uuid();

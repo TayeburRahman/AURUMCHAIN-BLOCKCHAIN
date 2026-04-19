@@ -6,7 +6,8 @@ import { createClient } from '@/lib/supabase/server';
 import type { WalletLink, CreateWalletLinkInput, VerifyWalletInput } from './models';
 import { createAuditLog } from '../admin/service';
 import { updateEligibilityOnWalletChange } from '../compliance/service';
-import { verifyMessage } from 'viem';
+import nacl from 'tweetnacl';
+import bs58 from 'bs58';
 
 export class WalletService {
   /**
@@ -19,7 +20,7 @@ export class WalletService {
     const { data: existing } = await supabase
       .from('wallet_links')
       .select('*')
-      .eq('wallet_address', input.walletAddress.toLowerCase())
+      .eq('wallet_address', input.walletAddress)
       .eq('is_active', true)
       .single();
 
@@ -39,7 +40,7 @@ export class WalletService {
       .from('wallet_links')
       .insert({
         user_id: input.userId,
-        wallet_address: input.walletAddress.toLowerCase(),
+        wallet_address: input.walletAddress,
         chain_id: input.chainId,
         wallet_type: input.walletType,
         connected_at: new Date().toISOString(),
@@ -59,6 +60,7 @@ export class WalletService {
       userId: input.userId,
       actorRole: 'user',
       description: `Wallet ${input.walletAddress} connected`,
+
       metadata: { walletAddress: input.walletAddress, chainId: input.chainId },
     });
 
@@ -82,16 +84,22 @@ export class WalletService {
       throw new Error('Wallet link not found');
     }
 
-    // Verify signature
-    // TODO: Implement proper signature verification with viem
-    // For now, we trust the client-side verification
-    // In production, reconstruct the message server-side and verify
-
-    const isValid = await verifyMessage({
-      address: walletLink.wallet_address as `0x${string}`,
-      message: input.message,
-      signature: input.signature as `0x${string}`,
-    });
+    // Verify signature using tweetnacl (Solana way)
+    let isValid = false;
+    try {
+      const messageBytes = new Uint8Array(new TextEncoder().encode(input.message));
+      const signatureBytes = new Uint8Array(bs58.decode(input.signature));
+      const publicKeyBytes = new Uint8Array(bs58.decode(walletLink.wallet_address));
+      
+      isValid = nacl.sign.detached.verify(
+        messageBytes,
+        signatureBytes,
+        publicKeyBytes
+      );
+    } catch (err) {
+      console.error('Signature decoding error:', err);
+      throw new Error('Invalid signature format');
+    }
 
     if (!isValid) {
       throw new Error('Invalid signature');

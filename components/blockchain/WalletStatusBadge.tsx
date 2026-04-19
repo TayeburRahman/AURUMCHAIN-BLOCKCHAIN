@@ -3,6 +3,7 @@
 import { useWalletConnection } from "@/hooks/useWalletConnection";
 import { useAdminSecurity } from "@/context/AdminSecurityContext";
 import { useWalletEligibility } from "@/hooks/useWalletEligibility";
+import { useWalletLink } from "@/hooks/useWalletLink";
 import { useMemo } from "react";
 
 /**
@@ -14,7 +15,10 @@ import { useMemo } from "react";
 export function WalletStatusBadge() {
   const { connected, publicKey } = useWalletConnection();
   const { isAuthorized, authorizedWalletAddress } = useAdminSecurity();
-  const { eligibility, loading } = useWalletEligibility();
+  const { eligibility, loading: eligibilityLoading } = useWalletEligibility();
+  const { isLinked, isVerified, isLinking, linkWallet, error: linkingError } = useWalletLink();
+
+  const loading = eligibilityLoading || isLinking;
 
   const status = useMemo(() => {
     if (!connected || !publicKey) return null;
@@ -35,7 +39,18 @@ export function WalletStatusBadge() {
 
     if (loading) return { label: "Loading...", className: "bg-white/10 text-white/50 animate-pulse", icon: "⏳", tooltip: "Fetching on-chain eligibility..." };
 
-    // 3. Regular Investor KYC Status
+    // 3. Wallet Ownership Verification (Handshake) Check
+    if (!isVerified) {
+      return {
+        label: "Ownership Not Verified",
+        className: "bg-blue-500/20 text-blue-400 border-blue-500/30 cursor-pointer hover:bg-blue-500/30",
+        icon: "🛡️",
+        tooltip: "Click to verify you own this wallet (Required for investment).",
+        action: linkWallet
+      };
+    }
+
+    // 4. Regular Investor KYC Status
     if (eligibility) {
       // Handle both Anchor Object enums and numeric representation
       const isKycApproved = eligibility.kycStatus?.approved || eligibility.kycStatus === 1;
@@ -71,10 +86,10 @@ export function WalletStatusBadge() {
     }
 
     return {
-      label: "Pending",
+      label: "KYC Pending",
       className: "bg-amber-500/20 text-amber-400 border-amber-500/30",
       icon: "🔍",
-      tooltip: "Verification in progress or record not found."
+      tooltip: "Identification verification in progress."
     };
   }, [connected, publicKey, isAuthorized, eligibility, loading]);
 
@@ -83,6 +98,7 @@ export function WalletStatusBadge() {
   return (
     <div 
       title={status.tooltip}
+      onClick={() => (status as any).action?.()}
       className={`group relative flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-tight border backdrop-blur-sm transition-all animate-in fade-in slide-in-from-top-1 duration-500 cursor-help ${status.className}`}
     >
       <span>{status.icon}</span>
