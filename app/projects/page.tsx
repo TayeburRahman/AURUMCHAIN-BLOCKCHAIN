@@ -6,6 +6,7 @@ import { useState, useEffect, useRef, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import EarthGlobe from "../components/EarthGlobe";
+import { InvestmentModal } from "../_components/projects/InvestmentModal";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -110,11 +111,13 @@ function ProjectCard({
   index,
   highlighted,
   cardRef,
+  onInvest,
 }: {
   project: EnrichedProject;
   index: number;
   highlighted: boolean;
   cardRef: (el: HTMLDivElement | null) => void;
+  onInvest: (project: EnrichedProject) => void;
 }) {
   const chain = project.onChain;
   const isOnChain = !!chain;
@@ -356,6 +359,7 @@ function ProjectCard({
               : "bg-gray-700/50 text-gray-400 cursor-not-allowed"
           }`}
           disabled={project.status !== "funding" || (!!chain && chain.isPaused)}
+          onClick={() => onInvest(project)}
         >
           {chain?.isPaused
             ? "Investments Paused"
@@ -385,6 +389,8 @@ function ProjectsContent() {
   const [projects, setProjects] = useState<EnrichedProject[]>([]);
   const [loading, setLoading] = useState(true);
   const [highlightedProject, setHighlightedProject] = useState<string | null>(null);
+  const [selectedProject, setSelectedProject] = useState<EnrichedProject | null>(null);
+  const [isModalOpen, setIsModalOpen] = useState(false);
   const projectRefs = useRef<{ [key: string]: HTMLDivElement | null }>({});
 
   // ── Fetch hybrid data ──────────────────────────────────────────────────────
@@ -451,6 +457,11 @@ function ProjectsContent() {
     if (activeFilter === "all" || activeFilter === "all-projects") return true;
     return p.status === activeFilter;
   });
+
+  const handleInvest = (project: EnrichedProject) => {
+    setSelectedProject(project);
+    setIsModalOpen(true);
+  };
 
   return (
     <div className="min-h-screen bg-navy pt-20">
@@ -553,9 +564,18 @@ function ProjectsContent() {
                   index={index}
                   highlighted={highlightedProject === project.id}
                   cardRef={(el) => { projectRefs.current[project.id] = el; }}
+                  onInvest={handleInvest}
                 />
               ))}
           </div>
+
+          {selectedProject && (
+            <InvestmentModal
+              isOpen={isModalOpen}
+              onClose={() => setIsModalOpen(false)}
+              project={selectedProject}
+            />
+          )}
         </div>
       </section>
 

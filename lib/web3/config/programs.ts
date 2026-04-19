@@ -16,7 +16,7 @@ export const PROJECT_REGISTRY_PROGRAM_ID = new PublicKey(
 // Compliance / Transfer Control Program ID
 export const COMPLIANCE_PROGRAM_ID = new PublicKey(
   process.env.NEXT_PUBLIC_COMPLIANCE_PROGRAM_ID || 
-  '9q8aRmc8sVf5n9s8aRmc8sVf5n9s8aRmc8sVf5n9s8aR' // Placeholder until US 2.4 deployment
+  'CHWFf4LBaq3VECZ6hiH4YZWNrqezkDteiDq1VbYLFtTs'
 );
 
 // Metaplex Metadata Program ID (Constant)

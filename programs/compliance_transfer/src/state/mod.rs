@@ -1,11 +1,13 @@
 pub mod control_account;
 pub mod eligibility_account;
 pub mod subscription_account;
+pub mod external_state;
 
 // Re-expose accounts so they can be accessed via `use crate::state::*;`
 pub use control_account::*;
 pub use eligibility_account::*;
 pub use subscription_account::*;
+pub use external_state::*;
 
 use anchor_lang::prelude::*;
 

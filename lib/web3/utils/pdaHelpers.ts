@@ -78,3 +78,19 @@ export function getEligibilityPDA(wallet: PublicKey, programId: PublicKey): Publ
     programId
   )[0];
 }
+
+/**
+ * Derives the Investment Subscription PDA.
+ * Seeds: [b"subscription", investor_pubkey, subscription_id (u64 le)]
+ */
+export function getSubscriptionPDA(investor: PublicKey, subscriptionId: number | BN, programId: PublicKey): PublicKey {
+  const subIdBN = typeof subscriptionId === 'number' ? new BN(subscriptionId) : subscriptionId;
+  return PublicKey.findProgramAddressSync(
+    [
+      Buffer.from('subscription'),
+      investor.toBuffer(),
+      subIdBN.toArrayLike(Buffer, 'le', 8)
+    ],
+    programId
+  )[0];
+}
