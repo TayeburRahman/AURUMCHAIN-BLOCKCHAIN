@@ -7,6 +7,8 @@ import { useState, useEffect } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { WalletButton } from "@/components/blockchain/WalletButton";
 import { WalletStatusBadge } from "@/components/blockchain/WalletStatusBadge";
+import { useWalletLink } from "@/hooks/useWalletLink";
+import { useWalletConnection } from "@/hooks/useWalletConnection";
 
 export default function Header() {
   const pathname = usePathname();
@@ -14,6 +16,8 @@ export default function Header() {
   const [scrolled, setScrolled] = useState(false);
   const [user, setUser] = useState<any>(null);
   const [userName, setUserName] = useState<string>("");
+  const { isVerified, initialLoading, isLinking, linkWallet } = useWalletLink();
+  const { connected, publicKey } = useWalletConnection();
 
   useEffect(() => {
     const handleScroll = () => {
@@ -47,6 +51,30 @@ export default function Header() {
     }
     checkAuth();
   }, [pathname]);
+
+  // Auto-trigger verification if connected but not verified
+  useEffect(() => {
+    // Only auto-trigger if:
+    // 1. Wallet is connected
+    // 2. We've finished the initial check (initialLoading is false)
+    // 3. Wallet is NOT verified
+    // 4. Not currently linking
+    if (connected && publicKey && !initialLoading && !isVerified && !isLinking) {
+      // Check if we've already tried and failed in this session to avoid infinite loops
+      const hasFailed = sessionStorage.getItem(`wallet_link_failed_${publicKey.toBase58()}`);
+      if (!hasFailed) {
+        // Delay slightly for better UX
+        const timer = setTimeout(() => {
+          console.log("Auto-triggering wallet verification handshake...");
+          linkWallet().catch(() => {
+             // Record failure to avoid re-triggering immediately
+             sessionStorage.setItem(`wallet_link_failed_${publicKey.toBase58()}`, 'true');
+          });
+        }, 2000);
+        return () => clearTimeout(timer);
+      }
+    }
+  }, [connected, publicKey, initialLoading, isVerified, isLinking, linkWallet]);
 
   const navItems = [
     { href: "/", label: "Home" },

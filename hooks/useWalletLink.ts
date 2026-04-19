@@ -13,6 +13,7 @@ export function useWalletLink() {
   const [isLinking, setIsLinking] = useState(false);
   const [isLinked, setIsLinked] = useState(false);
   const [isVerified, setIsVerified] = useState(false);
+  const [initialLoading, setInitialLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [activeWallet, setActiveWallet] = useState<any>(null);
 
@@ -34,10 +35,13 @@ export function useWalletLink() {
         }
       } catch (err) {
         console.error("Failed to check wallet linking status:", err);
+      } finally {
+        setInitialLoading(false);
       }
     } else {
       setIsLinked(false);
       setIsVerified(false);
+      setInitialLoading(false);
     }
   }, [wallet.connected, wallet.publicKey]);
 
@@ -75,6 +79,7 @@ export function useWalletLink() {
     isLinking,
     isLinked,
     isVerified,
+    initialLoading,
     error,
     activeWallet,
     linkWallet,
