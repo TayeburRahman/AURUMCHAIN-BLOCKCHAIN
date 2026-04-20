@@ -34,6 +34,7 @@ export default function ProjectsManagement({ initialProjects, userId }: Projects
     treasury_wallet?: string;
     lockup_end_date?: string;
     distribution_cadence?: number;
+    token_decimals?: number;
   }>({
     name: '',
     slug: '',
@@ -57,6 +58,7 @@ export default function ProjectsManagement({ initialProjects, userId }: Projects
     treasury_wallet: process.env.NEXT_PUBLIC_ADMIN_WALLET || '',
     lockup_end_date: '',
     distribution_cadence: 0,
+    token_decimals: 9,
   });
 
   const handleInputChange = (
@@ -74,7 +76,8 @@ export default function ProjectsManagement({ initialProjects, userId }: Projects
         name === 'available_tokens' ||
         name === 'expected_return_percentage' ||
         name === 'project_duration_months' ||
-        name === 'distribution_cadence'
+        name === 'distribution_cadence' ||
+        name === 'token_decimals'
           ? parseFloat(value) || 0
           : value,
     }));
@@ -126,6 +129,7 @@ export default function ProjectsManagement({ initialProjects, userId }: Projects
             subscriptionStart: Math.floor(new Date(formData.start_date || Date.now()).getTime() / 1000),
             subscriptionEnd: Math.floor(new Date(formData.expected_completion_date || Date.now() + 86400000).getTime() / 1000),
             distributionCadence: formData.distribution_cadence || 0,
+            tokenDecimals: formData.token_decimals || 9,
           });
           
           formData.blockchain_signature  = chainResult.signature;
@@ -301,6 +305,7 @@ export default function ProjectsManagement({ initialProjects, userId }: Projects
       treasury_wallet: process.env.NEXT_PUBLIC_ADMIN_WALLET || '',
       lockup_end_date: '',
       distribution_cadence: 0,
+      token_decimals: 9,
     });
     setEditingProject(null);
     setError(null);
@@ -689,6 +694,21 @@ export default function ProjectsManagement({ initialProjects, userId }: Projects
                   className="w-full px-4 py-2 bg-navy/50 border border-gold/20 rounded-lg text-white focus:outline-none focus:border-gold font-mono text-sm"
                 />
               </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">
+                  Token Decimals (e.g. 9) *
+                </label>
+                <input
+                  type="number"
+                  name="token_decimals"
+                  value={formData.token_decimals}
+                  onChange={handleInputChange}
+                  required
+                  min="0"
+                  max="14"
+                  className="w-full px-4 py-2 bg-navy/50 border border-gold/20 rounded-lg text-white focus:outline-none focus:border-gold"
+                />
+              </div>
             </div>
 
             <div className="grid md:grid-cols-3 gap-4">
@@ -892,7 +912,7 @@ export default function ProjectsManagement({ initialProjects, userId }: Projects
                   <div>
                     <span className="text-gray-500">Tokens:</span>
                     <span className="text-white font-medium ml-2">
-                      {(project.available_tokens ?? 0).toLocaleString()} / {(project.total_tokens ?? 0).toLocaleString()}
+                      {(project.available_tokens ?? 0).toLocaleString(undefined, { maximumFractionDigits: (project as any).token_decimals || 6 })} / {(project.total_tokens ?? 0).toLocaleString(undefined, { maximumFractionDigits: (project as any).token_decimals || 6 })}
                     </span>
                   </div>
                   <div>

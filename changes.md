@@ -1,4 +1,28 @@
+## Feature: Dynamic Token Decimals Configuration
+
+**Timestamp:** 2026-04-20T14:10:00+06:00
+Implemented per-project decimal configuration (e.g., 7, 9) to allow administrators full control over token precision during launch. This ensures alignment between the Admin Dashboard and on-chain explorers like Solscan.
+
+### 1. Web3 Service & Scaling Logic
+
+| File Name | Line Numbers | Feature Added | Reason for Addition |
+| :--- | :--- | :--- | :--- |
+| **[projectRegistryService.ts](file:///c:/Rupom/Projects/AURUMCHAIN/lib/web3/services/projectRegistryService.ts)** | **128-135**, **158-161**, **192-201** | Dynamic Mint Params | Updated `createProjectWithMint` to accept `tokenDecimals` and scale `supply_cap` using dynamic power-of-10 multipliers instead of hardcoded 6. |
+| **[projectRegistryService.ts](file:///c:/Rupom/Projects/AURUMCHAIN/lib/web3/services/projectRegistryService.ts)** | **128-144** | Syntax Repair | Restored missing function signature `async createProjectWithMint` to resolve a TypeScript compilation deadlock. |
+
+### 2. Admin Dashboard & UI
+
+| File Name | Line Numbers | Feature Added | Reason for Addition |
+| :--- | :--- | :--- | :--- |
+| **[ProjectsManagement.tsx](file:///c:/Rupom/Projects/AURUMCHAIN/components/admin/ProjectsManagement.tsx)** | **30-38**, **61** | Decimals Form State | Added `token_decimals` to the project creation state with a default value of 9 (per user preference). |
+| **[ProjectsManagement.tsx](file:///c:/Rupom/Projects/AURUMCHAIN/components/admin/ProjectsManagement.tsx)** | **80**, **307** | Numeric Input Parser | Updated the form handler and `resetForm` function to support numeric decimal selection. |
+| **[ProjectsManagement.tsx](file:///c:/Rupom/Projects/AURUMCHAIN/components/admin/ProjectsManagement.tsx)** | **696-710** | Decimals UI Field | Added a new numeric input field in the "Token Details" section of the project creation form. |
+| **[ProjectsManagement.tsx](file:///c:/Rupom/Projects/AURUMCHAIN/components/admin/ProjectsManagement.tsx)** | **914** | Adaptive Formatting | Updated the project list rendering to format token amounts according to each project's unique decimal count. |
+
+---
+
 ## Feature: Backend RPC Integration & Cross-Program Security Fix (Milestone 2)
+
 
 **Timestamp:** 2026-04-20T13:45:00+06:00
 Finalized the administrative blockchain infrastructure for secure server-side settlement. Implemented a custom security patch in the Compliance program to resolve the `3007` PDA ownership deadlock, enabling trustless cross-program data sharing.

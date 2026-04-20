@@ -141,6 +141,7 @@ export class ProjectRegistryService {
     treasuryWallet: PublicKey;
     acceptedStablecoin: PublicKey;
     distributionCadence: number;
+    tokenDecimals: number;
   }): Promise<{ signature: string; projectId: number; mintAddress: string }> {
     try {
       if (!this.wallet.publicKey) throw new Error("Wallet not connected");
@@ -166,7 +167,7 @@ export class ProjectRegistryService {
 
       const initMintIx = createInitializeMintInstruction(
         mintAddress,
-        6, // Standard 6 decimals
+        params.tokenDecimals, // Dynamic decimals (7, 9, etc.)
         this.wallet.publicKey,
         this.wallet.publicKey
       );
@@ -200,8 +201,8 @@ export class ProjectRegistryService {
         name: params.name,
         symbol: params.symbol,
         uri: params.uri,
-        supplyCap: new BN(params.supplyCap).mul(new BN(1_000_000)), // Apply decimals
-        minInvestmentUsdc: new BN(params.minInvestmentUsdc).mul(new BN(1_000_000)),
+        supplyCap: new BN(params.supplyCap).mul(new BN(10).pow(new BN(params.tokenDecimals))), // Apply dynamic decimals
+        minInvestmentUsdc: new BN(params.minInvestmentUsdc).mul(new BN(1_000_000)), // Stablecoin stays at 6
         maxInvestmentUsdc: new BN(params.maxInvestmentUsdc).mul(new BN(1_000_000)),
         lockupEndTs: new BN(params.lockupEndTs),
         subscriptionStart: new BN(params.subscriptionStart),
