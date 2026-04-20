@@ -96,6 +96,14 @@
         { "name": "superAdmin", "isMut": false, "isSigner": true }
       ],
       "args": [{ "name": "isPaused", "type": "bool" }]
+    },
+    {
+      "name": "calibrateRegistry",
+      "accounts": [
+        { "name": "control", "isMut": true, "isSigner": false },
+        { "name": "admin", "isMut": false, "isSigner": true }
+      ],
+      "args": [{ "name": "newCount", "type": "u64" }]
     }
   ],
   "accounts": [

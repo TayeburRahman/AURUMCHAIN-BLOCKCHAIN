@@ -74,6 +74,13 @@ pub mod project_registry {
     ) -> Result<()> {
         handle_set_emergency_pause(ctx, is_paused)
     }
+
+    pub fn calibrate_registry(
+        ctx: Context<CalibrateRegistry>,
+        new_count: u64,
+    ) -> Result<()> {
+        handle_calibrate_registry(ctx, new_count)
+    }
 }
 
 #[error_code]

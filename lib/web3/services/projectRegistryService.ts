@@ -108,6 +108,18 @@ export class ProjectRegistryService {
   }
 
   /**
+   * Manually calibrates the on-chain project counter (AC-BC-000 Rescue).
+   */
+  async calibrateRegistry(newCount: number): Promise<string> {
+    try {
+      const instruction = await this.repository.getCalibrateRegistryInstruction(newCount);
+      return await this.sendAndConfirm(instruction);
+    } catch (error: any) {
+      throw this.handleError(error);
+    }
+  }
+
+  /**
    * ATOMIC PROJECT CREATION:
    * 1. Creates SPL Mint account
    * 2. Initializes Mint (6 decimals)

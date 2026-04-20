@@ -7,6 +7,7 @@ mod update_project_params;
 mod record_tokens_issued;
 mod transfer_authority;
 mod set_emergency_pause;
+mod calibrate_registry;
 
 // Permanent Modular Fix: Pull all types (including hidden Anchor types)
 // into the registry_logic namespace using glob re-exports.
@@ -20,3 +21,4 @@ pub use update_project_params::*;
 pub use record_tokens_issued::*;
 pub use transfer_authority::*;
 pub use set_emergency_pause::*;
+pub use calibrate_registry::*;

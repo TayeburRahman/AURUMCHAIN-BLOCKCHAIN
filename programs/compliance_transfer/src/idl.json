@@ -92,6 +92,8 @@
         { "name": "subscription", "isMut": true, "isSigner": false },
         { "name": "investor", "isMut": true, "isSigner": true },
         { "name": "eligibility", "isMut": false, "isSigner": false },
+        { "name": "projectAccount", "isMut": false, "isSigner": false },
+        { "name": "projectRegistryProgram", "isMut": false, "isSigner": false },
         { "name": "control", "isMut": false, "isSigner": false },
         { "name": "systemProgram", "isMut": false, "isSigner": false }
       ],
@@ -146,6 +148,36 @@
           { "name": "approvalTimestamp", "type": "i64" },
           { "name": "reverificationRequired", "type": "bool" },
           { "name": "recordedBy", "type": "publicKey" },
+          { "name": "bump", "type": "u8" }
+        ]
+      }
+    },
+    {
+      "name": "ProjectAccount",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          { "name": "projectId", "type": "u64" },
+          { "name": "registry", "type": "publicKey" },
+          { "name": "creator", "type": "publicKey" },
+          { "name": "name", "type": "string" },
+          { "name": "symbol", "type": "string" },
+          { "name": "uri", "type": "string" },
+          { "name": "supplyCap", "type": "u64" },
+          { "name": "tokensIssued", "type": "u64" },
+          { "name": "minInvestmentUsdc", "type": "u64" },
+          { "name": "maxInvestmentUsdc", "type": "u64" },
+          { "name": "acceptedStablecoin", "type": "publicKey" },
+          { "name": "treasuryWallet", "type": "publicKey" },
+          { "name": "mint", "type": "publicKey" },
+          { "name": "lockupEndTs", "type": "i64" },
+          { "name": "subscriptionStart", "type": "i64" },
+          { "name": "subscriptionEnd", "type": "i64" },
+          { "name": "createdAt", "type": "i64" },
+          { "name": "distributionCadence", "type": "u8" },
+          { "name": "isActive", "type": "bool" },
+          { "name": "isPaused", "type": "bool" },
+          { "name": "mintAuthorityRevoked", "type": "bool" },
           { "name": "bump", "type": "u8" }
         ]
       }

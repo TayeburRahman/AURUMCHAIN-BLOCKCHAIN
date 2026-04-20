@@ -204,6 +204,22 @@ export class ProjectRegistryRepository {
   }
 
   /**
+   * Constructs the calibrate_registry instruction.
+   */
+  async getCalibrateRegistryInstruction(
+    newCount: number
+  ): Promise<TransactionInstruction> {
+    const countBN = new BN(newCount);
+    return await this.program.methods
+      .calibrateRegistry(countBN)
+      .accounts({
+        control: getRegistryPDA(this.program.programId),
+        admin: this.program.provider.publicKey,
+      } as any)
+      .instruction();
+  }
+
+  /**
    * Alias for fetchControlAccount (backwards compatibility).
    */
   async fetchRegistryConfig(): Promise<any> {

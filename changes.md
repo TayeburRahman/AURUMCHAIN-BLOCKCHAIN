@@ -1,3 +1,27 @@
+## Feature: Project Registry Counter Calibration (AC-BC-000)
+
+**Timestamp:** 2026-04-20T09:15:00+06:00
+Resolved the "Unauthorized" PDA seed collision deadlock by implementing an on-chain calibration instruction. This allowed jumping the `project_count` from 0 to 17, ensuring new projects don't collide with stale on-chain accounts.
+
+### 1. Smart Contract Hardening (Anchor / Rust)
+
+| File                                                                                                                                   | Line Numbers | Feature Added               | Reason for Addition                                                                                                                 |
+| :------------------------------------------------------------------------------------------------------------------------------------- | :----------- | :-------------------------- | :---------------------------------------------------------------------------------------------------------------------------------- |
+| **[calibrate_registry.rs](file:///c:/Rupom/Projects/AURUMCHAIN/programs/project_registry/src/registry_logic/calibrate_registry.rs)** | **1-29**     | **[NEW]** Calibration Logic | Implemented the rescue handler to allow the `super_admin` to manually synchronize the global project counter.                       |
+| **[lib.rs](file:///c:/Rupom/Projects/AURUMCHAIN/programs/project_registry/src/lib.rs)**                                                | **77-84**    | Program Entry Point         | Added the `calibrate_registry` instruction to the main program dispatcher.                                                        |
+| **[mod.rs](file:///c:/Rupom/Projects/AURUMCHAIN/programs/project_registry/src/registry_logic/mod.rs)**                                 | **10, 22**   | Module Export               | Exported the new logic handler to ensure the `#[program]` macro can resolve the instruction context.                               |
+| **[idl.json](file:///c:/Rupom/Projects/AURUMCHAIN/programs/project_registry/src/idl.json)**                                            | **99-107**   | Schema Metadata sync        | Registered the new instruction in the IDL to enable TypeScript clients to call the calibration method.                              |
+
+### 2. Integration & Rescue Tooling
+
+| File                                                                                                                        | Line Numbers | Feature Added               | Reason for Addition                                                                                                          |
+| :-------------------------------------------------------------------------------------------------------------------------- | :----------- | :-------------------------- | :--------------------------------------------------------------------------------------------------------------------------- |
+| **[projectRegistryRepository.ts](file:///c:/Rupom/Projects/AURUMCHAIN/lib/web3/repositories/projectRegistryRepository.ts)** | **207-222**  | `calibrateRegistry` Builder | Added the instruction builder to the repository layer for administrative rescue operations.                                  |
+| **[projectRegistryService.ts](file:///c:/Rupom/Projects/AURUMCHAIN/lib/web3/services/projectRegistryService.ts)**           | **110-121**  | Calibration Service         | Implemented the service-level orchestration to send and confirm the calibration transaction.                                 |
+| **[calibrate-registry.ts](file:///c:/Rupom/Projects/AURUMCHAIN/scripts/calibrate-registry.ts)**                             | **1-62**     | **[NEW]** Rescue Script     | Created a standalone specialized script to jump the on-chain counter to 17, effectively clearing the PDA collision deadlock. |
+
+---
+
 ## Feature: Solana Wallet Linking (Handshake)
 
 **Timestamp:** 2026-04-19T14:35:44+06:00
