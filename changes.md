@@ -1,3 +1,22 @@
+## Feature: Wallet Connection Stability & Duplicate Fix
+
+**Timestamp:** 2026-04-20T09:27:00+06:00
+Resolved the `500 Internal Server Error` during wallet connection caused by duplicate key violations and fixed the resulting infinite loop in the terminal.
+
+### 1. Backend Service Hardening
+
+| File                                                                                      | Line Numbers | Feature Added         | Reason for Addition                                                                                                                 |
+| :---------------------------------------------------------------------------------------- | :----------- | :-------------------- | :---------------------------------------------------------------------------------------------------------------------------------- |
+| **[service.ts](file:///c:/Rupom/Projects/AURUMCHAIN/lib/domains/wallet/service.ts)**      | **38-59**    | `upsert` Wallet Link  | Switched from `insert` to `upsert` to handle reconnection of previously used wallets without violating database unique constraints. |
+
+### 2. Frontend Loop Prevention
+
+| File                                                                             | Line Numbers | Feature Added            | Reason for Addition                                                                                                                              |
+| :------------------------------------------------------------------------------- | :----------- | :----------------------- | :----------------------------------------------------------------------------------------------------------------------------------------------- |
+| **[Header.tsx](file:///c:/Rupom/Projects/AURUMCHAIN/app/components/Header.tsx)** | **19, 63-84** | Error-Aware Auto-Trigger | Integrated `walletError` detection in the global Header to break recursive connection attempts and persist failures in `sessionStorage`. |
+
+---
+
 ## Feature: Project Registry Counter Calibration (AC-BC-000)
 
 **Timestamp:** 2026-04-20T09:15:00+06:00

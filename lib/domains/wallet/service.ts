@@ -35,21 +35,28 @@ export class WalletService {
       .eq('user_id', input.userId)
       .eq('is_active', true);
 
-    // Create new wallet link
+    // Upsert wallet link (handles reconnection of same wallet)
     const { data, error } = await supabase
       .from('wallet_links')
-      .insert({
+      .upsert({
         user_id: input.userId,
         wallet_address: input.walletAddress,
         chain_id: input.chainId,
         wallet_type: input.walletType,
+        is_active: true,
+        disconnected_at: null,
         connected_at: new Date().toISOString(),
-        verified: false,
+        verified: false, // Reset verification for fresh handshake
+      }, {
+        onConflict: 'user_id, wallet_address'
       })
       .select()
       .single();
 
-    if (error) throw error;
+    if (error) {
+      console.error('Supabase upsert error:', error);
+      throw error;
+    }
 
     // Update eligibility state
     await updateEligibilityOnWalletChange(input.userId, 'wallet_connected');

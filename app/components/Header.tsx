@@ -16,7 +16,7 @@ export default function Header() {
   const [scrolled, setScrolled] = useState(false);
   const [user, setUser] = useState<any>(null);
   const [userName, setUserName] = useState<string>("");
-  const { isVerified, initialLoading, isLinking, linkWallet } = useWalletLink();
+  const { isVerified, initialLoading, isLinking, linkWallet, error: walletError } = useWalletLink();
   const { connected, publicKey } = useWalletConnection();
 
   useEffect(() => {
@@ -59,22 +59,29 @@ export default function Header() {
     // 2. We've finished the initial check (initialLoading is false)
     // 3. Wallet is NOT verified
     // 4. Not currently linking
-    if (connected && publicKey && !initialLoading && !isVerified && !isLinking) {
+    // 5. No recent error (to avoid infinite retry loops)
+    if (connected && publicKey && !initialLoading && !isVerified && !isLinking && !walletError) {
+      const walletAddr = publicKey.toBase58();
       // Check if we've already tried and failed in this session to avoid infinite loops
-      const hasFailed = sessionStorage.getItem(`wallet_link_failed_${publicKey.toBase58()}`);
+      const hasFailed = sessionStorage.getItem(`wallet_link_failed_${walletAddr}`);
+      
       if (!hasFailed) {
         // Delay slightly for better UX
         const timer = setTimeout(() => {
-          console.log("Auto-triggering wallet verification handshake...");
-          linkWallet().catch(() => {
-             // Record failure to avoid re-triggering immediately
-             sessionStorage.setItem(`wallet_link_failed_${publicKey.toBase58()}`, 'true');
-          });
+          console.log("Auto-triggering wallet verification handshake for:", walletAddr);
+          linkWallet();
         }, 2000);
         return () => clearTimeout(timer);
       }
     }
-  }, [connected, publicKey, initialLoading, isVerified, isLinking, linkWallet]);
+  }, [connected, publicKey, initialLoading, isVerified, isLinking, linkWallet, walletError]);
+
+  // Record failure if walletError occurs during auto-trigger
+  useEffect(() => {
+    if (walletError && connected && publicKey) {
+      sessionStorage.setItem(`wallet_link_failed_${publicKey.toBase58()}`, 'true');
+    }
+  }, [walletError, connected, publicKey]);
 
   const navItems = [
     { href: "/", label: "Home" },
