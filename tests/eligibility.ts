@@ -1,16 +1,36 @@
+import 'dotenv/config';
 import * as anchor from "@coral-xyz/anchor";
 import { Program } from "@coral-xyz/anchor";
 import { PublicKey, SystemProgram, Keypair, Transaction } from "@solana/web3.js";
 import assert from "assert";
+import * as fs from "fs";
+import * as path from "path";
+import bs58 from "bs58";
+import { COMPLIANCE_PROGRAM_ID } from "../lib/web3/config/programs";
+import { confirmTransactionRobustly } from "../lib/web3/utils/transactionUtils";
 
 describe("compliance_final_verification", () => {
-  const provider = anchor.AnchorProvider.env();
-  provider.opts.preflightCommitment = "confirmed";
-  provider.opts.commitment = "confirmed";
+  // Manual Provider Setup to bypass environment pollution
+  const RPC_URL = process.env.NEXT_PUBLIC_SOLANA_RPC_URL || "https://api.devnet.solana.com";
+  const connection = new anchor.web3.Connection(RPC_URL, "confirmed");
+  
+  const privateKeyStr = process.env.WALLET_PRIVATE_KEY!;
+  const secretKey = privateKeyStr.startsWith("[") 
+    ? Uint8Array.from(JSON.parse(privateKeyStr))
+    : bs58.decode(privateKeyStr);
+  
+  const wallet = new anchor.Wallet(anchor.web3.Keypair.fromSecretKey(secretKey));
+  const provider = new anchor.AnchorProvider(connection, wallet, {
+    commitment: "confirmed",
+    preflightCommitment: "confirmed",
+  });
+  
   anchor.setProvider(provider);
 
-  // @ts-ignore
-  const program = anchor.workspace.ComplianceTransfer as Program<any>;
+  // Load IDL manually
+  const idlPath = path.resolve(process.cwd(), "programs/compliance_transfer/src/idl.json");
+  const idl = JSON.parse(fs.readFileSync(idlPath, "utf8"));
+  const program = new Program(idl, COMPLIANCE_PROGRAM_ID, provider);
   const authority = provider.wallet;
 
   // Derive the global control PDA
@@ -73,13 +93,6 @@ describe("compliance_final_verification", () => {
     tx.recentBlockhash = sharedBlockhash;
     tx.feePayer = authority.publicKey;
 
-    // 3. Add signature entropy
-    tx.add(SystemProgram.transfer({
-        fromPubkey: authority.publicKey,
-        toPubkey: Keypair.generate().publicKey,
-        lamports: 15, // Increased entropy
-    }));
-
     // 4. Manual Sign and Send with retry logic
     let signature = "";
     let sent = false;
@@ -102,13 +115,36 @@ describe("compliance_final_verification", () => {
     }
     
     // 5. Confirm
-    await provider.connection.confirmTransaction({
-        signature: signature,
-        blockhash: sharedBlockhash,
-        lastValidBlockHeight: blockhashHeight
-    }, 'confirmed');
+    await confirmTransactionRobustly(
+        provider.connection,
+        signature,
+        blockhashHeight,
+        'confirmed'
+    );
     
     return signature;
+  }
+
+  /**
+   * Universal robust sender for anything not handled by sendUnique
+   */
+  async function sendAndConfirmCustom(tx: Transaction, extraSigners: Keypair[] = []) {
+    tx.recentBlockhash = (await getBlockhashResilient()).blockhash;
+    tx.feePayer = authority.publicKey;
+    
+    const signed = await provider.wallet.signTransaction(tx);
+    for (const s of extraSigners) {
+      signed.partialSign(s);
+    }
+
+    const sig = await provider.connection.sendRawTransaction(signed.serialize(), { skipPreflight: true });
+    await confirmTransactionRobustly(
+      provider.connection,
+      sig,
+      (await provider.connection.getBlockHeight()) + 150,
+      'confirmed'
+    );
+    return sig;
   }
 
   // Unique Hash system with entropy + timestamp to prevent signature collisions
@@ -133,8 +169,20 @@ describe("compliance_final_verification", () => {
       program.programId
     );
 
-    // Slight delay to prevent Devnet 429 and signature collisions
-    await sleep(1000);
+    // Fund test user for rent exemption (from Admin wallet, avoid faucet rate-limits)
+    console.log(`   🪙 Funding test user: ${user.publicKey.toBase58().slice(0,8)}...`);
+    const fundingTx = new Transaction().add(
+      SystemProgram.transfer({
+        fromPubkey: authority.publicKey,
+        toPubkey: user.publicKey,
+        lamports: 50_000_000, // 0.05 SOL
+      })
+    );
+    
+    // Use robust confirmation even for funding
+    await sendAndConfirmCustom(fundingTx);
+
+    await sleep(2000); // Cooldown before registration
 
     await sendUnique(
       program.methods.recordVerifiedWallet({
@@ -293,7 +341,20 @@ describe("compliance_final_verification", () => {
     });
 
     it("5. Security: Unauthorized Caller Check", async () => {
+      console.log("   🛡️ Verifying security constraints...");
       const mallory = Keypair.generate();
+
+      // Fund mallory so she can pay for the attempted (but failing) rent
+      const fundingTx = new Transaction().add(
+        SystemProgram.transfer({
+          fromPubkey: authority.publicKey,
+          toPubkey: mallory.publicKey,
+          lamports: 10_000_000, // 0.01 SOL
+        })
+      );
+      await sendAndConfirmCustom(fundingTx);
+
+      const victim = Keypair.generate();
       const sender = Keypair.generate();
       const receiver = Keypair.generate();
       const senderPda = await registerUser(sender);

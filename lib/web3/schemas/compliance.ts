@@ -23,3 +23,17 @@ export const RevokeWalletSchema = z.object({
 
 export type RecordVerifiedWalletInput = z.infer<typeof RecordVerifiedWalletSchema>;
 export type RevokeWalletInput = z.infer<typeof RevokeWalletSchema>;
+
+export const SubscribeInvestmentSchema = z.object({
+  subscriptionId: z.string(), // BN as string
+  projectId: z.number().int().min(0),
+  investmentAmount: z.string(), // BN as string
+  paymentAsset: z.string().regex(/^[A-HJ-NP-Za-km-z1-9]{32,44}$/, "Invalid Mint address"),
+});
+
+export const FinalizeSubscriptionSchema = z.object({
+  investor: z.string().regex(/^[A-HJ-NP-Za-km-z1-9]{32,44}$/, "Invalid Solana wallet address"),
+  subscriptionId: z.string(),
+  txHash: z.array(z.number()).length(64),
+  tokenAmount: z.string(),
+});

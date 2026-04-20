@@ -2,8 +2,9 @@ import { Connection, PublicKey, Transaction, ComputeBudgetProgram } from '@solan
 import { BN } from '@coral-xyz/anchor';
 import { ComplianceRepository } from '../repositories/complianceRepository';
 import { getComplianceProgram } from '../utils/programDiscoverer';
-import { RecordVerifiedWalletSchema, RevokeWalletSchema } from '../schemas/compliance';
+import { RecordVerifiedWalletSchema, RevokeWalletSchema, SubscribeInvestmentSchema, FinalizeSubscriptionSchema } from '../schemas/compliance';
 import { confirmTransactionRobustly } from '../utils/transactionUtils';
+import { PROJECT_REGISTRY_PROGRAM_ID } from '../config/programs';
 
 /**
  * ComplianceTransferService
@@ -154,7 +155,6 @@ export class ComplianceService {
         new BN(params.lockupEndTs)
       );
 
-      // Construct transaction and Simulate
       const { blockhash } = await this.connection.getLatestBlockhash();
       const transaction = new Transaction().add(instruction);
       transaction.recentBlockhash = blockhash;
@@ -162,18 +162,69 @@ export class ComplianceService {
 
       const simulation = await this.connection.simulateTransaction(transaction);
 
-      // Handle Simulation Errors (e.g. Account Not Found)
       if (simulation.value.err) {
          return this.formatResponse(false, null, `SIMULATION_ERROR: ${JSON.stringify(simulation.value.err)}`);
       }
 
-      // In Anchor, the return value or logs can be used. 
-      // For this spec, we rely on the Event emitted or the logical pass/fail.
-      // A "Pass" means allowed=true.
+      // In a "perfect" implementation, we'd parse the ReturnData or Logs.
+      // For Milestone 2, we consider a successful simulation as 'Allowed' 
+      // unless the logs contain a specific error string.
+      const logs = simulation.value.logs || [];
+      const isBlocked = logs.some(log => log.includes("Error") || log.includes("failed"));
+      
       return this.formatResponse(true, { 
-        allowed: true, 
-        reasonCode: 0 
+        allowed: !isBlocked, 
+        reasonCode: isBlocked ? 0x99 : 0 
       });
+
+    } catch (error: any) {
+      return this.handleError(error);
+    }
+  }
+
+  /**
+   * PREPARES and SENDS the subscribe_investment transaction.
+   */
+  async subscribeInvestment(input: any) {
+    try {
+      if (!this.wallet.publicKey) throw new Error("UNAUTHORIZED: Wallet not connected");
+
+      const validated = SubscribeInvestmentSchema.parse(input);
+
+      const instruction = await this.repository.getSubscribeInvestmentInstruction(
+        new BN(validated.subscriptionId),
+        validated.projectId,
+        new BN(validated.investmentAmount),
+        new PublicKey(validated.paymentAsset),
+        PROJECT_REGISTRY_PROGRAM_ID
+      );
+
+      const signature = await this.sendAndConfirm(instruction);
+      return this.formatResponse(true, { signature, status: 'pending' });
+
+    } catch (error: any) {
+      return this.handleError(error);
+    }
+  }
+
+  /**
+   * PREPARES and SENDS the finalize_subscription transaction.
+   */
+  async finalizeSubscription(input: any) {
+    try {
+      if (!this.wallet.publicKey) throw new Error("UNAUTHORIZED: Wallet not connected");
+
+      const validated = FinalizeSubscriptionSchema.parse(input);
+
+      const instruction = await this.repository.getFinalizeSubscriptionInstruction(
+        new PublicKey(validated.investor),
+        new BN(validated.subscriptionId),
+        validated.txHash,
+        new BN(validated.tokenAmount)
+      );
+
+      const signature = await this.sendAndConfirm(instruction);
+      return this.formatResponse(true, { signature, status: 'allocated' });
 
     } catch (error: any) {
       return this.handleError(error);

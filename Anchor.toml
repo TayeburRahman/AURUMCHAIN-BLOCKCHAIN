@@ -1,0 +1,10 @@
+[programs.devnet]
+project_registry = "GcXxLjcCm7ov3i6QqQsL8zgjqiknWBswXn6jcwpEMYdC"
+compliance_transfer = "CHWFf4LBaq3VECZ6hiH4YZWNrqezkDteiDq1VbYLFtTs"
+
+[provider]
+cluster = "devnet"
+
+
+[scripts]
+test = "mocha -t 1000000 tests/**/*.ts"

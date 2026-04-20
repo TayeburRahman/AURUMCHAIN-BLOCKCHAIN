@@ -59,3 +59,14 @@ scripts/*.js
 __tests__/
 **/*.test.ts
 **/*.test.tsx
+
+# Solana / Anchor Keys
+**/id.json
+**/*.json
+!**/idl.json
+!package.json
+!tsconfig.json
+!package-lock.json
+!composer.json
+!/.vercel/*.json
+!/programs/**/idl.json

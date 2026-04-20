@@ -1,6 +1,6 @@
 import { Program, BN } from '@coral-xyz/anchor';
 import { PublicKey, TransactionInstruction, SystemProgram } from '@solana/web3.js';
-import { getComplianceControlPDA, getEligibilityPDA } from '../utils/pdaHelpers';
+import { getComplianceControlPDA, getEligibilityPDA, getSubscriptionPDA, getProjectPDA } from '../utils/pdaHelpers';
 
 /**
  * ComplianceRepository
@@ -116,6 +116,49 @@ export class ComplianceRepository {
         senderEligibility:  getEligibilityPDA(sender, this.program.programId),
         receiverEligibility:getEligibilityPDA(receiver, this.program.programId),
         caller:             this.program.provider.publicKey!,
+      } as any)
+      .instruction();
+  }
+
+  /**
+   * Constructs subscribe_investment instruction.
+   */
+  async getSubscribeInvestmentInstruction(
+    subscriptionId: BN,
+    projectId:      number,
+    amount:         BN,
+    paymentAsset:   PublicKey,
+    registryProgramId: PublicKey
+  ): Promise<TransactionInstruction> {
+    return await this.program.methods
+      .subscribeInvestment(subscriptionId, new BN(projectId), amount, paymentAsset)
+      .accounts({
+        subscription: getSubscriptionPDA(this.program.provider.publicKey!, subscriptionId, this.program.programId),
+        investor:     this.program.provider.publicKey!,
+        eligibility:  getEligibilityPDA(this.program.provider.publicKey!, this.program.programId),
+        projectAccount: getProjectPDA(projectId, registryProgramId),
+        projectRegistryProgram: registryProgramId,
+        control:      getComplianceControlPDA(this.program.programId),
+        systemProgram: SystemProgram.programId,
+      } as any)
+      .instruction();
+  }
+
+  /**
+   * Constructs finalize_subscription instruction.
+   */
+  async getFinalizeSubscriptionInstruction(
+    investor:       PublicKey,
+    subscriptionId: BN,
+    txHash:         number[],
+    tokenAmount:    BN
+  ): Promise<TransactionInstruction> {
+    return await this.program.methods
+      .finalizeSubscription(txHash, tokenAmount)
+      .accounts({
+        subscription: getSubscriptionPDA(investor, subscriptionId, this.program.programId),
+        control:      getComplianceControlPDA(this.program.programId),
+        authority:    this.program.provider.publicKey!,
       } as any)
       .instruction();
   }
