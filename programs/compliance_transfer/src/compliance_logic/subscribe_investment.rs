@@ -26,12 +26,10 @@ pub struct SubscribeInvestment<'info> {
     )]
     pub eligibility: Account<'info, InvestorEligibilityAccount>,
 
-    #[account(
-        seeds = [b"project", project_id.to_le_bytes().as_ref()],
-        seeds::program = project_registry_program.key(),
-        bump = project_account.bump,
-    )]
-    pub project_account: Account<'info, ProjectAccount>,
+    /// CHECK: Validated via manual owner and seed check in handler
+    pub project_account: UncheckedAccount<'info>,
+
+
 
     /// CHECK: Validated via seeds
     pub project_registry_program: UncheckedAccount<'info>,
@@ -54,10 +52,34 @@ pub fn handle_subscribe_investment(
     payment_asset:     Pubkey,
 ) -> Result<()> {
     let clock   = Clock::get()?;
-    let project = &ctx.accounts.project_account;
+    
+    // 0. Manual Security Checks (AC-BC-406 CROSS-PROGRAM FIX)
+    
+    // 0a. Owner Verification
+    require_keys_eq!(
+        ctx.accounts.project_account.owner.key(), 
+        ctx.accounts.project_registry_program.key(), 
+        ComplianceError::Unauthorized
+    );
 
-    // 1. Validate project activity/pause
+    // 0b. Seed Verification (Manual PDA Check)
+    let (expected_project_pda, _bump) = Pubkey::find_program_address(
+        &[b"project", project_id.to_le_bytes().as_ref()],
+        &ctx.accounts.project_registry_program.key()
+    );
+    require_keys_eq!(
+        ctx.accounts.project_account.key(),
+        expected_project_pda,
+        ComplianceError::Unauthorized
+    );
+
+    // 1. Deserialization (Skipping 8-byte Anchor discriminator)
+    let project = ProjectAccount::try_from_slice(&ctx.accounts.project_account.data.borrow()[8..])?;
+
+    // 2. Validate project activity/pause
     require!(project.is_active && !project.is_paused, ComplianceError::ProjectNotActive);
+
+
 
     // 2. Validate subscription window
     require!(

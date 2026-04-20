@@ -1,6 +1,7 @@
 use anchor_lang::prelude::*;
 
-#[account]
+#[derive(AnchorSerialize, AnchorDeserialize, Clone, Default)]
+
 pub struct ProjectAccount {
     pub project_id:             u64,             
     pub registry:               Pubkey,          
@@ -27,5 +28,7 @@ pub struct ProjectAccount {
 }
 
 impl ProjectAccount {
+    #[allow(dead_code)]
     pub const SIZE: usize = 8 + 8 + 32 + 32 + (4 + 64) + (4 + 10) + (4 + 200) + 8 + 8 + 8 + 8 + 32 + 32 + 32 + 8 + 8 + 8 + 8 + 1 + 1 + 1 + 1 + 1 + 64;
+
 }

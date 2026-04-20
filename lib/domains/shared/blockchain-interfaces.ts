@@ -11,7 +11,10 @@
  * TODO: Implement actual smart contract integration when contracts are deployed
  */
 
-import type { Address, Hash } from 'viem';
+// Allow both EVM (0x...) and Solana (Base58) formats
+export type Address = string; 
+export type Hash = string;
+
 
 // ============================================
 // TOKEN STANDARDS
@@ -297,17 +300,24 @@ export interface BlockchainServices {
   treasury?: ITreasuryService;
 }
 
+import { SolanaTokenizationService } from '@/lib/web3/services/solanaTokenizationService';
+
 /**
  * Factory to get blockchain services
- * Returns placeholder implementations until real contracts are deployed
  */
-export function getBlockchainServices(): BlockchainServices {
+export function getBlockchainServices(connection?: any, wallet?: any): BlockchainServices {
+  if (connection && wallet) {
+    return {
+      tokenization: new SolanaTokenizationService(connection, wallet),
+      dividends: new PlaceholderDividendService(), // Next EPIC
+    };
+  }
   return {
     tokenization: new PlaceholderTokenizationService(),
     dividends: new PlaceholderDividendService(),
-    // TODO: Add real implementations when contracts are ready
   };
 }
+
 
 // ============================================
 // CONFIGURATION

@@ -49,6 +49,8 @@ export class InvestmentsService {
         tokens_purchased: input.tokensPurchased,
         token_price_at_purchase: input.amount / input.tokensPurchased,
         status: 'pending',
+        blockchain_subscription_id: input.blockchainSubscriptionId,
+        investor_wallet: input.investorWallet,
         invested_at: new Date().toISOString(),
       })
       .select()

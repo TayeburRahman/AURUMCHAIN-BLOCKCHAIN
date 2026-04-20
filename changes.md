@@ -1,4 +1,37 @@
+## Feature: Backend RPC Integration & Cross-Program Security Fix (Milestone 2)
+
+**Timestamp:** 2026-04-20T13:45:00+06:00
+Finalized the administrative blockchain infrastructure for secure server-side settlement. Implemented a custom security patch in the Compliance program to resolve the `3007` PDA ownership deadlock, enabling trustless cross-program data sharing.
+
+### 1. Administrative Infrastructure (Backend RPC)
+
+| File Name | Line Numbers | Feature Added | Reason for Addition |
+| :--- | :--- | :--- | :--- |
+| **[serverAnchorProvider.ts](file:///c:/Rupom/Projects/AURUMCHAIN/lib/web3/clients/serverAnchorProvider.ts)** | **1-38 [NEW]** | **[NEW]** Headless Provider | Implemented server-side Anchor signing using administrative private keys for autonomous blockchain settlement. |
+| **[adminBlockchainService.ts](file:///c:/Rupom/Projects/AURUMCHAIN/lib/web3/services/adminBlockchainService.ts)** | **1-103 [NEW]** | **[NEW]** Admin Orchestrator | Created centralized service for `settleInvestment` and `updateProjectStatus` via administrative RPC calls. |
+| **[complete/route.ts](file:///c:/Rupom/Projects/AURUMCHAIN/app/api/investments/[id]/complete/route.ts)** | **7-40** | API-to-Blockchain Link | Integrated the Admin service into the investment completion route to trigger automated on-chain settlement. |
+| **[package.json](file:///c:/Rupom/Projects/AURUMCHAIN/package.json)** | **12-14** | Test Orchestration | Added `test:full-flow` script to facilitate automated end-to-end verification. |
+
+### 2. Smart Contract Security Patch (Rust / Anchor)
+
+| File Name | Line Numbers | Feature Added | Reason for Addition |
+| :--- | :--- | :--- | :--- |
+| **[external_state.rs](file:///c:/Rupom/Projects/AURUMCHAIN/programs/compliance_transfer/src/state/external_state.rs)** | **3, 30** | Cross-Program Struct | Redefined `ProjectAccount` as a shared data layout (removing `#[account]`) to bypass ownership deadlocks. |
+| **[subscribe_investment.rs](file:///c:/Rupom/Projects/AURUMCHAIN/programs/compliance_transfer/src/compliance_logic/subscribe_investment.rs)** | **26-119** | Manual Sec. Verification | Replaced macro-driven validation with manual PDA seed and owner checks to allow the Compliance program to safely read Registry data. |
+
+### 3. Verification & Tracking
+
+| File Name | Line Numbers | Feature Added | Reason for Addition |
+| :--- | :--- | :--- | :--- |
+| **[models.ts](file:///c:/Rupom/Projects/AURUMCHAIN/lib/domains/investments/models.ts)** | **24-28, 75-77** | Blockchain Metadata | Expanded the Investment model to persist `blockchainSubscriptionId` and `investorWallet` in Supabase. |
+| **[service.ts](file:///c:/Rupom/Projects/AURUMCHAIN/lib/domains/investments/service.ts)** | **48-54** | Data Persistence | Updated the investment service to ensure SOL-based transaction hashes are stored for investor auditing. |
+| **[check-on-chain.ts](file:///c:/Rupom/Projects/AURUMCHAIN/tests/check-on-chain.ts)** | **1-64 [NEW]** | **[NEW]** CLI Audit Tool | Created a terminal utility to inspect on-chain subscription states without a web browser. |
+| **[simulate-full-flow.ts](file:///c:/Rupom/Projects/AURUMCHAIN/tests/simulate-full-flow.ts)** | **1-118 [NEW]** | **[NEW]** Lifecycle Simulation | Built a comprehensive script to verify the flow from Wallet Registration -> Subscription -> Admin Settlement. |
+
+---
+
 ## Feature: Robust Transaction Confirmation & Identity Hashing
+
 
 **Timestamp:** 2026-04-20T09:58:00+06:00
 Resolved the `signatureSubscribe` WebSocket error and `TransactionExpiredBlockheightExceededError` by implementing a polling-based confirmation strategy. Also fixed the on-chain `EmptyIdentityHash` (6011) error by generating real SHA-256 hashes of investor applicant IDs.

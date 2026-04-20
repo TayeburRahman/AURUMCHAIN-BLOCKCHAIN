@@ -23,8 +23,11 @@ export const investmentSchema = z.object({
 
   // Blockchain tracking
   transactionHash: z.string().optional(),
+  blockchainSubscriptionId: z.string().optional(), // On-chain numeric ID
+  investorWallet: z.string().optional(),           // Public key of investor
   blockNumber: z.bigint().optional(),
   confirmed: z.boolean().default(false),
+
 
   // Timestamps
   investedAt: z.date(),
@@ -74,6 +77,9 @@ export const createInvestmentSchema = z.object({
   offeringId: uuidSchema.optional(),
   amount: moneySchema,
   tokensPurchased: tokenAmountSchema,
+  blockchainSubscriptionId: z.string().optional(),
+  investorWallet: z.string().optional(),
 });
+
 
 export type CreateInvestmentInput = z.infer<typeof createInvestmentSchema>;
