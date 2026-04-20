@@ -28,16 +28,31 @@ export async function GET() {
     if (error) throw error;
     if (!projects || projects.length === 0) return NextResponse.json([]);
 
-    // 2. Fetch all on-chain project accounts
+    // 2. Fetch on-chain project accounts individually (bypasses Alchemy's getProgramAccounts restriction)
     const connection = new Connection(process.env.NEXT_PUBLIC_SOLANA_RPC_URL || 'https://api.devnet.solana.com');
     const service = new ProjectRegistryService(connection, {}); // Read-only mode
-    const allOnChainProjects = await service.fetchAllProjects();
+    
+    const chainFetchPromises = projects
+      .filter((p: any) => p.blockchain_project_id !== null)
+      .map(async (p: any) => {
+        try {
+          const id = Number(p.blockchain_project_id);
+          const account = await service.fetchProject(id);
+          return { id, account };
+        } catch (e) {
+          console.warn(`[GET /api/projects] Failed to fetch on-chain data for project ${p.blockchain_project_id}:`, e);
+          return { id: Number(p.blockchain_project_id), account: null };
+        }
+      });
 
-    // Map on-chain projects by their numeric ID for quick lookup
+    const chainResults = await Promise.all(chainFetchPromises);
     const chainMap = new Map();
-    allOnChainProjects.forEach((acc: any) => {
-      chainMap.set(acc.account.projectId.toNumber(), acc.account);
+    chainResults.forEach((res: any) => {
+      if (res.account) {
+        chainMap.set(res.id, res.account);
+      }
     });
+
 
     // 3. Merge data
     const enriched = projects.map((project) => {
