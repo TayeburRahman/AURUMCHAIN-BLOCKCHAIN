@@ -14,6 +14,7 @@ import {
 import { ProjectRegistryRepository } from '../repositories/projectRegistryRepository';
 import { getRegistryProgram } from '../utils/programDiscoverer';
 import { getMetadataPDA } from '../utils/pdaHelpers';
+import { confirmTransactionRobustly } from '../utils/transactionUtils';
 
 /**
  * ProjectRegistryService
@@ -235,8 +236,8 @@ export class ProjectRegistryService {
         skipPreflight: true,
       });
 
-      // Robust confirmation with polling fallback
-      await this.confirmTransactionInternally(signature, blockhash, lastValidBlockHeight);
+      // Robust confirmation with polling
+      await confirmTransactionRobustly(this.connection, signature, lastValidBlockHeight, 'confirmed');
 
       return { signature, projectId: nextId, mintAddress: mintAddress.toString() };
     } catch (error: any) {
@@ -341,52 +342,11 @@ export class ProjectRegistryService {
       skipPreflight: true,
     });
 
-    await this.confirmTransactionInternally(signature, blockhash, lastValidBlockHeight);
+    await confirmTransactionRobustly(this.connection, signature, lastValidBlockHeight, 'confirmed');
 
     return signature;
   }
 
-  /**
-   * Internal helper using a pure polling strategy. 
-   * Bypasses the problematic websocket 'signatureSubscribe' method.
-   */
-  private async confirmTransactionInternally(signature: string, blockhash: string, lastValidBlockHeight: number) {
-    console.log(`[ProjectRegistryService] Polling for confirmation: ${signature.slice(0, 8)}...`);
-    
-    let confirmed = false;
-    let attempts = 0;
-    const maxAttempts = 45; // ~90 seconds total
-
-    while (!confirmed && attempts < maxAttempts) {
-      const status = await this.connection.getSignatureStatus(signature, {
-        searchTransactionHistory: false
-      });
-
-      if (status.value?.err) {
-        throw new Error(`Transaction failed on-chain: ${JSON.stringify(status.value.err)}`);
-      }
-
-      const confirmationStatus = status.value?.confirmationStatus;
-      
-      if (confirmationStatus === 'confirmed' || confirmationStatus === 'finalized') {
-        confirmed = true;
-        console.log(`[ProjectRegistryService] Transaction ${confirmationStatus}!`);
-      } else {
-        // Check if the blockheight has been exceeded (timeout)
-        const currentBlockHeight = await this.connection.getBlockHeight();
-        if (currentBlockHeight > lastValidBlockHeight) {
-          throw new Error("Transaction expired: block height exceeded during polling.");
-        }
-
-        await new Promise(resolve => setTimeout(resolve, 2000));
-        attempts++;
-      }
-    }
-
-    if (!confirmed) {
-      throw new Error("Transaction confirmation timed out after 90 seconds of polling.");
-    }
-  }
 
   private handleError(error: any): Error {
     if (error.logs) {

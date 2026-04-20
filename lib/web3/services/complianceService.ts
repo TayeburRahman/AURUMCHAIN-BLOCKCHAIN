@@ -1,8 +1,9 @@
-import { Connection, PublicKey, Transaction } from '@solana/web3.js';
+import { Connection, PublicKey, Transaction, ComputeBudgetProgram } from '@solana/web3.js';
 import { BN } from '@coral-xyz/anchor';
 import { ComplianceRepository } from '../repositories/complianceRepository';
 import { getComplianceProgram } from '../utils/programDiscoverer';
 import { RecordVerifiedWalletSchema, RevokeWalletSchema } from '../schemas/compliance';
+import { confirmTransactionRobustly } from '../utils/transactionUtils';
 
 /**
  * ComplianceTransferService
@@ -96,7 +97,12 @@ export class ComplianceService {
    */
   private async sendAndConfirm(instruction: any): Promise<string> {
     const { blockhash, lastValidBlockHeight } = await this.connection.getLatestBlockhash('confirmed');
-    const transaction = new Transaction().add(instruction);
+    
+    const priorityFeeIx = ComputeBudgetProgram.setComputeUnitPrice({
+      microLamports: 50000, 
+    });
+
+    const transaction = new Transaction().add(priorityFeeIx, instruction);
     transaction.recentBlockhash = blockhash;
     transaction.feePayer = this.wallet.publicKey;
 
@@ -104,11 +110,12 @@ export class ComplianceService {
       skipPreflight: true,
     });
 
-    await this.connection.confirmTransaction({
+    await confirmTransactionRobustly(
+      this.connection,
       signature,
-      blockhash,
-      lastValidBlockHeight
-    }, 'confirmed');
+      lastValidBlockHeight,
+      'confirmed'
+    );
 
     return signature;
   }

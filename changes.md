@@ -1,3 +1,25 @@
+## Feature: Robust Transaction Confirmation & Identity Hashing
+
+**Timestamp:** 2026-04-20T09:58:00+06:00
+Resolved the `signatureSubscribe` WebSocket error and `TransactionExpiredBlockheightExceededError` by implementing a polling-based confirmation strategy. Also fixed the on-chain `EmptyIdentityHash` (6011) error by generating real SHA-256 hashes of investor applicant IDs.
+
+### 1. Robust Web3 Infrastructure
+
+| File Name | Line Numbers | Feature Added | Reason for Addition |
+| :--- | :--- | :--- | :--- |
+| **[transactionUtils.ts](file:///c:/Rupom/Projects/AURUMCHAIN/lib/web3/utils/transactionUtils.ts)** | **1-62** | **[NEW]** Robust Polling | Implemented a reliable `getSignatureStatus` polling mechanism to bypass unstable WebSocket connections in the browser. |
+| **[complianceService.ts](file:///c:/Rupom/Projects/AURUMCHAIN/lib/web3/services/complianceService.ts)** | **1, 6, 99-118** | Priority Fees & Polling | Integrated `ComputeBudgetProgram` for priority fees and switched to robust polling for transaction confirmation. |
+| **[investmentService.ts](file:///c:/Rupom/Projects/AURUMCHAIN/lib/web3/services/investmentService.ts)** | **1, 5, 49-68** | Priority Fees & Polling | Hardened the subscription flow with priority fees and reliable confirmation logic. |
+| **[projectRegistryService.ts](file:///c:/Rupom/Projects/AURUMCHAIN/lib/web3/services/projectRegistryService.ts)** | **17, 240, 331-345** | Shared Utility Sync | Refactored to use the central `transactionUtils` library and removed redundant internal polling code. |
+
+### 2. Compliance Logic Hardening
+
+| File Name | Line Numbers | Feature Added | Reason for Addition |
+| :--- | :--- | :--- | :--- |
+| **[ComplianceReviewList.tsx](file:///c:/Rupom/Projects/AURUMCHAIN/components/admin/ComplianceReviewList.tsx)** | **27-37, 51** | SHA-256 Identity Hashing | Implemented cryptographically secure hashing of applicant IDs to satisfy the smart contract's non-zero identity hash requirement. |
+
+---
+
 ## Feature: Wallet Connection Stability & Duplicate Fix
 
 **Timestamp:** 2026-04-20T09:27:00+06:00

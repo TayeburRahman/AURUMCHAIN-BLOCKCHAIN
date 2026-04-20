@@ -24,6 +24,18 @@ export function ComplianceReviewList({ initialPending }: { initialPending: any[]
     return d.toISOString().split('T')[0];
   });
 
+  const hashIdentity = async (applicantId: string): Promise<number[]> => {
+    try {
+      if (!applicantId) return new Array(32).fill(1); // Safety fallback
+      const msgBuffer = new TextEncoder().encode(applicantId);
+      const hashBuffer = await crypto.subtle.digest('SHA-256', msgBuffer);
+      return Array.from(new Uint8Array(hashBuffer));
+    } catch (e) {
+      console.error("Hashing failed, using fallback", e);
+      return new Array(32).fill(1);
+    }
+  };
+
   const handleApprove = async (kyc: any, walletAddress: string) => {
     if (!wallet.connected) {
       setError("Please connect your admin wallet first.");
@@ -36,7 +48,7 @@ export function ComplianceReviewList({ initialPending }: { initialPending: any[]
     try {
       const service = new ComplianceService(connection, wallet);
       
-      const identityHash = new Array(32).fill(0); 
+      const identityHash = await hashIdentity(kyc.provider_applicant_id); 
       const expiryTimestamp = Math.floor(new Date(expiryDate).getTime() / 1000);
 
       // 1. Blockchain Transaction

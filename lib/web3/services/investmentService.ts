@@ -1,7 +1,8 @@
-import { Connection, PublicKey, Transaction } from '@solana/web3.js';
+import { Connection, PublicKey, Transaction, ComputeBudgetProgram } from '@solana/web3.js';
 import { Program, BN } from '@coral-xyz/anchor';
 import { InvestmentRepository } from '../repositories/investmentRepository';
 import { getComplianceProgram, getRegistryProgram } from '../utils/programDiscoverer';
+import { confirmTransactionRobustly } from '../utils/transactionUtils';
 import { PROJECT_REGISTRY_PROGRAM_ID } from '../config/programs';
 
 /**
@@ -46,7 +47,12 @@ export class InvestmentService {
       );
 
       const { blockhash, lastValidBlockHeight } = await this.connection.getLatestBlockhash('confirmed');
-      const transaction = new Transaction().add(instruction);
+      
+      const priorityFeeIx = ComputeBudgetProgram.setComputeUnitPrice({
+        microLamports: 50000, 
+      });
+
+      const transaction = new Transaction().add(priorityFeeIx, instruction);
       transaction.recentBlockhash = blockhash;
       transaction.feePayer = this.wallet.publicKey;
 
@@ -54,11 +60,12 @@ export class InvestmentService {
         skipPreflight: true,
       });
 
-      await this.connection.confirmTransaction({
+      await confirmTransactionRobustly(
+        this.connection,
         signature,
-        blockhash,
-        lastValidBlockHeight
-      }, 'confirmed');
+        lastValidBlockHeight,
+        'confirmed'
+      );
 
       return signature;
     } catch (error: any) {
