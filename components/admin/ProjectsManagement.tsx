@@ -416,6 +416,16 @@ export default function ProjectsManagement({ initialProjects, userId }: Projects
 
       console.log(`[StatusUpdate] Project ${project.id} updated. TX: ${signature}`);
       
+      // Update local state and Supabase to keep UI in sync
+      setProjects((prev) =>
+        prev.map((p) => (p.id === project.id ? { ...p, is_paused: newIsPaused, is_active: newIsActive } : p))
+      );
+
+      await fetch(`/api/admin/projects/${project.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ is_paused: newIsPaused, is_active: newIsActive }),
+      });
     } catch (err: any) {
       setError(err.message);
     } finally {
@@ -919,6 +929,11 @@ export default function ProjectsManagement({ initialProjects, userId }: Projects
                   >
                     {project.status}
                   </span>
+                  {(project as any).is_paused && (
+                    <span className="px-3 py-1 rounded-full text-xs font-bold bg-red-500/20 text-red-500 border border-red-500/30 animate-pulse">
+                      PAUSED
+                    </span>
+                  )}
                 </div>
                 <p className="text-gray-400 text-sm mb-3">{project.location}, {project.country}</p>
                 <p className="text-gray-300 text-sm mb-4 line-clamp-2">{project.description}</p>
@@ -995,18 +1010,21 @@ export default function ProjectsManagement({ initialProjects, userId }: Projects
                 {/* On-chain toggle buttons — only shown for chain-linked projects */}
                 {project.blockchain_project_id !== null && project.blockchain_project_id !== undefined && (
                   <div className="flex gap-1 flex-wrap justify-end">
-                    <button
-                      title="Toggle project operations (Pause/Resume everything)"
-                      disabled={statusChanging === project.id}
-                      onClick={() => handleChainToggle(
-                        project,
-                        /* We check current state in handleChainToggle, so we just need a generic toggle intent here */
-                        'pauseInvestments' 
-                      )}
-                      className="px-2 py-1 rounded text-xs font-medium bg-orange-500/20 text-orange-400 hover:bg-orange-500/30 transition-colors disabled:opacity-40 border border-orange-500/30"
-                    >
-                      ⏸ Pause/Resume Project
-                    </button>
+                      <button
+                        title={(project as any).is_paused ? "Resume investments for this project" : "Pause investments for this project"}
+                        disabled={statusChanging === project.id}
+                        onClick={() => handleChainToggle(
+                          project,
+                          'pauseInvestments' 
+                        )}
+                        className={`px-2 py-1 rounded text-xs font-medium transition-colors disabled:opacity-40 border ${
+                          (project as any).is_paused 
+                            ? 'bg-green-500/20 text-green-400 border-green-500/30 hover:bg-green-500/30' 
+                            : 'bg-orange-500/20 text-orange-400 border-orange-500/30 hover:bg-orange-500/30'
+                        }`}
+                      >
+                        {(project as any).is_paused ? '▶ Resume Project' : '⏸ Pause Project'}
+                      </button>
 
                     {/* Set Mint Button */}
                     {!(project as any).mint_address && (
