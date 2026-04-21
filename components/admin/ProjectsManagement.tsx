@@ -65,22 +65,42 @@ export default function ProjectsManagement({ initialProjects, userId }: Projects
     e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>
   ) => {
     const { name, value } = e.target;
-    setFormData((prev) => ({
-      ...prev,
-      [name]:
-        name === 'funding_goal' ||
-        name === 'current_funding' ||
-        name === 'min_investment' ||
-        name === 'token_price' ||
-        name === 'total_tokens' ||
-        name === 'available_tokens' ||
-        name === 'expected_return_percentage' ||
-        name === 'project_duration_months' ||
-        name === 'distribution_cadence' ||
-        name === 'token_decimals'
-          ? parseFloat(value) || 0
-          : value,
-    }));
+    setFormData((prev) => {
+      const updated = {
+        ...prev,
+        [name]:
+          name === 'funding_goal' ||
+          name === 'current_funding' ||
+          name === 'min_investment' ||
+          name === 'token_price' ||
+          name === 'total_tokens' ||
+          name === 'available_tokens' ||
+          name === 'expected_return_percentage' ||
+          name === 'project_duration_months' ||
+          name === 'distribution_cadence' ||
+          name === 'token_decimals'
+            ? parseFloat(value) || 0
+            : value,
+      };
+
+      // Auto-calculate tokens if Goal or Price changes
+      if (name === 'funding_goal' || name === 'token_price') {
+        const goal = name === 'funding_goal' ? parseFloat(value) || 0 : prev.funding_goal || 0;
+        const price = name === 'token_price' ? parseFloat(value) || 0 : prev.token_price || 0;
+
+        if (price > 0) {
+          const totalTokens = goal / price;
+          updated.total_tokens = totalTokens;
+          
+          // Only sync Available Tokens if it hasn't been manually overridden for a phase
+          if (prev.available_tokens === prev.total_tokens || prev.total_tokens === 0) {
+            updated.available_tokens = totalTokens;
+          }
+        }
+      }
+
+      return updated;
+    });
 
     // Auto-generate slug from name
     if (name === 'name') {

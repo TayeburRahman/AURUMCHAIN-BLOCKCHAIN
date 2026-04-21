@@ -1,3 +1,23 @@
+## Feature: Cross-Program Stabilization & BorshIoError Resolution
+
+**Timestamp:** 2026-04-21T14:20:00+06:00
+Resolved the critical `BorshIoError` preventing the Compliance program from reading Registry data. Implemented a robust, flexible deserialization strategy to handle dynamic account sizes and slack space.
+
+### 1. Smart Contract Hardening (Anchor / Rust)
+
+| File Name | Line Numbers | Feature Added | Reason for Addition |
+| :--- | :--- | :--- | :--- |
+| **[subscribe_investment.rs](file:///c:/Rupom/Projects/AURUMCHAIN/programs/compliance_transfer/src/compliance_logic/subscribe_investment.rs)** | **77-79** | Flexible Deserialization | Switched from `try_from_slice` to `deserialize` to correctly handle trailing zeros/slack space in fixed-size account buffers. |
+| **[external_state.rs](file:///c:/Rupom/Projects/AURUMCHAIN/programs/compliance_transfer/src/state/external_state.rs)** | **28** | Struct Refactoring | Reverted manual padding fields as the new flexible deserialization makes them unnecessary and cleaner to maintain. |
+
+### 2. Simulation & Verification
+
+| File Name | Line Numbers | Feature Added | Reason for Addition |
+| :--- | :--- | :--- | :--- |
+| **[simulate-full-flow.ts](file:///c:/Rupom/Projects/AURUMCHAIN/tests/simulate-full-flow.ts)** | **34, 90-91** | Dynamic Test Parameters | Updated the simulation to use Project ID 28 (Nepal) and satisfied the 1,000 USDC minimum requirement to verify end-to-end logic. |
+
+---
+
 ## Feature: Dynamic Token Decimals Configuration
 
 **Timestamp:** 2026-04-20T14:10:00+06:00

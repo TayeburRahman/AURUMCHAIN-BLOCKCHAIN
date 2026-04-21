@@ -73,8 +73,9 @@ pub fn handle_subscribe_investment(
         ComplianceError::Unauthorized
     );
 
-    // 1. Deserialization (Skipping 8-byte Anchor discriminator)
-    let project = ProjectAccount::try_from_slice(&ctx.accounts.project_account.data.borrow()[8..])?;
+    // 1. Deserialization (Carefully handling trailing slack space)
+    let mut data: &[u8] = &ctx.accounts.project_account.data.borrow()[8..];
+    let project = ProjectAccount::deserialize(&mut data)?;
 
     // 2. Validate project activity/pause
     require!(project.is_active && !project.is_paused, ComplianceError::ProjectNotActive);

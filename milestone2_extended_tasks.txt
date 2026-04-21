@@ -1,0 +1,202 @@
+================================================================================
+AURUMCHAIN — PHASE 2 / MILESTONE 2 (EXTENDED)
+BLOCKCHAIN & BACKEND INFRASTRUCTURE HARDENING
+Generated: 2026-04-20
+Tech Stack: Solana (Anchor/Rust), Node.js, Supabase, React
+================================================================================
+
+PREREQUISITES (MUST COMPLETE BEFORE STARTING EXTENSIONS)
+--------------------------------------------------------
+  • [ ] STABILITY TEST : Run `npm run test:full-flow` and ensure 100% success.
+  • [ ] COMPLIANCE AUDIT : Manually verify Investor Eligibility PDA life-cycle.
+  • [ ] BACKEND SYNC : Ensure Supabase triggers for project status are active.
+
+SCOPE OF THIS EXTENSION
+------------------------
+  • Program 3 : Allocation & Distribution (Proportional Payouts)
+  • Program 1 Upgrade : On-chain Phase Limits & Round Protection
+  • Backend Layer : Automated Phase Sync & Distribution Orchestration
+  • Web3.js Integration : Services, PDA Helpers, and Batch Payout logic.
+
+--------------------------------------------------------------------------------
+
+================================================================================
+EPIC 5 — ALLOCATION & DISTRIBUTION ON-CHAIN PROGRAM
+AC-BC-EPIC-05
+================================================================================
+
+  Description:
+    Implement the on-chain profit sharing engine. Handles proportional math 
+    and safe treasury payouts.
+
+  Acceptance Criteria (Epic Level):
+    - All payout calculations are verified overflow-safe on-chain.
+    - Double-claim protection is enforced at the contract level.
+    - Authority restrictions prevent non-admins from triggering distributions.
+
+  -----------------------------------------------------------------------
+  User Story 5.1 — Distribution Epochs
+  -----------------------------------------------------------------------
+    - Define DistributionEpochAccount PDA (Snapshot project state).
+    - Implement create_distribution instruction (Admin only).
+
+    Acceptance Criteria:
+      ✓ Epoch PDA is deterministically derived from [project, record_date].
+      ✓ record_date cannot be changed once the epoch is initialized.
+
+  -----------------------------------------------------------------------
+  User Story 5.2 — Payout Execution
+  -----------------------------------------------------------------------
+    - Proportional entitlement math (Investor_Share / Total_Supply).
+    - execute_distribution: CPI payout from Treasury to Investor.
+
+    Acceptance Criteria:
+      ✓ Investor receives USDC equivalent to their % ownership of the supply.
+      ✓ Payout instruction rejects if the investor has already been paid for the epoch.
+
+  -----------------------------------------------------------------------
+  User Story 5.3 — Administrative Correction
+  -----------------------------------------------------------------------
+    - burn_or_adjust: Hard correction path with mandatory audit codes.
+
+    Acceptance Criteria:
+      ✓ All adjustments emit a detailed event with a valid reason_code.
+      ✓ Total supply_cap is updated on-chain if tokens are burned.
+
+================================================================================
+EPIC 6 — ADVANCED PHASE MANAGEMENT & SUBSCRIPTION GUARD
+AC-BC-EPIC-06
+================================================================================
+
+  Description:
+    Transition the platform from "Soft" (database) limits to "Hard" 
+    (cryptographic/on-chain) phase enforcement to prevent bots from bypassing 
+    offering windows.
+
+  Acceptance Criteria (Epic Level):
+    - On-chain subscription logic rejects any request exceeding the current phase.
+    - Authority to update round limits is restricted to the Operational Admin.
+
+  -----------------------------------------------------------------------
+  User Story 6.1 — On-Chain Phase Schema & Counters
+  -----------------------------------------------------------------------
+    - Update ProjectAccount schema to include:
+        - current_round_limit (u64): Maximum tokens for active phase.
+        - current_round_total (u64): Tokens already subscribed in this phase.
+    - Implement update_round_limit instruction to manually reset or extend phases.
+
+    Acceptance Criteria:
+      ✓ New fields are readable via Web3.js service and Solana Explorer.
+      ✓ Counters survive program upgrades without corrupting existing project data.
+
+  -----------------------------------------------------------------------
+  User Story 6.2 — Hard Enforcement logic (Subscribe Gate)
+  -----------------------------------------------------------------------
+    - Refactor subscribe_investment to validate: 
+      (round_total + requested_tokens <= round_limit).
+    - Atomic update: Increment current_round_total on successful subscription.
+
+    Acceptance Criteria:
+      ✓ Subscribing for 1 token over the limit returns a specific error code.
+      ✓ Successful subscriptions increment the on-chain total in the same TX.
+
+  -----------------------------------------------------------------------
+  User Story 6.3 — Global Mint Finalization
+  -----------------------------------------------------------------------
+    - Implement revoke_mint_authority instruction.
+    - Logic: Perform a CPI to the SPL Token Program to set the Mint Authority to None.
+    - Update: Set ProjectAccount.mint_authority_revoked = true.
+
+    Acceptance Criteria:
+      ✓ After execution, the Mint Authority on Solana Explorer shows as "None".
+      ✓ The on-chain ProjectAccount flag is updated to prevent any further minting attempts.
+
+================================================================================
+EPIC 7 — EXTENDED BACKEND & INTEGRATION SERVICES
+AC-BC-EPIC-07
+================================================================================
+
+  Description:
+    Develop the API and Service layers required to coordinate these advanced 
+    on-chain features with the Admin Dashboard and Investor Portal.
+
+  Acceptance Criteria (Epic Level):
+    - Admin Panel successfully triggers on-chain instructions via the backend.
+    - Frontend UI accurately reflects "Round Availability" from the blockchain source.
+
+  -----------------------------------------------------------------------
+  User Story 7.1 — Distribution Orchestration API
+  -----------------------------------------------------------------------
+    - New Endpoint: POST /api/admin/distributions/create
+        - Prepares distribution batch and signs the on-chain epoch creation.
+    - New Endpoint: POST /api/admin/distributions/execute
+        - Triggers the settlement loop to pay out all eligible shareholders.
+
+    Acceptance Criteria:
+      ✓ API returns a valid Transaction Signature for every distribution action.
+      ✓ Success/Failure state is reflected in the Admin Distribution list.
+
+  -----------------------------------------------------------------------
+  User Story 7.2 — Round Sync & Database Migration
+  -----------------------------------------------------------------------
+    - DB Modification: Sync Supabase projects.available_tokens with on-chain current_round_limit.
+    - Automation: Create a "Phase Transition" service that updates BOTH the 
+      database and the blockchain state in a single action from the Admin Panel.
+
+    Acceptance Criteria:
+      ✓ Available Tokens count in Supabase matches the on-chain limit after every update.
+      ✓ Phase transitions are atomic (UI shows loading state until both DB and Chain resolve).
+
+  -----------------------------------------------------------------------
+  User Story 7.3 — Admin UI: Round Control Center
+  -----------------------------------------------------------------------
+    - Add "Manage Phases" button to Project list.
+    - Implement "Release Next Phase" modal for defining new round limits.
+    - Add "Execute Payout" dashboard for secondary profit distribution.
+
+    Acceptance Criteria:
+      ✓ Admin can successfully set a new 10% phase limit from the web UI.
+      ✓ Payout dashboard displays proportional entitlement BEFORE execution for review.
+
+================================================================================
+EPIC 8 — WEB3.JS INTEGRATION LAYER (EXTENDED)
+AC-BC-EPIC-08
+================================================================================
+
+  Description:
+    Update and create the detailed TypeScript service files to bridge the 
+    extended smart contract features to the frontend and backend layers.
+
+  Acceptance Criteria (Epic Level):
+    - New account types (Epoch/Payout) are successfully deserialized by services.
+    - Services support both Browser-based (Wallet) and Server-based (Keypair) signing.
+
+  -----------------------------------------------------------------------
+  User Story 8.1 — Service Layer Updates (Manifest)
+  -----------------------------------------------------------------------
+    - **New**: `lib/web3/services/distributionService.ts`
+        - Implement createDistribution(), executePayoutBatch(), and fetchEpochHistory().
+    - **Modify**: `lib/web3/services/projectRegistryService.ts`
+        - Implement updateRoundLimit() and update fetchProject to include round counters.
+    - **Modify**: `lib/web3/services/complianceService.ts`
+        - Update subscription flow to include the on-chain phase guard verification.
+
+    Acceptance Criteria:
+      ✓ Strongly typed interfaces for all new distribution methods.
+      ✓ Services handle Graceful Degradation if RPC fails during a batch.
+
+  -----------------------------------------------------------------------
+  User Story 8.2 — PDA & Transaction Utilities
+  -----------------------------------------------------------------------
+    - **Modify**: `lib/web3/utils/pdaHelpers.ts`
+        - Add getDistributionEpochPDA() and getDistributionPayoutPDA().
+    - **Modify**: `lib/web3/utils/transactionUtils.ts`
+        - Ensure new instruction signatures are registered for error parsing.
+
+    Acceptance Criteria:
+      ✓ PDAs generated by helpers match on-chain addresses exactly in tests.
+      ✓ New custom on-chain errors are mapped to human-readable UI messages.
+
+================================================================================
+END OF MILESTONE 2 EXTENDED ROADMAP
+================================================================================

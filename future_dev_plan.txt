@@ -53,3 +53,53 @@ Verify that "ON-CHAIN VERIFIED" badges appear correctly for all items without tr
 
 
 Added tweetnacl (L55) to support the new cryptographic signature verification. for investor too 
+
+
+
+EPIC 6 — ADVANCED PHASE MANAGEMENT & SUBSCRIPTION GUARD (Revised)
+This plan implements on-chain phase enforcement, formal status management, and administrative security for the project_registry program.
+
+Proposed Changes
+[Component] Project Registry Program (Anchor/Rust)
+[MODIFY] 
+project_account.rs
+New Enum: ProjectStatus { Draft, Funding, Active, Funded, Completed, Canceled }.
+New Fields:
+status: ProjectStatus (lifecycle state).
+current_round_limit: u64 (phase cap).
+current_round_total: u64 (phase progress).
+Update SIZE: Added 1 byte (status) + 16 bytes (counters). The existing 64-byte padding will be updated to keep the account size consistent or expanded if necessary.
+[MODIFY] 
+lib.rs
+Add instructions: update_round_limit, delete_project.
+Add errors: RoundLimitExceeded, InvalidStatus, DeletionNotAllowed.
+[MODIFY] 
+record_tokens_issued.rs
+Guard: Check project.status == ProjectStatus::Funding.
+Guard: Check !project.is_paused.
+Guard: Enforcement of current_round_total + amount <= current_round_limit.
+[NEW] 
+update_round_limit.rs
+Set current_round_limit.
+Option to reset current_round_total (for fresh phases).
+[MODIFY] 
+revoke_mint_authority.rs
+Logic: Perform CPI to SPL Token program to set MintAuthority to None.
+Logic: Update project.status = ProjectStatus::Funded (Transition to terminal state).
+[NEW] 
+delete_project.rs
+Constraint: Only allowed if status is Draft or Canceled.
+Constraint: Only allowed if tokens_issued == 0.
+Action: Close account and return rent to admin.
+[MODIFY] 
+update_project_status.rs
+Update to handle the new ProjectStatus enum instead of just is_active boolean.
+Verification Plan
+Automated Tests
+Draft to Funding: Verify project cannot issue tokens while in Draft.
+Phase Enforcement: Verify record_tokens_issued fails if current_round_limit is exceeded but succeeds within it.
+Pause Enforcement: Verify all issuance fails if is_paused = true.
+Safe Deletion: Verify project can be deleted if tokens_issued == 0 and in Canceled status.
+Revocation Verification: Verify that after revoke_mint_authority, any further on-chain minting attempts fail (mocked or verified via token logs).
+Manual Verification
+Testing the "Manage Phases" modal in the Admin UI (once backend is updated) to see if round limits are reflected correctly.

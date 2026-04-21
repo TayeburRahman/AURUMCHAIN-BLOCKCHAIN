@@ -31,7 +31,7 @@ async function main() {
 
   // Use a random ID for the simulation
   const subId = Math.floor(Date.now() / 1000);
-  const projectId = 1; // Assuming project 1 exists or a mock one is fine for PDA derivation
+  const projectId = 28; // Use confirmed active project ID (100% complete)
 
   console.log(`👤 Actor: ${investor.toBase58().slice(0, 8)} (Admin & Investor)`);
   console.log(`🆔 Simulation Sub ID: ${subId}`);
@@ -87,9 +87,9 @@ async function main() {
     const subTx = await complianceProgram.methods
       .subscribeInvestment(
         new BN(subId),
-        new BN(projectId),
-        new BN(100 * 1_000_000), // 100 USDC Mock
-        new PublicKey("Gh9ZwEmdLJ8DscKNTtQpBNwLNNBjuSzaG9Vp2KGtKJr") // Mock Stablecoin
+        new BN(28),
+        new BN(1200 * 1_000_000), // 1,200 USDC (Min is 1,000 USDC)
+        new PublicKey("Gh9ZwEmdLJ8DscKNTkTqPbNwLNNBjuSzaG9Vp2KGtKJr") // Mock Stablecoin
       )
       .accounts({
         subscription: subscriptionPda,
