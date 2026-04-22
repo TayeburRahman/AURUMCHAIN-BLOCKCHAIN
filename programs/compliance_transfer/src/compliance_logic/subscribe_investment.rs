@@ -77,10 +77,12 @@ pub fn handle_subscribe_investment(
     let mut data: &[u8] = &ctx.accounts.project_account.data.borrow()[8..];
     let project = ProjectAccount::deserialize(&mut data)?;
 
-    // 2. Validate project activity/pause
-    require!(project.is_active && !project.is_paused, ComplianceError::ProjectNotActive);
-
-
+    // 2. Validate project phase — must be Funding and not emergency-paused.
+    //    Draft, Active, Completed, or Canceled all reject new subscriptions.
+    require!(
+        project.status == ProjectStatus::Funding && !project.is_paused,
+        ComplianceError::ProjectNotActive
+    );
 
     // 2. Validate subscription window
     require!(

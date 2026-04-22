@@ -8,8 +8,14 @@ pub struct ProjectUpdateParams {
     pub max_investment_usdc:    Option<u64>,
     pub subscription_start:     Option<i64>,
     pub subscription_end:       Option<i64>,
-    pub distribution_cadence:   Option<u8>, // Changed from u32
+    pub distribution_cadence:   Option<u8>,
     pub lockup_end_ts:          Option<i64>,
+    // ── Phase fields ─────────────────────────────────────────────────────────
+    // New round limit for the current or next phase.
+    // Guard: must not exceed supply_cap.
+    pub round_limit_tokens:     Option<u64>,
+    // Asset type can be corrected by super_admin only.
+    pub asset_type:             Option<AssetType>,
 }
 
 #[derive(Accounts)]
@@ -59,6 +65,15 @@ pub fn handle_update_project_params(
     }
     if let Some(lockup) = params.lockup_end_ts {
         project.lockup_end_ts = lockup;
+    }
+    // Phase field updates
+    if let Some(round_limit) = params.round_limit_tokens {
+        // Guard: round limit cannot exceed the lifetime supply cap
+        require!(round_limit <= project.supply_cap, RegistryError::SupplyCapExceeded);
+        project.round_limit_tokens = round_limit;
+    }
+    if let Some(asset_type) = params.asset_type {
+        project.asset_type = asset_type;
     }
 
     emit!(ProjectUpdated { project_id: project.project_id });

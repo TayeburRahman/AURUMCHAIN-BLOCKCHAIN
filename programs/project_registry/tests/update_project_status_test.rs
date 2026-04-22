@@ -1,12 +1,10 @@
 use anchor_lang::prelude::*;
 use project_registry::state::*;
-use project_registry::instructions::update_project_status::*;
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    // Mocking the Context and accounts for a unit-test style verification of the handler logic
     #[test]
     fn test_update_status_logic() {
         let mut project = ProjectAccount {
@@ -28,21 +26,33 @@ mod tests {
             subscription_end: 100,
             created_at: 0,
             distribution_cadence: 1,
-            is_active: true,
+            status: ProjectStatus::Draft,
             is_paused: false,
             mint_authority_revoked: false,
+            round_limit_tokens: 0,
+            current_round_issued: 0,
+            asset_type: AssetType::RealEstate,
             bump: 0,
         };
 
-        // Simulate pausing
-        project.is_active = true;
-        project.is_paused = true;
+        // Simulate promoting to Funding (would require mint to be set on-chain,
+        // but here we test the logic directly on the struct)
+        project.status = ProjectStatus::Funding;
+        assert_eq!(project.status, ProjectStatus::Funding);
 
-        assert_eq!(project.is_active, true);
+        // Simulate emergency pause (does NOT change status)
+        project.is_paused = true;
+        assert_eq!(project.status, ProjectStatus::Funding); // still Funding
         assert_eq!(project.is_paused, true);
 
-        // Simulate unpausing
+        // Simulate resume
         project.is_paused = false;
         assert_eq!(project.is_paused, false);
+
+        // Terminal state check: Completed cannot go back
+        project.status = ProjectStatus::Completed;
+        let is_terminal = project.status == ProjectStatus::Completed
+            || project.status == ProjectStatus::Canceled;
+        assert!(is_terminal);
     }
 }

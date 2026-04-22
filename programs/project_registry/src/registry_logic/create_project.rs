@@ -15,7 +15,12 @@ pub struct CreateProjectParams {
     pub lockup_end_ts:          i64,
     pub subscription_start:     i64,
     pub subscription_end:       i64,
-    pub distribution_cadence:   u8, // Changed from u32
+    pub distribution_cadence:   u8,
+    // ── Phase fields ──────────────────────────────────────────────────────────
+    // asset_type drives UI presets & default round_limit behaviour.
+    pub asset_type:             AssetType,
+    // Max tokens mintable in the first round (0 = full supply_cap, i.e. Real Estate default).
+    pub round_limit_tokens:     u64,
 }
 
 #[derive(Accounts)]
@@ -116,13 +121,18 @@ pub fn handle_create_project(
     project.subscription_start  = params.subscription_start;
     project.subscription_end    = params.subscription_end;
     project.distribution_cadence = params.distribution_cadence;
-    project.created_at          = clock.unix_timestamp; // NEW
-    project.tokens_issued       = 0;
-    project.is_active           = true;
-    project.is_paused           = false; // NEW (consolidated)
+    project.created_at             = clock.unix_timestamp;
+    project.tokens_issued          = 0;
+    // New projects start as Draft — admin must explicitly move to Funding.
+    project.status                 = ProjectStatus::Draft;
+    project.is_paused              = false;
     project.mint_authority_revoked = false;
-    project.mint                = Pubkey::default(); 
-    project.bump                = ctx.bumps.project;
+    project.mint                   = Pubkey::default();
+    // Phase / round fields
+    project.asset_type             = params.asset_type;
+    project.round_limit_tokens     = params.round_limit_tokens;
+    project.current_round_issued   = 0;
+    project.bump                   = ctx.bumps.project;
 
     emit!(ProjectCreated {
         project_id,

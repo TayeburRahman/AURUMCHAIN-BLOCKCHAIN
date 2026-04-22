@@ -4,6 +4,7 @@ mod state;
 mod registry_logic;
 
 use crate::registry_logic::*;
+use crate::state::*;
 
 declare_id!("GcXxLjcCm7ov3i6QqQsL8zgjqiknWBswXn6jcwpEMYdC");
 
@@ -47,10 +48,10 @@ pub mod project_registry {
     pub fn update_project_status(
         ctx:        Context<UpdateProjectStatus>,
         project_id: u64,
-        is_active:  bool,
+        new_status: ProjectStatus,
         is_paused:  bool,
     ) -> Result<()> {
-        handle_update_project_status(ctx, project_id, is_active, is_paused)
+        handle_update_project_status(ctx, project_id, new_status, is_paused)
     }
 
     pub fn record_tokens_issued(
@@ -81,6 +82,24 @@ pub mod project_registry {
     ) -> Result<()> {
         handle_calibrate_registry(ctx, new_count)
     }
+
+    /// Mint tokens directly to an investor's wallet (Direct-to-Wallet delivery).
+    /// Guards: Funding status, not paused, supply cap, round limit, authority not revoked.
+    pub fn issue_tokens(
+        ctx:    Context<IssueTokens>,
+        amount: u64,
+    ) -> Result<()> {
+        handle_issue_tokens(ctx, amount)
+    }
+
+    /// Reset the current-round counter and optionally set a new round cap.
+    /// Used by phased (e.g. Mining) projects to open the next issuance round.
+    pub fn reset_round(
+        ctx:             Context<ResetRound>,
+        new_round_limit: Option<u64>,
+    ) -> Result<()> {
+        handle_reset_round(ctx, new_round_limit)
+    }
 }
 
 #[error_code]
@@ -109,4 +128,10 @@ pub enum RegistryError {
     SupplyCapExceeded,
     #[msg("Action exceeds the allowed operational limits")]
     ExceedsOperationalLimit,
+    #[msg("Cannot transition from a terminal state (Completed / Canceled)")]
+    InvalidStatusTransition,
+    #[msg("Mint address must be set before moving to Funding status")]
+    MintNotSet,
+    #[msg("Token issuance would exceed the current round limit")]
+    RoundLimitExceeded,
 }

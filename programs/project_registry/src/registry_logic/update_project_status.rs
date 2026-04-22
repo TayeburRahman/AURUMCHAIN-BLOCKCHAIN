@@ -1,6 +1,6 @@
 use anchor_lang::prelude::*;
 use crate::state::*;
-use crate::RegistryError; // I'll keep RegistryError in lib.rs for now or move it later
+use crate::RegistryError;
 
 #[derive(Accounts)]
 pub struct UpdateProjectStatus<'info> {
@@ -27,26 +27,40 @@ pub struct UpdateProjectStatus<'info> {
 }
 
 pub fn handle_update_project_status(
-    ctx: Context<UpdateProjectStatus>,
-    _project_id: u64, // project_id is in seeds, but provided as param for consistency
-    is_active: bool,
-    is_paused: bool,
+    ctx:        Context<UpdateProjectStatus>,
+    _project_id: u64,       // present for caller convenience; PDA seed is the real guard
+    new_status:  ProjectStatus,
+    is_paused:   bool,
 ) -> Result<()> {
     // SECURITY: Global Pause Check
     require!(!ctx.accounts.control.is_emergency_paused, RegistryError::Unauthorized);
 
     let project = &mut ctx.accounts.project;
 
-    let old_is_active = project.is_active;
+    // Guard: terminal states are irreversible — once Completed or Canceled
+    // the project cannot be moved back to any active state.
+    let is_terminal = project.status == ProjectStatus::Completed
+        || project.status == ProjectStatus::Canceled;
+    require!(!is_terminal, RegistryError::InvalidStatusTransition);
+
+    // Guard: cannot open for funding without a mint address being set first.
+    if new_status == ProjectStatus::Funding {
+        require!(
+            project.mint != Pubkey::default(),
+            RegistryError::MintNotSet
+        );
+    }
+
+    let old_status = project.status.clone();
     let old_is_paused = project.is_paused;
 
-    project.is_active = is_active;
+    project.status    = new_status;
     project.is_paused = is_paused;
 
-    emit!(PauseStateChanged {
+    emit!(ProjectStateChanged {
         project_id:    project.project_id,
-        old_is_active,
-        new_is_active: is_active,
+        old_status,
+        new_status:    project.status.clone(),
         old_is_paused,
         new_is_paused: is_paused,
     });
@@ -55,10 +69,11 @@ pub fn handle_update_project_status(
 }
 
 #[event]
-pub struct PauseStateChanged {
+pub struct ProjectStateChanged {
     pub project_id:    u64,
-    pub old_is_active: bool,
-    pub new_is_active: bool,
+    pub old_status:    ProjectStatus,
+    pub new_status:    ProjectStatus,
     pub old_is_paused: bool,
     pub new_is_paused: bool,
 }
+

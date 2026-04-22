@@ -907,3 +907,131 @@ Added a quick-access Wallet Connect button natively into the Admin interface hea
 | Line Numbers        | Feature Added             | Reason for Addition                                                                                                                                                           |
 | :------------------ | :------------------------ | :---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **(Header blocks)** | Inserted Button Component | Displayed the `<AdminWalletButton />` structurally aligned to the top-right flexbox rows so the admin can link their Supabase identity directly while viewing projects/stats. |
+
+---
+
+## Feature: Phased Token Launch — Phase 1 (Registry Program Refactor)
+
+**Timestamp:** 2026-04-22T09:10:53+06:00
+Implemented the foundational on-chain phase enforcement system for the Project Registry program. Replaced the binary `is_active: bool` flag with a formal `ProjectStatus` enum, introduced `AssetType` classification, added round-based token tracking fields, and implemented the complete SPL CPI minting pipeline — enabling the Registry program itself to act as a controlled, PDA-gated Mint Authority.
+
+---
+
+### Step 1.1 — `project_account.rs` (State Refactor)
+
+| File | Line Numbers | Feature Added | Reason for Addition |
+| :--- | :--- | :--- | :--- |
+| **[project_account.rs](file:///c:/Rupom/Projects/AURUMCHAIN/programs/project_registry/src/state/project_account.rs)** | **3–21** | `ProjectStatus` enum (`Draft`, `Funding`, `Active`, `Completed`, `Canceled`) | Replaces the removed `is_active: bool`. Provides a formal, typed lifecycle that prevents operational clashes (e.g. minting on a Canceled project). |
+| **[project_account.rs](file:///c:/Rupom/Projects/AURUMCHAIN/programs/project_registry/src/state/project_account.rs)** | **29–34** | `AssetType` enum (`RealEstate`, `Mining`, `Other`) | Drives Dashboard UI presets and determines the default `round_limit_tokens` behaviour per asset class. |
+| **[project_account.rs](file:///c:/Rupom/Projects/AURUMCHAIN/programs/project_registry/src/state/project_account.rs)** | **60** | `status: ProjectStatus` field | Replaces `is_active: bool` in the `ProjectAccount` struct. New projects start as `Draft`; admin must promote to `Funding` explicitly. |
+| **[project_account.rs](file:///c:/Rupom/Projects/AURUMCHAIN/programs/project_registry/src/state/project_account.rs)** | **67** | `round_limit_tokens: u64` field | Max tokens mintable in the current round. `0` = uncapped within `supply_cap`. Used by `issue_tokens` to enforce phased release. |
+| **[project_account.rs](file:///c:/Rupom/Projects/AURUMCHAIN/programs/project_registry/src/state/project_account.rs)** | **69** | `current_round_issued: u64` field | Running counter for tokens issued in the current round. Reset by admin via `reset_round`. Enables multi-phase Mining-style releases. |
+| **[project_account.rs](file:///c:/Rupom/Projects/AURUMCHAIN/programs/project_registry/src/state/project_account.rs)** | **71** | `asset_type: AssetType` field | Classification of the underlying asset. Controls UI presets and future logic branching in the Dashboard and service layer. |
+| **[project_account.rs](file:///c:/Rupom/Projects/AURUMCHAIN/programs/project_registry/src/state/project_account.rs)** | **110–137** | `SIZE` constant recalculated with full comment breakdown | Ensures the `#[account(space=...)]` allocation is byte-perfect after removing `is_active` (1 byte) and adding `status` (1), `round_limit_tokens` (8), `current_round_issued` (8), `asset_type` (1) = net +18 bytes, plus 64-byte alignment padding. |
+
+---
+
+### Step 1.2 — `create_project.rs` (Params & Initialisation)
+
+| File | Line Numbers | Feature Added | Reason for Addition |
+| :--- | :--- | :--- | :--- |
+| **[create_project.rs](file:///c:/Rupom/Projects/AURUMCHAIN/programs/project_registry/src/registry_logic/create_project.rs)** | **19–23** | `asset_type: AssetType` + `round_limit_tokens: u64` added to `CreateProjectParams` | Admin must specify the asset class and initial round cap at creation time. These drive downstream minting logic. |
+| **[create_project.rs](file:///c:/Rupom/Projects/AURUMCHAIN/programs/project_registry/src/registry_logic/create_project.rs)** | **127** | `project.status = ProjectStatus::Draft` | Replaced `project.is_active = true`. New projects are inert until an admin explicitly promotes them to `Funding`, preventing premature investment. |
+| **[create_project.rs](file:///c:/Rupom/Projects/AURUMCHAIN/programs/project_registry/src/registry_logic/create_project.rs)** | **132–134** | Initialise `asset_type`, `round_limit_tokens`, `current_round_issued = 0` | Prevents uninitialised memory in the new fields and establishes a clean starting state for the round tracker. |
+
+---
+
+### Step 1.3 — `update_project_status.rs` + `lib.rs` (Status Transition)
+
+| File | Line Numbers | Feature Added | Reason for Addition |
+| :--- | :--- | :--- | :--- |
+| **[update_project_status.rs](file:///c:/Rupom/Projects/AURUMCHAIN/programs/project_registry/src/registry_logic/update_project_status.rs)** | **29–33** | Signature changed: `is_active: bool` → `new_status: ProjectStatus` | Enables direct typed status transitions instead of a binary toggle. Supports all 5 lifecycle states. |
+| **[update_project_status.rs](file:///c:/Rupom/Projects/AURUMCHAIN/programs/project_registry/src/registry_logic/update_project_status.rs)** | **40–44** | Terminal-state guard (`InvalidStatusTransition`) | Prevents resurrection from `Completed` or `Canceled` — once a project reaches a terminal state, it is irreversible on-chain. |
+| **[update_project_status.rs](file:///c:/Rupom/Projects/AURUMCHAIN/programs/project_registry/src/registry_logic/update_project_status.rs)** | **46–52** | Mint-required guard (`MintNotSet`) | Prevents promoting a project to `Funding` before a mint address has been set via `set_project_mint`. Ensures the token exists before investors can subscribe. |
+| **[update_project_status.rs](file:///c:/Rupom/Projects/AURUMCHAIN/programs/project_registry/src/registry_logic/update_project_status.rs)** | **60, 71–78** | `ProjectStateChanged` event with `old_status` / `new_status` | Renamed from `PauseStateChanged`. Richer audit trail for the Dashboard and off-chain indexers to track lifecycle transitions. |
+| **[lib.rs](file:///c:/Rupom/Projects/AURUMCHAIN/programs/project_registry/src/lib.rs)** | **7** | `use crate::state::*;` | Required so `ProjectStatus` resolves in the instruction signature at the program entrypoint level. |
+| **[lib.rs](file:///c:/Rupom/Projects/AURUMCHAIN/programs/project_registry/src/lib.rs)** | **49–55** | `update_project_status` signature updated to `new_status: ProjectStatus` | Matches the refactored handler signature. |
+| **[lib.rs](file:///c:/Rupom/Projects/AURUMCHAIN/programs/project_registry/src/lib.rs)** | **113–118** | `InvalidStatusTransition`, `MintNotSet`, `RoundLimitExceeded` error codes | New typed error variants needed by the phase-enforcement guards in Steps 1.3, 1.4, and 1.5. |
+
+---
+
+### Step 1.4 — `update_project_params.rs` (Post-Creation Updates)
+
+| File | Line Numbers | Feature Added | Reason for Addition |
+| :--- | :--- | :--- | :--- |
+| **[update_project_params.rs](file:///c:/Rupom/Projects/AURUMCHAIN/programs/project_registry/src/registry_logic/update_project_params.rs)** | **17–20** | `round_limit_tokens: Option<u64>` added to `ProjectUpdateParams` | Allows admin to adjust the per-round cap after project creation (e.g., setting a higher cap at the start of a new round). |
+| **[update_project_params.rs](file:///c:/Rupom/Projects/AURUMCHAIN/programs/project_registry/src/registry_logic/update_project_params.rs)** | **21–22** | `asset_type: Option<AssetType>` added to `ProjectUpdateParams` | Allows super_admin to correct the asset class if it was set incorrectly at creation. |
+| **[update_project_params.rs](file:///c:/Rupom/Projects/AURUMCHAIN/programs/project_registry/src/registry_logic/update_project_params.rs)** | **62–68** | Handler blocks for both new optional fields, with `SupplyCapExceeded` guard on `round_limit` | Prevents setting a round limit that exceeds the lifetime supply cap, which would be an invalid configuration. |
+
+---
+
+### Step 1.5 — `issue_tokens.rs` (**NEW FILE** — Direct-to-Wallet Minting)
+
+| File | Line Numbers | Feature Added | Reason for Addition |
+| :--- | :--- | :--- | :--- |
+| **[issue_tokens.rs](file:///c:/Rupom/Projects/AURUMCHAIN/programs/project_registry/src/registry_logic/issue_tokens.rs)** | **1–13** | `anchor_spl::token` imports (`Mint`, `MintTo`, `Token`, `TokenAccount`) | Required for the SPL Token CPI call that performs the actual on-chain minting. |
+| **[issue_tokens.rs](file:///c:/Rupom/Projects/AURUMCHAIN/programs/project_registry/src/registry_logic/issue_tokens.rs)** | **15–54** | `IssueTokens` accounts struct with `mint_authority_pda` (seeds: `["mint_authority", project_id]`) | Defines the PDA that acts as the program-controlled Mint Authority. Anchor validates seeds at runtime, ensuring only the Registry program can sign minting CPIs. |
+| **[issue_tokens.rs](file:///c:/Rupom/Projects/AURUMCHAIN/programs/project_registry/src/registry_logic/issue_tokens.rs)** | **62–75** | 4 security guards: emergency pause, `mint_authority_revoked`, `status == Funding`, `is_paused` | Prevents minting outside the Funding phase, after the Master Key has been destroyed, or during an emergency pause — all enforced atomically on-chain. |
+| **[issue_tokens.rs](file:///c:/Rupom/Projects/AURUMCHAIN/programs/project_registry/src/registry_logic/issue_tokens.rs)** | **77–90** | Supply cap check + round limit check (checks-effects pattern) | `tokens_issued` and `current_round_issued` are updated **before** the CPI to follow Solana's checks-effects-interactions pattern, preventing reentrancy-style exploits. |
+| **[issue_tokens.rs](file:///c:/Rupom/Projects/AURUMCHAIN/programs/project_registry/src/registry_logic/issue_tokens.rs)** | **92–108** | `token::mint_to(CpiContext::new_with_signer(...))` | The core CPI. Signs with `["mint_authority", project_id, bump]` PDA seeds so the SPL Token Program accepts the Registry PDA as the authority. Tokens land directly in the investor's wallet — no intermediate escrow. |
+| **[issue_tokens.rs](file:///c:/Rupom/Projects/AURUMCHAIN/programs/project_registry/src/registry_logic/issue_tokens.rs)** | **110–118** | `TokensMinted` event with `recipient`, `amount`, `total_issued`, `round_issued` | Provides a full audit trail for every minting event. Frontend/indexers can reconstruct the complete issuance history from these events. |
+
+---
+
+### Step 1.6 — `revoke_mint_authority.rs` (Real SPL Authority Destruction)
+
+| File | Line Numbers | Feature Added | Reason for Addition |
+| :--- | :--- | :--- | :--- |
+| **[revoke_mint_authority.rs](file:///c:/Rupom/Projects/AURUMCHAIN/programs/project_registry/src/registry_logic/revoke_mint_authority.rs)** | **1–2** | `anchor_spl::token::{self, Mint, SetAuthority, Token}` + `spl_token::instruction::AuthorityType` imports | Required for the `set_authority` CPI that permanently destroys the on-chain mint authority. |
+| **[revoke_mint_authority.rs](file:///c:/Rupom/Projects/AURUMCHAIN/programs/project_registry/src/registry_logic/revoke_mint_authority.rs)** | **28–36** | `mint` + `mint_authority_pda` + `token_program` accounts added | The CPI requires the actual SPL mint account and the PDA that currently holds authority so the Token Program can verify and remove it. |
+| **[revoke_mint_authority.rs](file:///c:/Rupom/Projects/AURUMCHAIN/programs/project_registry/src/registry_logic/revoke_mint_authority.rs)** | **55–74** | `token::set_authority(..., AuthorityType::MintTokens, None)` CPI | Sets mint authority to `None` permanently. Investors can verify this on Solscan — the Token Program shows "Mint Authority: None", providing cryptographic proof of supply immutability. |
+| **[revoke_mint_authority.rs](file:///c:/Rupom/Projects/AURUMCHAIN/programs/project_registry/src/registry_logic/revoke_mint_authority.rs)** | **77–79** | Auto-transition `Funding → Active` on revocation | When the Master Key is destroyed, the project is no longer in the funding phase. Automatically moving to `Active` keeps the lifecycle state consistent without requiring a separate `update_project_status` transaction. |
+
+---
+
+### Step 1.7 — `reset_round.rs` (**NEW FILE** — Round Management)
+
+| File | Line Numbers | Feature Added | Reason for Addition |
+| :--- | :--- | :--- | :--- |
+| **[reset_round.rs](file:///c:/Rupom/Projects/AURUMCHAIN/programs/project_registry/src/registry_logic/reset_round.rs)** | **1–87** | **[NEW]** `reset_round` instruction: zeroes `current_round_issued`, optionally updates `round_limit_tokens` | Enables multi-phase releases for Mining-type projects. Admin calls this between rounds to open a new allocation window without needing a full contract upgrade. Guards prevent resetting after mint authority is revoked. |
+
+---
+
+### Step 1.8 — `mod.rs` + `lib.rs` (Wiring)
+
+| File | Line Numbers | Feature Added | Reason for Addition |
+| :--- | :--- | :--- | :--- |
+| **[mod.rs](file:///c:/Rupom/Projects/AURUMCHAIN/programs/project_registry/src/registry_logic/mod.rs)** | **11–12, 26–27** | `mod issue_tokens` + `mod reset_round` with `pub use` glob re-exports | Registers the two new modules so the `#[program]` macro can resolve their `Accounts` structs and handler functions. |
+| **[lib.rs](file:///c:/Rupom/Projects/AURUMCHAIN/programs/project_registry/src/lib.rs)** | **87–103** | `issue_tokens(amount: u64)` + `reset_round(new_round_limit: Option<u64>)` instructions | Exposes the two new handlers as public program entrypoints, making them callable from TypeScript clients and the compliance program CPI. |
+
+---
+
+### Step 1.9 — `external_state.rs` + `subscribe_investment.rs` (Compliance Program Sync)
+
+| File | Line Numbers | Feature Added | Reason for Addition |
+| :--- | :--- | :--- | :--- |
+| **[external_state.rs](file:///c:/Rupom/Projects/AURUMCHAIN/programs/compliance_transfer/src/state/external_state.rs)** | **13–20** | `ProjectStatus` enum mirror (byte-identical to registry's enum) | The compliance program deserialises `ProjectAccount` manually from raw bytes. The enum variant order **must** be identical to the registry's definition to avoid silent data corruption. |
+| **[external_state.rs](file:///c:/Rupom/Projects/AURUMCHAIN/programs/compliance_transfer/src/state/external_state.rs)** | **23–29** | `AssetType` enum mirror | Same reason — byte layout must match the registry exactly. Compliance program needs `AssetType` to be deserialisable even if it doesn't inspect the field directly. |
+| **[external_state.rs](file:///c:/Rupom/Projects/AURUMCHAIN/programs/compliance_transfer/src/state/external_state.rs)** | **54** | `is_active: bool` removed; `status: ProjectStatus` added in its place | Keeps the field order and byte offsets in sync with the updated registry `ProjectAccount`. Any field order mismatch causes all subsequent fields to read corrupted values. |
+| **[external_state.rs](file:///c:/Rupom/Projects/AURUMCHAIN/programs/compliance_transfer/src/state/external_state.rs)** | **57–59** | `round_limit_tokens: u64`, `current_round_issued: u64`, `asset_type: AssetType` added | Completes the byte-layout mirror so the `SIZE` constant and deserialization remain byte-perfect after Step 1.1. |
+| **[external_state.rs](file:///c:/Rupom/Projects/AURUMCHAIN/programs/compliance_transfer/src/state/external_state.rs)** | **63–98** | `SIZE` recalculated identically to registry's constant | Acts as a compile-time documentation assertion that both programs agree on the account layout. |
+| **[external_state.rs](file:///c:/Rupom/Projects/AURUMCHAIN/programs/compliance_transfer/src/state/external_state.rs)** | **100–106** | `Default` impls for `ProjectStatus` and `AssetType` | Needed by `#[derive(Default)]` on `ProjectAccount`. Without these, the compliance program fails to compile. |
+| **[subscribe_investment.rs](file:///c:/Rupom/Projects/AURUMCHAIN/programs/compliance_transfer/src/compliance_logic/subscribe_investment.rs)** | **80–85** | `project.is_active && !project.is_paused` → `project.status == ProjectStatus::Funding && !project.is_paused` | Aligns the subscription eligibility check with the new enum-based lifecycle. Investors can only subscribe when the project is explicitly in the `Funding` phase — `Draft`, `Active`, `Completed`, and `Canceled` all reject new investments. |
+
+---
+
+### IDL Sync — `idl.json` (Solana Playground Manual Update)
+
+| File | Line Numbers | Feature Added | Reason for Addition |
+| :--- | :--- | :--- | :--- |
+| **[idl.json](file:///c:/Rupom/Projects/AURUMCHAIN/programs/project_registry/src/idl.json)** | **40–43** | `mint`, `mintAuthorityPda`, `tokenProgram` accounts added to `revokeMintAuthority` instruction | Reflects the new SPL CPI accounts required by the upgraded `revoke_mint_authority` handler. |
+| **[idl.json](file:///c:/Rupom/Projects/AURUMCHAIN/programs/project_registry/src/idl.json)** | **67** | `isActive: bool` → `newStatus: { defined: "ProjectStatus" }` in `updateProjectStatus` args | Matches the refactored instruction signature. TypeScript clients pass a `ProjectStatus` enum object instead of a boolean. |
+| **[idl.json](file:///c:/Rupom/Projects/AURUMCHAIN/programs/project_registry/src/idl.json)** | **107–133** | `issueTokens` + `resetRound` instruction definitions | Registers the two new Phase 1 instructions so TypeScript clients can discover and call them. |
+| **[idl.json](file:///c:/Rupom/Projects/AURUMCHAIN/programs/project_registry/src/idl.json)** | **170–175** | `ProjectAccount` definition: `isActive` removed, `status`, `roundLimitTokens`, `currentRoundIssued`, `assetType` added | Keeps the IDL account schema in sync with the Rust struct so Anchor can correctly decode on-chain data in the frontend. |
+| **[idl.json](file:///c:/Rupom/Projects/AURUMCHAIN/programs/project_registry/src/idl.json)** | **198–200** | `assetType` + `roundLimitTokens` added to `CreateProjectParams` type | Frontend now passes these fields when creating a project. |
+| **[idl.json](file:///c:/Rupom/Projects/AURUMCHAIN/programs/project_registry/src/idl.json)** | **214–250** | `roundLimitTokens: Option<u64>`, `assetType: Option<AssetType>` added to `ProjectUpdateParams`; `ProjectStatus` + `AssetType` enum types defined | Enables TypeScript clients to pass the new optional update fields, and teaches Anchor how to serialise the two new enum types. |
+| **[idl.json](file:///c:/Rupom/Projects/AURUMCHAIN/programs/project_registry/src/idl.json)** | **266–280** | `TokensMinted` + `RoundReset` event definitions | Allows frontend listeners to decode the new minting and round-reset events from transaction logs. |
+| **[idl.json](file:///c:/Rupom/Projects/AURUMCHAIN/programs/project_registry/src/idl.json)** | **326–340** | `PauseStateChanged` → `ProjectStateChanged` event (with `oldStatus`/`newStatus` fields) | Matches the renamed Rust event struct. Old `oldIsActive`/`newIsActive` bool fields replaced with typed `ProjectStatus` fields. |
+| **[idl.json](file:///c:/Rupom/Projects/AURUMCHAIN/programs/project_registry/src/idl.json)** | **400–418** | `InvalidStatusTransition` (6012), `MintNotSet` (6013), `RoundLimitExceeded` (6014) error codes | Registers the 3 new on-chain errors so TypeScript clients can parse and display meaningful error messages to admins. |
+
+---

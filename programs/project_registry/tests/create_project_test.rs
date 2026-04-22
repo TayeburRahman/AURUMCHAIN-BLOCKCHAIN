@@ -31,6 +31,8 @@ mod tests {
             subscription_start: 1713456000,
             subscription_end: 1713542400,
             distribution_cadence: 1,
+            asset_type: AssetType::RealEstate,
+            round_limit_tokens: 0,
         };
 
         // Simulate logic in handle_create_project
@@ -66,9 +68,12 @@ mod tests {
             created_at: 1713456000,
             distribution_cadence: params.distribution_cadence,
             tokens_issued: 0,
-            is_active: true,
+            status: ProjectStatus::Draft,
             is_paused: false,
             mint_authority_revoked: false,
+            round_limit_tokens: params.round_limit_tokens,
+            current_round_issued: 0,
+            asset_type: params.asset_type.clone(),
             bump: 0,
         };
 

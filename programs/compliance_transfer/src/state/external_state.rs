@@ -1,34 +1,106 @@
 use anchor_lang::prelude::*;
 
-#[derive(AnchorSerialize, AnchorDeserialize, Clone, Default)]
+// ─────────────────────────────────────────────────────────────────────────────
+// MIRROR OF project_registry::state::ProjectAccount
+//
+// CRITICAL: This struct is deserialized manually from raw on-chain bytes in
+// subscribe_investment.rs. The field ORDER and TYPES here MUST be byte-perfect
+// identical to the ProjectAccount defined in the project_registry program.
+// Any mismatch will silently produce corrupted data — do not reorder fields.
+// ─────────────────────────────────────────────────────────────────────────────
 
+// Mirror of ProjectStatus enum — variant order must match exactly.
+//   0 = Draft, 1 = Funding, 2 = Active, 3 = Completed, 4 = Canceled
+#[derive(AnchorSerialize, AnchorDeserialize, Clone, PartialEq, Debug)]
+pub enum ProjectStatus {
+    Draft,
+    Funding,
+    Active,
+    Completed,
+    Canceled,
+}
+
+// Mirror of AssetType enum — variant order must match exactly.
+//   0 = RealEstate, 1 = Mining, 2 = Other
+#[derive(AnchorSerialize, AnchorDeserialize, Clone, PartialEq, Debug)]
+pub enum AssetType {
+    RealEstate,
+    Mining,
+    Other,
+}
+
+// Mirror struct — field order must be identical to the registry's ProjectAccount.
+#[derive(AnchorSerialize, AnchorDeserialize, Clone, Default)]
 pub struct ProjectAccount {
-    pub project_id:             u64,             
-    pub registry:               Pubkey,          
-    pub creator:                Pubkey,          
-    pub name:                   String,          
-    pub symbol:                 String,          
-    pub uri:                    String,          
-    pub supply_cap:             u64,             
-    pub tokens_issued:          u64,             
-    pub min_investment_usdc:    u64,             
-    pub max_investment_usdc:    u64,             
-    pub accepted_stablecoin:    Pubkey,          
-    pub treasury_wallet:        Pubkey,          
-    pub mint:                   Pubkey,          
-    pub lockup_end_ts:          i64,             
-    pub subscription_start:     i64,             
-    pub subscription_end:       i64,             
-    pub created_at:             i64,             
-    pub distribution_cadence:   u8,              
-    pub is_active:              bool,            
-    pub is_paused:              bool,            
-    pub mint_authority_revoked: bool,            
-    pub bump:                   u8,              
+    pub project_id:             u64,
+    pub registry:               Pubkey,
+    pub creator:                Pubkey,
+    pub name:                   String,           // max 64 bytes
+    pub symbol:                 String,           // max 10 bytes
+    pub uri:                    String,           // max 200 bytes
+    pub supply_cap:             u64,
+    pub tokens_issued:          u64,
+    pub min_investment_usdc:    u64,
+    pub max_investment_usdc:    u64,
+    pub accepted_stablecoin:    Pubkey,
+    pub treasury_wallet:        Pubkey,
+    pub mint:                   Pubkey,
+    pub lockup_end_ts:          i64,
+    pub subscription_start:     i64,
+    pub subscription_end:       i64,
+    pub created_at:             i64,
+    pub distribution_cadence:   u8,
+    // ── Phase-Control Fields (Step 1.1) ──────────────────────────────────────
+    // is_active: bool was REMOVED — replaced by status below.
+    pub status:                 ProjectStatus,
+    pub is_paused:              bool,
+    pub mint_authority_revoked: bool,
+    pub round_limit_tokens:     u64,
+    pub current_round_issued:   u64,
+    pub asset_type:             AssetType,
+    pub bump:                   u8,
 }
 
 impl ProjectAccount {
     #[allow(dead_code)]
-    pub const SIZE: usize = 8 + 8 + 32 + 32 + (4 + 64) + (4 + 10) + (4 + 200) + 8 + 8 + 8 + 8 + 32 + 32 + 32 + 8 + 8 + 8 + 8 + 1 + 1 + 1 + 1 + 1 + 64;
-
+    // SIZE must match ProjectAccount::SIZE in project_registry exactly.
+    pub const SIZE: usize =
+        8           // discriminator
+        + 8         // project_id
+        + 32        // registry
+        + 32        // creator
+        + (4 + 64)  // name
+        + (4 + 10)  // symbol
+        + (4 + 200) // uri
+        + 8         // supply_cap
+        + 8         // tokens_issued
+        + 8         // min_investment_usdc
+        + 8         // max_investment_usdc
+        + 32        // accepted_stablecoin
+        + 32        // treasury_wallet
+        + 32        // mint
+        + 8         // lockup_end_ts
+        + 8         // subscription_start
+        + 8         // subscription_end
+        + 8         // created_at
+        + 1         // distribution_cadence
+        + 1         // status (ProjectStatus variant)
+        + 1         // is_paused
+        + 1         // mint_authority_revoked
+        + 8         // round_limit_tokens
+        + 8         // current_round_issued
+        + 1         // asset_type (AssetType variant)
+        + 1         // bump
+        + 64;       // alignment padding
 }
+
+// Default impl for ProjectStatus (needed by #[derive(Default)] on ProjectAccount).
+impl Default for ProjectStatus {
+    fn default() -> Self { ProjectStatus::Draft }
+}
+
+// Default impl for AssetType.
+impl Default for AssetType {
+    fn default() -> Self { AssetType::RealEstate }
+}
+
