@@ -427,8 +427,9 @@ export class ProjectRegistryService {
       );
       transaction.add(createAtaIx);
 
-      // 5. Build Issue Instruction
-      const amountBN = new BN(amount).mul(new BN(10).pow(new BN(9)));
+      // 5. Build Issue Instruction using project's defined decimals
+      const decimals = project.tokenDecimals || 9;
+      const amountBN = new BN(amount).mul(new BN(10).pow(new BN(decimals)));
       const instruction = await this.repository.getIssueTokensInstruction(
         projectId,
         amountBN,
@@ -450,8 +451,11 @@ export class ProjectRegistryService {
    */
   async resetRound(projectId: number, newRoundLimit?: number): Promise<string> {
     try {
+      const project = await this.repository.fetchProjectAccount(projectId);
+      const decimals = project?.tokenDecimals || 9;
+
       const limitBN = newRoundLimit 
-        ? new BN(newRoundLimit).mul(new BN(10).pow(new BN(9))) 
+        ? new BN(newRoundLimit).mul(new BN(10).pow(new BN(decimals))) 
         : null;
 
       const instruction = await this.repository.getResetRoundInstruction(projectId, limitBN);

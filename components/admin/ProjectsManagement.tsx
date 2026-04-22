@@ -8,7 +8,7 @@ import { ProjectRegistryService } from '@/lib/web3/services/projectRegistryServi
 import { PublicKey } from '@solana/web3.js';
 import { BN } from '@coral-xyz/anchor';
 
-import { toChainStatus, toChainAssetType } from '@/lib/web3/utils/statusMappings';
+import { toChainStatus, toChainAssetType, fromChainStatus } from '@/lib/web3/utils/statusMappings';
 type Project = Database['public']['Tables']['projects']['Row'];
 type ProjectInsert = Database['public']['Tables']['projects']['Insert'];
 
@@ -166,6 +166,7 @@ export default function ProjectsManagement({ initialProjects, userId }: Projects
 
       if (!editingProject) {
         // ── CREATE ──
+        formData.status = 'draft'; // Ensure DB and Blockchain start in sync as Draft
         try {
           const chainResult = await service.createProjectWithMint({
             name: formData.name || 'Unnamed Project',
@@ -1026,19 +1027,33 @@ export default function ProjectsManagement({ initialProjects, userId }: Projects
               <div className="flex-1">
                 <div className="flex items-center gap-3 mb-2">
                   <h3 className="text-xl font-bold text-white">{project.name}</h3>
-                  <span
-                    className={`px-3 py-1 rounded-full text-xs font-bold ${
-                      project.status === 'funding'
-                        ? 'bg-gold/20 text-gold'
-                        : project.status === 'active'
-                        ? 'bg-green-500/20 text-green-400'
-                        : project.status === 'completed'
-                        ? 'bg-blue-500/20 text-blue-400'
-                        : 'bg-gray-500/20 text-gray-400'
-                    }`}
-                  >
-                    {project.status.toUpperCase()}
-                  </span>
+                  {(() => {
+                    const status = (project.onChain?.status ? fromChainStatus(project.onChain.status) : project.status) as Project['status'];
+                    const isSynced = !project.onChain || status === project.status;
+
+                    return (
+                      <div className="flex items-center gap-2">
+                        <span
+                          className={`px-3 py-1 rounded-full text-[10px] font-bold tracking-wider ${
+                            status === 'funding'
+                              ? 'bg-gold/20 text-gold'
+                              : status === 'active'
+                              ? 'bg-green-500/20 text-green-400'
+                              : status === 'completed'
+                              ? 'bg-blue-500/20 text-blue-400'
+                              : 'bg-gray-500/20 text-gray-400'
+                          }`}
+                        >
+                          {status.toUpperCase()}
+                        </span>
+                        {!isSynced && (
+                          <span className="text-[10px] text-orange-400 font-medium animate-pulse" title="Database and Blockchain are out of sync. Use the dropdown to resync.">
+                             ⚠ SYNC REQ
+                          </span>
+                        )}
+                      </div>
+                    );
+                  })()}
                   <span className="px-3 py-1 rounded-full text-xs font-bold bg-navy-light text-gray-300 border border-gold/10">
                     {(project.onChain?.assetType || project.asset_type || 'real_estate').replace('_', ' ').toUpperCase()}
                   </span>
@@ -1124,21 +1139,34 @@ export default function ProjectsManagement({ initialProjects, userId }: Projects
               </div>
               <div className="flex flex-col gap-2 ml-4 items-end">
                 {/* Quick status changer */}
-                <select
-                  id={`status-${project.id}`}
-                  value={project.status}
-                  disabled={statusChanging === project.id}
-                  onChange={(e) => handleUpdatePhase(project, e.target.value as Project['status'])}
-                  className="px-3 py-1.5 bg-navy/80 border border-gold/20 rounded-lg text-xs text-white focus:outline-none focus:border-gold transition-colors disabled:opacity-50 cursor-pointer w-full md:w-32"
-                  title="Update On-Chain Project Phase"
-                >
-                  {/* Draft only available if already in draft */}
-                  {(project.status === 'draft' || !project.status) && <option value="draft">Draft</option>}
-                  <option value="funding">Funding</option>
-                  <option value="active">Active</option>
-                  <option value="completed">Completed</option>
-                  <option value="cancelled">Cancelled</option>
-                </select>
+                <div className="flex gap-2 w-full md:w-32">
+                  <select
+                    id={`status-${project.id}`}
+                    value={project.status}
+                    disabled={statusChanging === project.id}
+                    onChange={(e) => handleUpdatePhase(project, e.target.value as Project['status'])}
+                    className="px-3 py-1.5 bg-navy/80 border border-gold/20 rounded-lg text-xs text-white focus:outline-none focus:border-gold transition-colors disabled:opacity-50 cursor-pointer flex-1"
+                    title="Update On-Chain Project Phase"
+                  >
+                    <option value="draft">Draft</option>
+                    <option value="funding">Funding</option>
+                    <option value="active">Active</option>
+                    <option value="completed">Completed</option>
+                    <option value="cancelled">Cancelled</option>
+                  </select>
+                  
+                  {/* Quick Sync Button if out of sync */}
+                  {project.onChain && fromChainStatus(project.onChain.status) !== project.status && (
+                    <button
+                      onClick={() => handleUpdatePhase(project, project.status)}
+                      disabled={statusChanging === project.id}
+                      title="On-Chain status differs. Click to Force Sync."
+                      className="p-1 px-2 bg-orange-500/20 text-orange-400 border border-orange-500/40 rounded hover:bg-orange-500/30 transition-all animate-pulse"
+                    >
+                      🔄
+                    </button>
+                  )}
+                </div>
 
                 {/* On-chain Action Buttons */}
                 {project.blockchain_project_id !== null && project.blockchain_project_id !== undefined && (
