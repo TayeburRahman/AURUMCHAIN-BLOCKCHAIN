@@ -40,7 +40,10 @@
       "accounts": [
         { "name": "control", "isMut": false, "isSigner": false },
         { "name": "project", "isMut": true, "isSigner": false },
-        { "name": "superAdmin", "isMut": false, "isSigner": true }
+        { "name": "mint", "isMut": true, "isSigner": false },
+        { "name": "mintAuthorityPda", "isMut": false, "isSigner": false },
+        { "name": "superAdmin", "isMut": false, "isSigner": true },
+        { "name": "tokenProgram", "isMut": false, "isSigner": false }
       ],
       "args": []
     },
@@ -64,7 +67,7 @@
       ],
       "args": [
         { "name": "projectId", "type": "u64" },
-        { "name": "isActive", "type": "bool" },
+        { "name": "newStatus", "type": { "defined": "ProjectStatus" } },
         { "name": "isPaused", "type": "bool" }
       ]
     },
@@ -104,6 +107,28 @@
         { "name": "admin", "isMut": false, "isSigner": true }
       ],
       "args": [{ "name": "newCount", "type": "u64" }]
+    },
+    {
+      "name": "issueTokens",
+      "accounts": [
+        { "name": "control", "isMut": false, "isSigner": false },
+        { "name": "project", "isMut": true, "isSigner": false },
+        { "name": "mint", "isMut": true, "isSigner": false },
+        { "name": "recipientTokenAccount", "isMut": true, "isSigner": false },
+        { "name": "mintAuthorityPda", "isMut": false, "isSigner": false },
+        { "name": "admin", "isMut": false, "isSigner": true },
+        { "name": "tokenProgram", "isMut": false, "isSigner": false }
+      ],
+      "args": [{ "name": "amount", "type": "u64" }]
+    },
+    {
+      "name": "resetRound",
+      "accounts": [
+        { "name": "control", "isMut": false, "isSigner": false },
+        { "name": "project", "isMut": true, "isSigner": false },
+        { "name": "admin", "isMut": false, "isSigner": true }
+      ],
+      "args": [{ "name": "newRoundLimit", "type": { "option": "u64" } }]
     }
   ],
   "accounts": [
@@ -145,9 +170,12 @@
           { "name": "subscriptionEnd", "type": "i64" },
           { "name": "createdAt", "type": "i64" },
           { "name": "distributionCadence", "type": "u8" },
-          { "name": "isActive", "type": "bool" },
+          { "name": "status", "type": { "defined": "ProjectStatus" } },
           { "name": "isPaused", "type": "bool" },
           { "name": "mintAuthorityRevoked", "type": "bool" },
+          { "name": "roundLimitTokens", "type": "u64" },
+          { "name": "currentRoundIssued", "type": "u64" },
+          { "name": "assetType", "type": { "defined": "AssetType" } },
           { "name": "bump", "type": "u8" }
         ]
       }
@@ -170,7 +198,9 @@
           { "name": "lockupEndTs", "type": "i64" },
           { "name": "subscriptionStart", "type": "i64" },
           { "name": "subscriptionEnd", "type": "i64" },
-          { "name": "distributionCadence", "type": "u8" }
+          { "name": "distributionCadence", "type": "u8" },
+          { "name": "assetType", "type": { "defined": "AssetType" } },
+          { "name": "roundLimitTokens", "type": "u64" }
         ]
       }
     },
@@ -184,7 +214,36 @@
           { "name": "subscriptionStart", "type": { "option": "i64" } },
           { "name": "subscriptionEnd", "type": { "option": "i64" } },
           { "name": "distributionCadence", "type": { "option": "u8" } },
-          { "name": "lockupEndTs", "type": { "option": "i64" } }
+          { "name": "lockupEndTs", "type": { "option": "i64" } },
+          { "name": "roundLimitTokens", "type": { "option": "u64" } },
+          {
+            "name": "assetType",
+            "type": { "option": { "defined": "AssetType" } }
+          }
+        ]
+      }
+    },
+    {
+      "name": "ProjectStatus",
+      "type": {
+        "kind": "enum",
+        "variants": [
+          { "name": "Draft" },
+          { "name": "Funding" },
+          { "name": "Active" },
+          { "name": "Completed" },
+          { "name": "Canceled" }
+        ]
+      }
+    },
+    {
+      "name": "AssetType",
+      "type": {
+        "kind": "enum",
+        "variants": [
+          { "name": "RealEstate" },
+          { "name": "Mining" },
+          { "name": "Other" }
         ]
       }
     }
@@ -207,12 +266,31 @@
       ]
     },
     {
+      "name": "TokensMinted",
+      "fields": [
+        { "name": "projectId", "type": "u64", "index": false },
+        { "name": "recipient", "type": "publicKey", "index": false },
+        { "name": "amount", "type": "u64", "index": false },
+        { "name": "totalIssued", "type": "u64", "index": false },
+        { "name": "roundIssued", "type": "u64", "index": false }
+      ]
+    },
+    {
       "name": "TokensIssued",
       "fields": [
         { "name": "projectId", "type": "u64", "index": false },
         { "name": "amountIssued", "type": "u64", "index": false },
         { "name": "totalIssued", "type": "u64", "index": false },
         { "name": "supplyCap", "type": "u64", "index": false }
+      ]
+    },
+    {
+      "name": "RoundReset",
+      "fields": [
+        { "name": "projectId", "type": "u64", "index": false },
+        { "name": "oldRoundIssued", "type": "u64", "index": false },
+        { "name": "oldRoundLimit", "type": "u64", "index": false },
+        { "name": "newRoundLimit", "type": "u64", "index": false }
       ]
     },
     {
@@ -248,11 +326,19 @@
       "fields": [{ "name": "projectId", "type": "u64", "index": false }]
     },
     {
-      "name": "PauseStateChanged",
+      "name": "ProjectStateChanged",
       "fields": [
         { "name": "projectId", "type": "u64", "index": false },
-        { "name": "oldIsActive", "type": "bool", "index": false },
-        { "name": "newIsActive", "type": "bool", "index": false },
+        {
+          "name": "oldStatus",
+          "type": { "defined": "ProjectStatus" },
+          "index": false
+        },
+        {
+          "name": "newStatus",
+          "type": { "defined": "ProjectStatus" },
+          "index": false
+        },
         { "name": "oldIsPaused", "type": "bool", "index": false },
         { "name": "newIsPaused", "type": "bool", "index": false }
       ]
@@ -314,6 +400,21 @@
       "code": 6011,
       "name": "ExceedsOperationalLimit",
       "msg": "Action exceeds the allowed operational limits"
+    },
+    {
+      "code": 6012,
+      "name": "InvalidStatusTransition",
+      "msg": "Cannot transition from a terminal state (Completed / Canceled)"
+    },
+    {
+      "code": 6013,
+      "name": "MintNotSet",
+      "msg": "Mint address must be set before moving to Funding status"
+    },
+    {
+      "code": 6014,
+      "name": "RoundLimitExceeded",
+      "msg": "Token issuance would exceed the current round limit"
     }
   ]
 }
