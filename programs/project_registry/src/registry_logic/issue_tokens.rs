@@ -30,14 +30,13 @@ pub struct IssueTokens<'info> {
     #[account(mut)]
     pub recipient_token_account: Account<'info, TokenAccount>,
 
-    /// The PDA that is the on-chain mint authority for this project.
-    /// Seeds: ["mint_authority", project_id_bytes]
-    /// This PDA must have been set as the mint authority before this call.
+    /// CHECK: Seeds are checked to verify this is the correct authority for the project.
+    /// Supports both legacy (uninitialized) and verified (initialized) authority accounts.
     #[account(
         seeds = [b"mint_authority", project.project_id.to_le_bytes().as_ref()],
         bump,
     )]
-    pub mint_authority_pda: SystemAccount<'info>,
+    pub mint_authority_pda: UncheckedAccount<'info>,
 
     /// Authorised caller: super_admin or operational_admin.
     /// In Phase 2, the compliance program will CPI into this instruction;

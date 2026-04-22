@@ -10,11 +10,7 @@ pub struct SetProjectMint<'info> {
     )]
     pub control: Account<'info, ControlAccount>,
 
-    #[account(
-        mut,
-        seeds = [b"project", project.project_id.to_le_bytes().as_ref()],
-        bump  = project.bump,
-    )]
+    #[account(mut)]
     pub project: Account<'info, ProjectAccount>,
 
     #[account(

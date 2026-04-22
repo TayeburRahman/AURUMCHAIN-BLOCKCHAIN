@@ -34,7 +34,7 @@ pub struct CreateProject<'info> {
     pub control: Account<'info, ControlAccount>,
 
     #[account(
-        init,
+        init_if_needed,
         payer = admin,
         space = ProjectAccount::SIZE,
         seeds = [b"project", control.project_count.to_le_bytes().as_ref()],
@@ -51,6 +51,15 @@ pub struct CreateProject<'info> {
     )]
     pub admin: Signer<'info>,
 
+    #[account(
+        init_if_needed,
+        payer = admin,
+        space = MintAuthorityAccount::SIZE,
+        seeds = [b"mint_authority", control.project_count.to_le_bytes().as_ref()],
+        bump,
+    )]
+    pub mint_authority_pda: Account<'info, MintAuthorityAccount>,
+
     pub system_program: Program<'info, System>,
 }
 
@@ -60,7 +69,9 @@ pub fn handle_create_project(
 ) -> Result<()> {
     // SECURITY: Global Pause Check
     require!(!ctx.accounts.control.is_emergency_paused, RegistryError::Unauthorized);
-    // Guard 1: string length bounds
+
+    let auth    = &mut ctx.accounts.mint_authority_pda;
+
     require!(
         params.name.len() <= ProjectAccount::MAX_NAME_LEN,
         RegistryError::StringTooLong
@@ -102,6 +113,10 @@ pub fn handle_create_project(
     control.project_count = control.project_count
         .checked_add(1)
         .ok_or(RegistryError::Overflow)?;
+
+    // Initialize Auth Account
+    auth.project_id = project_id;
+    auth.bump = ctx.bumps.mint_authority_pda;
 
     let clock = Clock::get()?;
 
