@@ -3,8 +3,14 @@ import { Program, BN } from '@coral-xyz/anchor';
 import { 
   MINT_SIZE, 
   TOKEN_PROGRAM_ID, 
+  ASSOCIATED_TOKEN_PROGRAM_ID,
   createInitializeMintInstruction, 
-  getMinimumBalanceForRentExemptMint 
+  getMinimumBalanceForRentExemptMint,
+  getAssociatedTokenAddressSync,
+  createAssociatedTokenAccountIdempotentInstruction,
+  createSetAuthorityInstruction,
+  AuthorityType,
+  getMint
 } from '@solana/spl-token';
 import { 
   createCreateMetadataAccountV3Instruction, 
@@ -13,7 +19,7 @@ import {
 
 import { ProjectRegistryRepository } from '../repositories/projectRegistryRepository';
 import { getRegistryProgram } from '../utils/programDiscoverer';
-import { getMetadataPDA } from '../utils/pdaHelpers';
+import { getMetadataPDA, getMintAuthorityPDA } from '../utils/pdaHelpers';
 import { confirmTransactionRobustly } from '../utils/transactionUtils';
 
 /**
@@ -142,6 +148,8 @@ export class ProjectRegistryService {
     acceptedStablecoin: PublicKey;
     distributionCadence: number;
     tokenDecimals: number;
+    assetType?: any;
+    roundLimitTokens?: number;
   }): Promise<{ signature: string; projectId: number; mintAddress: string }> {
     try {
       if (!this.wallet.publicKey) throw new Error("Wallet not connected");
@@ -153,9 +161,10 @@ export class ProjectRegistryService {
       const registryConfig = await this.repository.fetchRegistryConfig();
       const nextId = (registryConfig.projectCount as BN).toNumber();
 
-      // 2. Prepare instructions
+      // 2. Prepare instructions and identify Mint Authority PDA
       const lamports = await getMinimumBalanceForRentExemptMint(this.connection);
       const metadataPda = getMetadataPDA(mintAddress);
+      const mintAuthorityPda = getMintAuthorityPDA(nextId, this.repository.getProgramId());
 
       const createMintAccIx = SystemProgram.createAccount({
         fromPubkey: this.wallet.publicKey,
@@ -168,7 +177,7 @@ export class ProjectRegistryService {
       const initMintIx = createInitializeMintInstruction(
         mintAddress,
         params.tokenDecimals, // Dynamic decimals (7, 9, etc.)
-        this.wallet.publicKey,
+        this.wallet.publicKey, // Temporary authority for metadata creation
         this.wallet.publicKey
       );
 
@@ -197,12 +206,19 @@ export class ProjectRegistryService {
         }
       );
 
+      // Map string assetType to Anchor enum format
+      const mappedAssetType = 
+        params.assetType === 'mining' ? { mining: {} } :
+        params.assetType === 'industrial' ? { mining: {} } : // Mapping industrial to mining logic
+        params.assetType === 'other' ? { other: {} } :
+        { realEstate: {} };
+
       const createProjectIx = await this.repository.getCreateProjectInstruction(nextId, {
         name: params.name,
         symbol: params.symbol,
         uri: params.uri,
-        supplyCap: new BN(params.supplyCap).mul(new BN(10).pow(new BN(params.tokenDecimals))), // Apply dynamic decimals
-        minInvestmentUsdc: new BN(params.minInvestmentUsdc).mul(new BN(1_000_000)), // Stablecoin stays at 6
+        supplyCap: new BN(params.supplyCap).mul(new BN(10).pow(new BN(params.tokenDecimals))), 
+        minInvestmentUsdc: new BN(params.minInvestmentUsdc).mul(new BN(1_000_000)),
         maxInvestmentUsdc: new BN(params.maxInvestmentUsdc).mul(new BN(1_000_000)),
         lockupEndTs: new BN(params.lockupEndTs),
         subscriptionStart: new BN(params.subscriptionStart),
@@ -210,6 +226,8 @@ export class ProjectRegistryService {
         acceptedStablecoin: params.acceptedStablecoin,
         treasuryWallet: params.treasuryWallet,
         distributionCadence: params.distributionCadence,
+        assetType: mappedAssetType, 
+        roundLimitTokens: new BN(params.roundLimitTokens || params.supplyCap).mul(new BN(10).pow(new BN(params.tokenDecimals))),
       });
 
       const setMintIx = await this.repository.getSetProjectMintInstruction(nextId, mintAddress);
@@ -220,13 +238,24 @@ export class ProjectRegistryService {
         microLamports: 50000, // Increased priority fee for congested Devnet
       });
 
+      // 4. AUTOMATED HANDOVER: Transfer Mint Authority to Project PDA
+      const handoverIx = createSetAuthorityInstruction(
+        mintAddress,
+        this.wallet.publicKey,
+        AuthorityType.MintTokens,
+        mintAuthorityPda,
+        []
+      );
+
+      // 5. Build Final Atomic Transaction
       const transaction = new Transaction().add(
         priorityFeeIx,
         createMintAccIx,
         initMintIx,
         metadataIx,
         createProjectIx,
-        setMintIx
+        setMintIx,
+        handoverIx // Automation happens here
       );
       
       transaction.recentBlockhash = blockhash;
@@ -287,13 +316,13 @@ export class ProjectRegistryService {
    */
   async updateProjectStatus(
     projectId: number,
-    isActive: boolean,
+    newStatus: any,
     isPaused: boolean
   ): Promise<string> {
     try {
       const instruction = await this.repository.getUpdateProjectStatusInstruction(
         projectId,
-        isActive,
+        newStatus,
         isPaused
       );
       return await this.sendAndConfirm(instruction);
@@ -346,6 +375,99 @@ export class ProjectRegistryService {
     await confirmTransactionRobustly(this.connection, signature, lastValidBlockHeight, 'confirmed');
 
     return signature;
+  }
+
+  /**
+   * Issues tokens directly to an investor's wallet.
+   * @param projectId - The on-chain project ID.
+   * @param investorWallet - The recipient's public key.
+   * @param amount - The human-readable amount of tokens (will be scaled by decimals).
+   */
+  async issueTokens(projectId: number, recipientWallet: PublicKey, amount: number): Promise<string> {
+    try {
+      const project = await this.repository.fetchProjectAccount(projectId);
+      if (!project) throw new Error("Project not found");
+      if (!project.mint || project.mint.equals(PublicKey.default)) {
+        throw new Error("Project has no linked SPL Token Mint.");
+      }
+
+      // 2. Derive PDA and Resolve Recipient ATA
+      const mintAuthorityPda = getMintAuthorityPDA(projectId, this.repository.getProgramId());
+      const recipientTokenAccount = getAssociatedTokenAddressSync(
+        project.mint,
+        recipientWallet,
+        false
+      );
+
+      // 3. SCALE-UP: Self-Healing Authority check
+      const transaction = new Transaction();
+      const mintInfo = await getMint(this.connection, project.mint);
+      
+      // If the mint authority isn't the program PDA yet, add a handover instruction
+      if (mintInfo.mintAuthority && !mintInfo.mintAuthority.equals(mintAuthorityPda)) {
+        console.log(`[Self-Healing] Authority mismatch detected for Project #${projectId}. Prepending handover instruction...`);
+        const handoverIx = createSetAuthorityInstruction(
+          project.mint,
+          this.wallet.publicKey, // Current authority
+          AuthorityType.MintTokens,
+          mintAuthorityPda, // New authority
+          []
+        );
+        transaction.add(handoverIx);
+      }
+
+      // 4. Build ATA Creation Instruction (Idempotent)
+      const createAtaIx = createAssociatedTokenAccountIdempotentInstruction(
+        this.wallet.publicKey,
+        recipientTokenAccount,
+        recipientWallet,
+        project.mint,
+        TOKEN_PROGRAM_ID,
+        ASSOCIATED_TOKEN_PROGRAM_ID
+      );
+      transaction.add(createAtaIx);
+
+      // 5. Build Issue Instruction
+      const amountBN = new BN(amount).mul(new BN(10).pow(new BN(9)));
+      const instruction = await this.repository.getIssueTokensInstruction(
+        projectId,
+        amountBN,
+        project.mint,
+        recipientTokenAccount
+      );
+      transaction.add(instruction);
+
+      return await this.sendAndConfirm(transaction);
+    } catch (error: any) {
+      throw this.handleError(error);
+    }
+  }
+
+  /**
+   * Resets the current issuance round for a project.
+   * @param projectId - The on-chain project ID.
+   * @param newRoundLimit - Optional new limit for the next round (human readable).
+   */
+  async resetRound(projectId: number, newRoundLimit?: number): Promise<string> {
+    try {
+      const limitBN = newRoundLimit 
+        ? new BN(newRoundLimit).mul(new BN(10).pow(new BN(9))) 
+        : null;
+
+      const instruction = await this.repository.getResetRoundInstruction(projectId, limitBN);
+      return await this.sendAndConfirm(instruction);
+    } catch (error: any) {
+      throw this.handleError(error);
+    }
+  }
+
+  private async getMintDecimals(mint: PublicKey): Promise<number> {
+    try {
+      const info = await this.connection.getParsedAccountInfo(mint);
+      return (info.value?.data as any).parsed.info.decimals;
+    } catch (e) {
+      return 9; // Fallback
+    }
   }
 
 

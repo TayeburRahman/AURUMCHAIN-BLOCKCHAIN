@@ -7,7 +7,7 @@ import { BN } from '@coral-xyz/anchor';
 
 /**
  * Derives the PDA for the global registry config account.
- * Seeds: [b"registry"]
+ * Seeds: [b"control"]
  */
 export function getRegistryPDA(programId: PublicKey): PublicKey {
   return PublicKey.findProgramAddressSync(
@@ -47,12 +47,26 @@ export function getMetadataPDA(mint: PublicKey): PublicKey {
 /**
  * Derives the Control Account PDA (for authority management).
  * Seeds: [b"control"]
- * Note: Currently this is often synonymous with the RegistryConfig in some contexts, 
- * but specified here for future compliance separation.
  */
 export function getControlPDA(programId: PublicKey): PublicKey {
   return PublicKey.findProgramAddressSync(
     [Buffer.from('control')],
+    programId
+  )[0];
+}
+
+/**
+ * Derives the Mint Authority PDA for a project.
+ * This PDA is the actual authority on the SPL Token Mint.
+ * Seeds: ["mint_authority", project_id (u64 le)]
+ */
+export function getMintAuthorityPDA(projectId: number | BN, programId: PublicKey): PublicKey {
+  const idBN = typeof projectId === 'number' ? new BN(projectId) : projectId;
+  return PublicKey.findProgramAddressSync(
+    [
+      Buffer.from('mint_authority'),
+      idBN.toArrayLike(Buffer, 'le', 8),
+    ],
     programId
   )[0];
 }

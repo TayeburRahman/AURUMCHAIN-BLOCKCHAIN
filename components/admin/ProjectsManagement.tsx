@@ -8,6 +8,7 @@ import { ProjectRegistryService } from '@/lib/web3/services/projectRegistryServi
 import { PublicKey } from '@solana/web3.js';
 import { BN } from '@coral-xyz/anchor';
 
+import { toChainStatus, toChainAssetType } from '@/lib/web3/utils/statusMappings';
 type Project = Database['public']['Tables']['projects']['Row'];
 type ProjectInsert = Database['public']['Tables']['projects']['Insert'];
 
@@ -59,6 +60,8 @@ export default function ProjectsManagement({ initialProjects, userId }: Projects
     lockup_end_date: '',
     distribution_cadence: 0,
     token_decimals: 9,
+    asset_type: 'real_estate',
+    round_limit_tokens: 0,
   });
 
   const handleInputChange = (
@@ -78,7 +81,8 @@ export default function ProjectsManagement({ initialProjects, userId }: Projects
           name === 'expected_return_percentage' ||
           name === 'project_duration_months' ||
           name === 'distribution_cadence' ||
-          name === 'token_decimals'
+          name === 'token_decimals' ||
+          name === 'round_limit_tokens'
             ? parseFloat(value) || 0
             : value,
       };
@@ -89,10 +93,10 @@ export default function ProjectsManagement({ initialProjects, userId }: Projects
         const price = name === 'token_price' ? parseFloat(value) || 0 : prev.token_price || 0;
 
         if (price > 0) {
-          const totalTokens = goal / price;
+          const totalTokens = Math.floor(goal / price);
           updated.total_tokens = totalTokens;
+          updated.round_limit_tokens = totalTokens; // Keep round limit in sync with goal
           
-          // Only sync Available Tokens if it hasn't been manually overridden for a phase
           if (prev.available_tokens === prev.total_tokens || prev.total_tokens === 0) {
             updated.available_tokens = totalTokens;
           }
@@ -150,6 +154,8 @@ export default function ProjectsManagement({ initialProjects, userId }: Projects
             subscriptionEnd: Math.floor(new Date(formData.expected_completion_date || Date.now() + 86400000).getTime() / 1000),
             distributionCadence: formData.distribution_cadence || 0,
             tokenDecimals: formData.token_decimals || 9,
+            assetType: toChainAssetType(formData.asset_type || 'real_estate'),
+            roundLimitTokens: formData.round_limit_tokens || formData.total_tokens || 0,
           });
           
           formData.blockchain_signature  = chainResult.signature;
@@ -272,7 +278,9 @@ export default function ProjectsManagement({ initialProjects, userId }: Projects
       accepted_stablecoin: process.env.NEXT_PUBLIC_USDC_MINT || '',
       treasury_wallet: process.env.NEXT_PUBLIC_ADMIN_WALLET || '',
       lockup_end_date: '',
-      distribution_cadence: 0,
+      distribution_cadence: project.distribution_cadence || 0,
+      asset_type: project.asset_type || 'real_estate',
+      round_limit_tokens: project.round_limit_tokens || 0,
     });
     setShowForm(true);
   };
@@ -331,8 +339,51 @@ export default function ProjectsManagement({ initialProjects, userId }: Projects
     setError(null);
   };
 
-  // ── Quick status change without opening the full edit form ────────────────
-  const handleStatusChange = async (projectId: string, newStatus: Project['status']) => {
+  // ── Unified status change (Syncs DB and Blockchain) ──────────────────────
+  const handleUpdatePhase = async (project: Project, newStatus: Project['status']) => {
+    if (!project.blockchain_project_id) {
+       // If not on chain yet (Draft), just update Supabase
+       await handleStatusChangeOnly(project.id, newStatus);
+       return;
+    }
+
+    if (!wallet.connected) { setError('Connect your Phantom wallet to update on-chain status.'); return; }
+    
+    setStatusChanging(project.id);
+    try {
+      const service = new ProjectRegistryService(connection, wallet);
+      const chainStatus = toChainStatus(newStatus);
+      
+      // Perform on-chain update
+      const signature = await service.updateProjectStatus(
+        project.blockchain_project_id,
+        chainStatus,
+        project.is_paused || false
+      );
+
+      console.log(`[PhaseUpdate] TX: ${signature}`);
+
+      // Sync Supabase
+      const response = await fetch(`/api/admin/projects/${project.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: newStatus }),
+      });
+
+      if (!response.ok) throw new Error("On-chain success, but DB sync failed.");
+
+      setProjects((prev) =>
+        prev.map((p) => (p.id === project.id ? { ...p, status: newStatus } : p))
+      );
+      alert(`Phase updated to ${newStatus.toUpperCase()}`);
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setStatusChanging(null);
+    }
+  };
+
+  const handleStatusChangeOnly = async (projectId: string, newStatus: Project['status']) => {
     setStatusChanging(projectId);
     try {
       const response = await fetch(`/api/admin/projects/${projectId}`, {
@@ -340,14 +391,8 @@ export default function ProjectsManagement({ initialProjects, userId }: Projects
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status: newStatus }),
       });
-      if (!response.ok) {
-        const data = await response.json();
-        throw new Error(data.error || 'Failed to update status');
-      }
-      // Optimistic update (realtime will also sync)
-      setProjects((prev) =>
-        prev.map((p) => (p.id === projectId ? { ...p, status: newStatus } : p))
-      );
+      if (!response.ok) throw new Error('Failed to update status');
+      setProjects((prev) => prev.map((p) => (p.id === projectId ? { ...p, status: newStatus } : p)));
     } catch (err: any) {
       setError(err.message);
     } finally {
@@ -356,9 +401,9 @@ export default function ProjectsManagement({ initialProjects, userId }: Projects
   };
 
   // ── On-chain boolean toggles (pause/resume/activate) ─────────────────────
-  const handleChainToggle = async (
+  const handleChainAction = async (
     project: Project,
-    action: 'pauseInvestments' | 'resumeInvestments' | 'pauseTransfers' | 'resumeTransfers' | 'activate' | 'deactivate' | 'revokeMintAuthority'
+    action: 'togglePause' | 'revokeMintAuthority' | 'issueTokens' | 'resetRound'
   ) => {
     if (project.blockchain_project_id === null || project.blockchain_project_id === undefined) {
       setError('This project has no on-chain record.'); return;
@@ -370,62 +415,67 @@ export default function ProjectsManagement({ initialProjects, userId }: Projects
     try {
       const service = new ProjectRegistryService(connection, wallet);
       
-      // Special case: Revoke is its own instruction
-      if (action === 'revokeMintAuthority') {
-        if (!confirm('WARNING: Revoking mint authority is irreversible. You will not be able to issue any more tokens for this project. PROCEED?')) {
-          setStatusChanging(null);
-          return;
-        }
-        const signature = await service.revokeMintAuthority(project.blockchain_project_id);
+      if (action === 'togglePause') {
+        const newIsPaused = !project.is_paused;
+        const currentChainStatus = toChainStatus(project.status);
+        
+        const signature = await service.updateProjectStatus(
+          project.blockchain_project_id,
+          currentChainStatus,
+          newIsPaused
+        );
         
         await fetch(`/api/admin/projects/${project.id}`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ mint_authority_revoked: true }),
+          body: JSON.stringify({ is_paused: newIsPaused }),
         });
+
+        setProjects((prev) => prev.map((p) => (p.id === project.id ? { ...p, is_paused: newIsPaused } : p)));
+        console.log(`[PauseToggle] TX: ${signature}`);
+      } 
+      else if (action === 'revokeMintAuthority') {
+        if (!confirm('WARNING: Revoking mint authority is irreversible. PROCEED?')) {
+          setStatusChanging(null);
+          return;
+        }
+        const signature = await service.revokeMintAuthority(project.blockchain_project_id);
+        await fetch(`/api/admin/projects/${project.id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ mint_authority_revoked: true, status: 'active' }),
+        });
+        setProjects((prev) => prev.map((p) => (p.id === project.id ? { ...p, mint_authority_revoked: true, status: 'active' } : p)));
+        alert(`Success! TX: ${signature}`);
+      }
+      else if (action === 'issueTokens') {
+        const recipientStr = prompt('Enter the Recipient Wallet Address:');
+        if (!recipientStr) { setStatusChanging(null); return; }
         
-        alert(`Success! Mint authority revoked.\nTX: ${signature}`);
-        return;
+        let recipientWallet: PublicKey;
+        try {
+          recipientWallet = new PublicKey(recipientStr);
+        } catch (e) {
+          alert('Invalid Solana wallet address');
+          setStatusChanging(null);
+          return;
+        }
+
+        const amountStr = prompt('How many tokens do you want to issue? (e.g. 1000)');
+        if (!amountStr) { setStatusChanging(null); return; }
+        const amount = parseFloat(amountStr);
+        if (isNaN(amount) || amount <= 0) { alert('Invalid amount'); setStatusChanging(null); return; }
+        
+        const signature = await service.issueTokens(project.blockchain_project_id, recipientWallet, amount);
+        alert(`Tokens issued successfully!\nTX: ${signature}`);
       }
-
-      // 1. Fetch current on-chain state to avoid overwriting flags
-      const currentAccount = await service.fetchProject(project.blockchain_project_id);
-      if (!currentAccount) throw new Error("Could not fetch on-chain project state.");
-
-      let newIsActive = currentAccount.isActive;
-      let newIsPaused = currentAccount.isPaused;
-
-      // 2. Determine new state based on action
-      // Note: we now use a smart toggle. If we trigger any pause action, it flips the current state.
-      if (action === 'pauseInvestments' || action === 'pauseTransfers') {
-        newIsPaused = !currentAccount.isPaused; 
-      } else if (action === 'resumeInvestments' || action === 'resumeTransfers') {
-        newIsPaused = false;
-      } else if (action === 'activate') {
-        newIsActive = true;
-      } else if (action === 'deactivate') {
-        newIsActive = false;
+      else if (action === 'resetRound') {
+        const newLimit = prompt('Optional: Enter new round limit (leave empty to keep current total cap):');
+        const limitVal = newLimit ? parseFloat(newLimit) : undefined;
+        
+        const signature = await service.resetRound(project.blockchain_project_id, limitVal);
+        alert(`Round reset successfully!\nTX: ${signature}`);
       }
-
-      // 3. Perform atomic update
-      const signature = await service.updateProjectStatus(
-        project.blockchain_project_id,
-        newIsActive,
-        newIsPaused
-      );
-
-      console.log(`[StatusUpdate] Project ${project.id} updated. TX: ${signature}`);
-      
-      // Update local state and Supabase to keep UI in sync
-      setProjects((prev) =>
-        prev.map((p) => (p.id === project.id ? { ...p, is_paused: newIsPaused, is_active: newIsActive } : p))
-      );
-
-      await fetch(`/api/admin/projects/${project.id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ is_paused: newIsPaused, is_active: newIsActive }),
-      });
     } catch (err: any) {
       setError(err.message);
     } finally {
@@ -694,6 +744,37 @@ export default function ProjectsManagement({ initialProjects, userId }: Projects
                   className="w-full px-4 py-2 bg-navy/50 border border-gold/20 rounded-lg text-white focus:outline-none focus:border-gold"
                 />
               </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">
+                  Asset Type *
+                </label>
+                <select
+                  name="asset_type"
+                  value={formData.asset_type || 'real_estate'}
+                  onChange={handleInputChange}
+                  className="w-full px-4 py-2 bg-navy/50 border border-gold/20 rounded-lg text-white focus:outline-none focus:border-gold"
+                >
+                  <option value="real_estate">Real Estate</option>
+                  <option value="mining">Mining / Industrial</option>
+                  <option value="other">Other Assets</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">
+                  Round Token Limit *
+                </label>
+                <input
+                  type="number"
+                  name="round_limit_tokens"
+                  value={formData.round_limit_tokens ?? 0}
+                  onChange={handleInputChange}
+                  required
+                  min="0"
+                  step="1"
+                  placeholder="Initial round limit"
+                  className="w-full px-4 py-2 bg-navy/50 border border-gold/20 rounded-lg text-white focus:outline-none focus:border-gold"
+                />
+              </div>
             </div>
 
             {/* Program Requirements */}
@@ -773,7 +854,7 @@ export default function ProjectsManagement({ initialProjects, userId }: Projects
                 </label>
                 <select
                   name="distribution_cadence"
-                  value={formData.distribution_cadence}
+                  value={formData.distribution_cadence ?? 0}
                   onChange={handleInputChange}
                   className="w-full px-4 py-2 bg-navy/50 border border-gold/20 rounded-lg text-white focus:outline-none focus:border-gold"
                 >
@@ -927,9 +1008,12 @@ export default function ProjectsManagement({ initialProjects, userId }: Projects
                         : 'bg-gray-500/20 text-gray-400'
                     }`}
                   >
-                    {project.status}
+                    {project.status.toUpperCase()}
                   </span>
-                  {(project as any).is_paused && (
+                  <span className="px-3 py-1 rounded-full text-xs font-bold bg-navy-light text-gray-300 border border-gold/10">
+                    {project.asset_type?.replace('_', ' ').toUpperCase() || 'REAL ESTATE'}
+                  </span>
+                  {project.is_paused && (
                     <span className="px-3 py-1 rounded-full text-xs font-bold bg-red-500/20 text-red-500 border border-red-500/30 animate-pulse">
                       PAUSED
                     </span>
@@ -963,6 +1047,26 @@ export default function ProjectsManagement({ initialProjects, userId }: Projects
                     </span>
                   </div>
                 </div>
+
+                {/* Round Progress Bar */}
+                {project.asset_type !== 'real_estate' && (
+                  <div className="mt-4 p-3 bg-navy/30 rounded-lg border border-gold/10">
+                     <div className="flex justify-between text-[10px] uppercase tracking-wider mb-1">
+                        <span className="text-gray-400">Current Round Issuance</span>
+                        <span className="text-gold font-bold">
+                          {((project as any).current_round_issued || 0).toLocaleString()} / {((project as any).round_limit_tokens || 0).toLocaleString()}
+                        </span>
+                     </div>
+                     <div className="w-full h-1.5 bg-navy/50 rounded-full overflow-hidden">
+                        <div 
+                          className="h-full bg-gradient-to-r from-gold to-gold-light transition-all duration-500"
+                          style={{ 
+                            width: `${Math.min(100, (((project as any).current_round_issued || 0) / ((project as any).round_limit_tokens || 1)) * 100)}%` 
+                          }}
+                        />
+                     </div>
+                  </div>
+                )}
                 {/* Blockchain badge */}
                 {project.blockchain_signature && (
                   <div className="mt-3 flex items-center gap-2">
@@ -995,64 +1099,83 @@ export default function ProjectsManagement({ initialProjects, userId }: Projects
                   id={`status-${project.id}`}
                   value={project.status}
                   disabled={statusChanging === project.id}
-                  onChange={(e) => handleStatusChange(project.id, e.target.value as Project['status'])}
-                  className="px-3 py-1.5 bg-navy/80 border border-gold/20 rounded-lg text-xs text-white focus:outline-none focus:border-gold transition-colors disabled:opacity-50 cursor-pointer"
-                  title="Change project status"
+                  onChange={(e) => handleUpdatePhase(project, e.target.value as Project['status'])}
+                  className="px-3 py-1.5 bg-navy/80 border border-gold/20 rounded-lg text-xs text-white focus:outline-none focus:border-gold transition-colors disabled:opacity-50 cursor-pointer w-full md:w-32"
+                  title="Update On-Chain Project Phase"
                 >
-                  <option value="draft">Draft</option>
+                  {/* Draft only available if already in draft */}
+                  {(project.status === 'draft' || !project.status) && <option value="draft">Draft</option>}
                   <option value="funding">Funding</option>
                   <option value="active">Active</option>
-                  <option value="funded">Funded</option>
                   <option value="completed">Completed</option>
                   <option value="cancelled">Cancelled</option>
                 </select>
 
-                {/* On-chain toggle buttons — only shown for chain-linked projects */}
+                {/* On-chain Action Buttons */}
                 {project.blockchain_project_id !== null && project.blockchain_project_id !== undefined && (
-                  <div className="flex gap-1 flex-wrap justify-end">
+                  <div className="flex gap-2 flex-wrap justify-end">
                       <button
-                        title={(project as any).is_paused ? "Resume investments for this project" : "Pause investments for this project"}
+                        title={project.is_paused ? "Resume investments" : "Pause investments"}
                         disabled={statusChanging === project.id}
-                        onClick={() => handleChainToggle(
-                          project,
-                          'pauseInvestments' 
-                        )}
-                        className={`px-2 py-1 rounded text-xs font-medium transition-colors disabled:opacity-40 border ${
-                          (project as any).is_paused 
-                            ? 'bg-green-500/20 text-green-400 border-green-500/30 hover:bg-green-500/30' 
-                            : 'bg-orange-500/20 text-orange-400 border-orange-500/30 hover:bg-orange-500/30'
+                        onClick={() => handleChainAction(project, 'togglePause')}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all disabled:opacity-40 border ${
+                          project.is_paused 
+                            ? 'bg-green-500/20 text-green-400 border-green-500/30' 
+                            : 'bg-orange-500/20 text-orange-400 border-orange-500/30'
                         }`}
                       >
-                        {(project as any).is_paused ? '▶ Resume Project' : '⏸ Pause Project'}
+                        {project.is_paused ? '▶ Resume' : '⏸ Pause'}
                       </button>
 
-                    {/* Set Mint Button */}
-                    {!(project as any).mint_address && (
+                      {/* Issue Tokens Button */}
                       <button
-                        title="Link an SPL Token Mint to this project"
+                        title="Manually issue tokens to an investor"
+                        disabled={statusChanging === project.id}
+                        onClick={() => handleChainAction(project, 'issueTokens')}
+                        className="px-3 py-1.5 rounded-lg text-xs font-bold bg-blue-500/20 text-blue-400 border border-blue-500/30 hover:bg-blue-500/30"
+                      >
+                        💎 Issue Tokens
+                      </button>
+
+                      {/* Reset Round Button (Hide for Real Estate) */}
+                      {project.asset_type !== 'real_estate' && (
+                         <button
+                           title="Reset the current round counter"
+                           disabled={statusChanging === project.id}
+                           onClick={() => handleChainAction(project, 'resetRound')}
+                           className="px-3 py-1.5 rounded-lg text-xs font-bold bg-purple-500/20 text-purple-400 border border-purple-500/30 hover:bg-purple-500/30"
+                         >
+                           🔄 Reset Round
+                         </button>
+                      )}
+
+                    {/* Set Mint Button */}
+                    {!project.mint_address && (
+                      <button
+                        title="Link an SPL Token Mint"
                         disabled={loading || statusChanging === project.id}
                         onClick={() => handleSetMint(project)}
-                        className="px-2 py-1 rounded text-xs font-bold bg-gold text-navy hover:bg-gold-light transition-all disabled:opacity-50"
+                        className="px-3 py-1.5 rounded-lg text-xs font-bold bg-gold text-navy hover:bg-gold-light transition-all disabled:opacity-50"
                       >
-                        💎 Set Mint
+                        ✨ Set Mint
                       </button>
                     )}
 
                     {/* Revoke Mint Authority (Danger Zone) */}
-                    {(project as any).mint_address && !(project as any).mint_authority_revoked && (
+                    {project.mint_address && !project.mint_authority_revoked && (
                       <button
                         title="IRREVERSIBLE: Stop all future issuance"
                         disabled={statusChanging === project.id}
-                        onClick={() => handleChainToggle(project, 'revokeMintAuthority' as any)}
-                        className="px-2 py-1 rounded text-xs font-medium bg-red-500/20 text-red-500 hover:bg-red-500/30 border border-red-500/30 transition-colors disabled:opacity-40"
+                        onClick={() => handleChainAction(project, 'revokeMintAuthority')}
+                        className="px-3 py-1.5 rounded-lg text-xs font-bold bg-red-500/20 text-red-500 hover:bg-red-500/30 border border-red-500/30 transition-colors disabled:opacity-40"
                       >
                         🚫 Revoke Auth
                       </button>
                     )}
 
                     {/* Revoked Status Indicator */}
-                    {(project as any).mint_authority_revoked && (
-                      <span className="px-2 py-1 rounded text-[10px] font-bold bg-white/5 text-gray-500 border border-white/10 uppercase tracking-tighter">
+                    {project.mint_authority_revoked && (
+                      <span className="px-3 py-1.5 rounded-lg text-[10px] font-bold bg-white/5 text-gray-500 border border-white/10 uppercase tracking-tighter">
                         Mint Locked
                       </span>
                     )}

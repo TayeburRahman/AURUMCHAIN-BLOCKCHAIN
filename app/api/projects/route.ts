@@ -77,10 +77,14 @@ export async function GET() {
           subscriptionEnd:     chainData.subscriptionEnd.toNumber(),
           createdAt:           chainData.createdAt.toNumber(),
           distributionCadence: chainData.distributionCadence,
-          isActive:            chainData.isActive,
+          isActive:            chainData.status.active !== undefined, // derived for UI compatibility
+          status:              chainData.status,
           isPaused:            chainData.isPaused,
           mintAuthorityRevoked: chainData.mintAuthorityRevoked,
           creator:             chainData.creator.toString(),
+          assetType:           chainData.assetType,
+          roundLimitTokens:    chainData.roundLimitTokens.toNumber(),
+          currentRoundIssued:  chainData.currentRoundIssued.toNumber(),
           pda:                 '', 
         } : null,
       };
