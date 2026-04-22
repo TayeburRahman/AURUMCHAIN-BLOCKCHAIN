@@ -69,8 +69,8 @@ const CADENCE_LABELS: Record<number, string> = {
 
 const DEFAULT_PUBKEY = "11111111111111111111111111111111";
 
-function formatUSDC(lamports: number): string {
-  return `$${(lamports / 1_000_000).toLocaleString()}`;
+function formatUSDC(amount: number): string {
+  return `$${amount.toLocaleString()}`;
 }
 
 function formatDate(ts: number): string {
@@ -131,11 +131,11 @@ function ProjectCard({
       ? Math.min(100, Math.round((progressNumerator / progressDenominator) * 100))
       : 0;
 
-  // Token price: DB value → on-chain derived (maxInvestmentUsdc / supplyCap / 1e6)
+  // Token price: DB value → on-chain derived (maxInvestmentUsdc / supplyCap)
   const derivedTokenPrice: string | null = (() => {
     if (project.token_price && project.token_price > 0) return `$${project.token_price}`;
     if (isOnChain && chain.supplyCap > 0 && chain.maxInvestmentUsdc > 0) {
-      const price = chain.maxInvestmentUsdc / chain.supplyCap / 1_000_000;
+      const price = chain.maxInvestmentUsdc / chain.supplyCap;
       return price < 1 ? `$${price.toFixed(4)}` : `$${price.toFixed(2)}`;
     }
     return null;

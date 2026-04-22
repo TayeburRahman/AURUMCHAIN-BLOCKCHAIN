@@ -10,6 +10,13 @@ import { Connection } from '@solana/web3.js';
 import { ProjectRegistryService } from '@/lib/web3/services/projectRegistryService';
 import ProjectsManagement from '@/components/admin/ProjectsManagement';
 
+function formatEnum(val: any): string {
+  if (!val) return '';
+  if (typeof val === 'string') return val.toLowerCase();
+  const key = Object.keys(val)[0];
+  return key ? key.toLowerCase() : '';
+}
+
 export default async function AdminProjectsPage() {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
@@ -42,20 +49,42 @@ export default async function AdminProjectsPage() {
       .filter(p => p.blockchain_project_id !== null)
       .map(async (p) => {
         try {
-          const account = await service.fetchProject(Number(p.blockchain_project_id));
-          return { id: p.id, is_paused: account?.isPaused || false, is_active: account?.isActive || false };
+          const chainData = await service.fetchProject(Number(p.blockchain_project_id));
+          if (!chainData) return { id: p.id, onChain: null };
+          
+          const divisor = 10 ** (p.token_decimals || 9);
+          
+          return {
+            id: p.id,
+            onChain: {
+              supplyCap:           chainData.supplyCap.toNumber() / divisor,
+              tokensIssued:        chainData.tokensIssued.toNumber() / divisor,
+              minInvestmentUsdc:   chainData.minInvestmentUsdc.toNumber() / 1_000_000,
+              maxInvestmentUsdc:   chainData.maxInvestmentUsdc.toNumber() / 1_000_000,
+              currentRoundIssued:  chainData.currentRoundIssued.toNumber() / divisor,
+              roundLimitTokens:    chainData.roundLimitTokens.toNumber() / divisor,
+              isPaused:            chainData.isPaused,
+              isActive:            !chainData.isPaused,
+              assetType:           formatEnum(chainData.assetType),
+              status:              chainData.status,
+              acceptedStablecoin:  chainData.acceptedStablecoin.toString(),
+            }
+          };
         } catch (e) {
-          return { id: p.id, is_paused: false, is_active: true };
+          console.warn(`[AdminProjectsPage] Failed to fetch on-chain for ${p.id}:`, e);
+          return { id: p.id, onChain: null };
         }
       });
 
     const onChainResults = await Promise.all(onChainPromises);
-    const statusMap = new Map(onChainResults.map(r => [r.id, r]));
+    const onChainMap = new Map(onChainResults.map(r => [r.id, r.onChain]));
 
     enrichedProjects = enrichedProjects.map(p => ({
       ...p,
-      is_paused: statusMap.get(p.id)?.is_paused || false,
-      is_active: statusMap.get(p.id)?.is_active || false,
+      onChain: onChainMap.get(p.id) || null,
+      // Keep top-level flags for legacy compatibility if needed
+      is_paused: (onChainMap.get(p.id) as any)?.isPaused || false,
+      is_active: (onChainMap.get(p.id) as any)?.isActive || false,
     }));
   } catch (err) {
     console.error('[AdminProjectsPage] Failed to fetch on-chain status:', err);

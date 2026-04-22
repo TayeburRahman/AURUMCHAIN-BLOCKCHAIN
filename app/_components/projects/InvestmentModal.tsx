@@ -15,10 +15,12 @@ interface InvestmentModalProps {
     location: string;
     country: string;
     blockchain_project_id: number | null;
+    token_price?: number;
     onChain?: {
       minInvestmentUsdc: number;
       maxInvestmentUsdc: number;
       acceptedStablecoin: string;
+      supplyCap: number;
     } | null;
   };
 }
@@ -47,9 +49,9 @@ export function InvestmentModal({ isOpen, onClose, project }: InvestmentModalPro
 
   const investmentAmount = parseFloat(amount) || 0;
   const onChain = project.onChain;
-  // USDC has 6 decimals, so if on-chain min is 1000000, it's 1 USDC.
-  const minInvestment = onChain ? onChain.minInvestmentUsdc / 1_000_000 : 100;
-  const maxInvestment = onChain ? onChain.maxInvestmentUsdc / 1_000_000 : 10000;
+  // API already provides these in human units
+  const minInvestment = onChain ? onChain.minInvestmentUsdc : 100;
+  const maxInvestment = onChain ? onChain.maxInvestmentUsdc : 10000;
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -86,6 +88,13 @@ export function InvestmentModal({ isOpen, onClose, project }: InvestmentModalPro
       console.log(`[InvestmentModal] Success! Tx: ${signature}`);
       setTxSig(signature);
 
+      // Calculate tokens purchased: Amount / Price
+      const tokensPurchased = project.token_price && project.token_price > 0 
+        ? investmentAmount / project.token_price 
+        : (onChain && onChain.supplyCap > 0 && onChain.maxInvestmentUsdc > 0 
+            ? investmentAmount / (onChain.maxInvestmentUsdc / onChain.supplyCap)
+            : 0);
+
       // Sync with backend
       await fetch('/api/investments/create', {
         method: 'POST',
@@ -93,6 +102,7 @@ export function InvestmentModal({ isOpen, onClose, project }: InvestmentModalPro
         body: JSON.stringify({
           projectId: project.id,
           amount: investmentAmount,
+          tokensPurchased: tokensPurchased,
           blockchainSignature: signature,
           investorWallet: publicKey.toBase58(),
         }),

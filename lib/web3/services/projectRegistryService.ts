@@ -427,9 +427,16 @@ export class ProjectRegistryService {
       );
       transaction.add(createAtaIx);
 
-      // 5. Build Issue Instruction using project's defined decimals
-      const decimals = project.tokenDecimals || 9;
-      const amountBN = new BN(amount).mul(new BN(10).pow(new BN(decimals)));
+      // 5. Build Issue Instruction using REAL on-chain decimals
+      const decimals = await this.getMintDecimals(project.mint);
+      
+      // Precision-safe scaling (handles fractions like 100.5)
+      const [intPart, fracPart = ""] = amount.toString().split(".");
+      const paddedFrac = fracPart.padEnd(decimals, "0").slice(0, decimals);
+      const amountBN = new BN(intPart).mul(new BN(10).pow(new BN(decimals))).add(new BN(paddedFrac));
+
+      console.log(`[issueTokens] Scaling: ${amount} tokens -> ${amountBN.toString()} raw units (Decimals: ${decimals})`);
+
       const instruction = await this.repository.getIssueTokensInstruction(
         projectId,
         amountBN,

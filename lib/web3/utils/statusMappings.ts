@@ -22,6 +22,7 @@ export const toChainStatus = (dbStatus: string): any => {
  * Maps an Anchor ProjectStatus object to a Supabase-compatible string.
  */
 export const fromChainStatus = (chainStatus: any): string => {
+  if (!chainStatus) return 'draft';
   if (chainStatus.draft)     return 'draft';
   if (chainStatus.funding)   return 'funding';
   if (chainStatus.active)    return 'active';

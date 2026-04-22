@@ -279,38 +279,16 @@ export default function ProjectsManagement({ initialProjects, userId }: Projects
       const dbProject = payload.new as any;
       let enriched = { ...dbProject, onChain: null };
 
-      // Proactively fetch on-chain data if ID exists
-      if (dbProject.blockchain_project_id !== null) {
+      // Proactively fetch enriched data from API
+      if (dbProject.id) {
         try {
-          const chainData = await service.fetchProject(Number(dbProject.blockchain_project_id));
-          if (chainData) {
-            enriched.onChain = {
-              symbol: chainData.symbol,
-              uri: chainData.uri,
-              supplyCap: chainData.supplyCap.toNumber(),
-              tokensIssued: chainData.tokensIssued.toNumber(),
-              minInvestmentUsdc: chainData.minInvestmentUsdc.toNumber(),
-              maxInvestmentUsdc: chainData.maxInvestmentUsdc.toNumber(),
-              acceptedStablecoin: chainData.acceptedStablecoin.toString(),
-              treasuryWallet: chainData.treasuryWallet.toString(),
-              mint: chainData.mint.toString(),
-              lockupEndTs: chainData.lockupEndTs.toNumber(),
-              subscriptionStart: chainData.subscriptionStart.toNumber(),
-              subscriptionEnd: chainData.subscriptionEnd.toNumber(),
-              createdAt: chainData.createdAt.toNumber(),
-              distributionCadence: chainData.distributionCadence,
-              isActive: chainData.status.active !== undefined,
-              status: chainData.status,
-              isPaused: chainData.isPaused,
-              mintAuthorityRevoked: chainData.mintAuthorityRevoked,
-              creator: chainData.creator.toString(),
-              assetType: chainData.assetType,
-              roundLimitTokens: chainData.roundLimitTokens.toNumber(),
-              currentRoundIssued: chainData.currentRoundIssued.toNumber(),
-            };
+          const res = await fetch(`/api/admin/projects/${dbProject.id}`);
+          if (res.ok) {
+             const enrichedData = await res.json();
+             setProjects(prev => prev.map(p => p.id === dbProject.id ? enrichedData : p));
           }
         } catch (e) {
-          console.warn('[RealtimeSync] Failed to enrich project:', e);
+          console.warn('[RealtimeSync] Enrichment failed:', e);
         }
       }
 
@@ -346,6 +324,18 @@ export default function ProjectsManagement({ initialProjects, userId }: Projects
 
     return () => { supabase.removeChannel(channel); };
   }, [connection, wallet]);
+
+  const refreshProject = async (projectId: string, blockchainId: number) => {
+    try {
+      const resp = await fetch(`/api/admin/projects/${projectId}`);
+      if (!resp.ok) return;
+      const enriched = await resp.json();
+      
+      setProjects(prev => prev.map(p => p.id === projectId ? enriched : p));
+    } catch (e) {
+      console.warn('[RefreshProject] Error:', e);
+    }
+  };
 
   const handleEdit = (project: EnrichedProject) => {
     setEditingProject(project);
@@ -574,6 +564,32 @@ export default function ProjectsManagement({ initialProjects, userId }: Projects
         
         const signature = await service.issueTokens(project.blockchain_project_id, recipientWallet, amount);
         alert(`Tokens issued successfully!\nTX: ${signature}`);
+        
+        // SYNC SUPABASE: Update available_tokens and current_round_issued after on-chain change
+        try {
+          const freshChainData = await service.fetchProject(project.blockchain_project_id);
+          const decimals = project.token_decimals || 9;
+          const divisor = 10 ** decimals;
+          
+          if (freshChainData) {
+            const issuedCount = freshChainData.tokensIssued.toNumber() / divisor;
+            const roundIssued = freshChainData.currentRoundIssued.toNumber() / divisor;
+            const totalCap = freshChainData.supplyCap.toNumber() / divisor;
+
+            await fetch(`/api/admin/projects/${project.id}`, {
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                available_tokens: totalCap - issuedCount,
+                current_round_issued: roundIssued
+              })
+            });
+          }
+        } catch (syncErr) {
+          console.warn('[Sync] Supabase update failed:', syncErr);
+        }
+
+        await refreshProject(project.id, project.blockchain_project_id);
       }
       else if (action === 'resetRound') {
         const newLimit = prompt('Optional: Enter new round limit (leave empty to keep current total cap):');
@@ -581,6 +597,31 @@ export default function ProjectsManagement({ initialProjects, userId }: Projects
         
         const signature = await service.resetRound(project.blockchain_project_id, limitVal);
         alert(`Round reset successfully!\nTX: ${signature}`);
+        
+        // SYNC SUPABASE: Update current_round_issued after round reset
+        try {
+          const freshChainData = await service.fetchProject(project.blockchain_project_id);
+          const decimals = project.token_decimals || 9;
+          const divisor = 10 ** decimals;
+          
+          if (freshChainData) {
+            const roundIssued = freshChainData.currentRoundIssued.toNumber() / divisor;
+            const roundLimit = freshChainData.roundLimitTokens.toNumber() / divisor;
+
+            await fetch(`/api/admin/projects/${project.id}`, {
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                current_round_issued: roundIssued,
+                round_limit_tokens: roundLimit
+              })
+            });
+          }
+        } catch (syncErr) {
+          console.warn('[Sync] Round reset Supabase update failed:', syncErr);
+        }
+
+        await refreshProject(project.id, project.blockchain_project_id);
       }
     } catch (err: any) {
       setError(err.message);
@@ -1137,7 +1178,7 @@ export default function ProjectsManagement({ initialProjects, userId }: Projects
                     );
                   })()}
                   <span className="px-3 py-1 rounded-full text-xs font-bold bg-navy-light text-gray-300 border border-gold/10">
-                    {(project.onChain?.assetType || project.asset_type || 'real_estate').replace('_', ' ').toUpperCase()}
+                    {String(project.onChain?.assetType || project.asset_type || 'real_estate').replace('_', ' ').toUpperCase()}
                   </span>
                   {project.is_paused && (
                     <span className="px-3 py-1 rounded-full text-xs font-bold bg-red-500/20 text-red-500 border border-red-500/30 animate-pulse">
@@ -1155,9 +1196,19 @@ export default function ProjectsManagement({ initialProjects, userId }: Projects
                     </span>
                   </div>
                   <div>
-                    <span className="text-gray-500">Tokens:</span>
+                    <span className="text-gray-500">Minted / Issued:</span>
                     <span className="text-white font-medium ml-2">
-                      {(project.available_tokens ?? 0).toLocaleString(undefined, { maximumFractionDigits: (project as any).token_decimals || 6 })} / {(project.total_tokens ?? 0).toLocaleString(undefined, { maximumFractionDigits: (project as any).token_decimals || 6 })}
+                      {(() => {
+                        const total = project.onChain?.supplyCap ?? (project.total_tokens || 0);
+                        const issued = project.onChain?.tokensIssued ?? 0;
+                        const available = project.onChain ? (total - issued) : (project.available_tokens || 0);
+                        
+                        return (
+                          <>
+                            {issued.toLocaleString(undefined, { maximumFractionDigits: (project as any).token_decimals || 6 })} / {total.toLocaleString(undefined, { maximumFractionDigits: (project as any).token_decimals || 6 })}
+                          </>
+                        );
+                      })()}
                     </span>
                   </div>
                   <div>
@@ -1180,7 +1231,11 @@ export default function ProjectsManagement({ initialProjects, userId }: Projects
                      <div className="flex justify-between text-[10px] uppercase tracking-wider mb-1">
                         <span className="text-gray-400">Current Round Issuance</span>
                         <span className="text-gold font-bold">
-                          {((project as any).current_round_issued || 0).toLocaleString()} / {((project as any).round_limit_tokens || 0).toLocaleString()}
+                          {(() => {
+                            const issued = project.onChain?.currentRoundIssued ?? (project as any).current_round_issued ?? 0;
+                            const limit = project.onChain?.roundLimitTokens ?? (project as any).round_limit_tokens ?? 0;
+                            return `${issued.toLocaleString()} / ${limit.toLocaleString()}`;
+                          })()}
                         </span>
                      </div>
                      <div className="w-full h-1.5 bg-navy/50 rounded-full overflow-hidden">

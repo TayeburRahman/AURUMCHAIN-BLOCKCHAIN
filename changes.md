@@ -66,6 +66,36 @@ Implemented a "Self-Healing" architecture to unlock legacy projects (100–105) 
 | **[ProjectsManagement.tsx](file:///c:/Rupom/Projects/AURUMCHAIN/components/admin/ProjectsManagement.tsx)** | **640, 385** | Auto-Scroll to Form      | Improved UX by automatically scrolling the page to the Edit/Add form when triggered.                    |
 | **[ProjectsManagement.tsx](file:///c:/Rupom/Projects/AURUMCHAIN/components/admin/ProjectsManagement.tsx)** | **371-380**  | HTML5 Date Compatibility | Fixed console formatting errors by ensuring ISO dates are correctly sliced for `datetime-local` inputs. |
 
+### 5. Universal Token Math & UI Sync
+
+**Timestamp:** 2026-04-22T15:46:00+06:00
+
+| File | Line Numbers | Feature Added | Reason for Addition |
+| :--- | :--- | :--- | :--- |
+| **[projectRegistryService.ts](file:///c:/Rupom/Projects/AURUMCHAIN/lib/web3/services/projectRegistryService.ts)** | **431–438** | Dynamic Mint Detection | Replaced hardcoded fallback with `getMintDecimals`. Ensures 100% accurate math for projects with 6, 7, 9, or 18 decimals. |
+| **[projectRegistryService.ts](file:///c:/Rupom/Projects/AURUMCHAIN/lib/web3/services/projectRegistryService.ts)** | **433–434** | High-Precision Scaling | Implemented string-based scaling for token amounts to support fractional issuance (e.g. 10.5 tokens) without IEEE float errors. |
+| **[ProjectsManagement.tsx](file:///c:/Rupom/Projects/AURUMCHAIN/components/admin/ProjectsManagement.tsx)** | **349, 573, 580** | Smart Re-Sync Trigger | Added `refreshProject` utility that triggers after token issuance or round resets to update UI state immediately post-transaction. |
+| **[route.ts](file:///c:/Rupom/Projects/AURUMCHAIN/app/api/admin/projects/[id]/route.ts)** | **14–48** | Admin `GET` Support | Implemented the missing `GET` handler to resolve the `405 Method Not Allowed` error during dashboard refreshes. |
+| **[ProjectsManagement.tsx](file:///c:/Rupom/Projects/AURUMCHAIN/components/admin/ProjectsManagement.tsx)** | **1204, 1227** | On-Chain Display Priority | Updated the "Tokens" UI to prioritize blockchain `tokensIssued` counts over legacy Supabase fields, ensuring instant visual deduction after issuance. |
+
+## [2.2.0] - 2026-04-22
+### Feature: Universal Token Sync & Global Precision Math
+This phase high-aligned the entire platform's token representation. Off-loaded all decimal math to the API layer and implemented a "Proactive Sync" mechanism to keep Supabase state 100% consistent with on-chain reality.
+
+**Timestamp:** 2026-04-22T16:15:00+06:00
+**Github Commit Message:** Universal Token Scaling & Admin-User Site Synchronization
+
+| File | Line Numbers | Feature Added | Reason for Addition | Timestamp |
+| :--- | :--- | :--- | :--- | :--- |
+| **[api/projects/route.ts](file:///c:/Rupom/Projects/AURUMCHAIN/app/api/projects/route.ts)** | **13-21, 91** | Universal Decimal Scaling | Standardizes raw blockchain units to human-readable format for the public gallery. | 2026-04-22T16:13 |
+| **[[id]/route.ts](file:///c:/Rupom/Projects/AURUMCHAIN/app/api/admin/projects/[id]/route.ts)** | **11-19, 87** | Blockchain-First Enrichment | Centralizes math logic and provides enriched `GET` data for the admin project editor. | 2026-04-22T16:13 |
+| **[ProjectsManagement.tsx](file:///c:/Rupom/Projects/AURUMCHAIN/components/admin/ProjectsManagement.tsx)** | **621-651, 1208** | Proactive DB Sync & UI Polish | Triggers automated Supabase updates post-issuance and simplifies UI to use pre-scaled data. | 2026-04-22T16:13 |
+| **[app/projects/page.tsx](file:///c:/Rupom/Projects/AURUMCHAIN/app/projects/page.tsx)** | **72-74, 134-142** | Public Scaling Alignment | Prevents "double-scaling" bugs by removing redundant frontend decimal math. | 2026-04-22T16:13 |
+| **[InvestmentModal.tsx](file:///c:/Rupom/Projects/AURUMCHAIN/app/_components/projects/InvestmentModal.tsx)** | **12-24, 86-99** | Precision Token Calculation | Ensures `tokensPurchased` is recorded in the DB, fixing the "0 tokens" portfolio bug. | 2026-04-22T16:13 |
+| **[admin/projects/page.tsx](file:///c:/Rupom/Projects/AURUMCHAIN/app/admin/projects/page.tsx)** | **11-17, 41-71** | Admin List Enrichment | Synchronizes the main Admin list with live blockchain data (Supply Cap / Issued). | 2026-04-22T16:13 |
+| **[statusMappings.ts](file:///c:/Rupom/Projects/AURUMCHAIN/lib/web3/utils/statusMappings.ts)** | **25** | Defensive Null-Check | Prevents dashboard runtime crashes by safely handling missing on-chain status objects. | 2026-04-22T16:13 |
+| **[ProjectsManagement.tsx](file:///c:/Rupom/Projects/AURUMCHAIN/components/admin/ProjectsManagement.tsx)** | **1181** | AssetType String Shield | Protects the dashbaord from crashes when blockchain returns Enums as objects vs strings. | 2026-04-22T16:13 |
+
 ---
 
 ## Feature: Phased Token Launch — Phase 3 (On-Chain Verified Authority & Robust Init)

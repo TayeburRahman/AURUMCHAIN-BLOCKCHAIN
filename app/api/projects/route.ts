@@ -12,6 +12,14 @@ import { createAdminClient } from '@/lib/supabase/server';
 import { Connection } from '@solana/web3.js';
 import { ProjectRegistryService } from '@/lib/web3/services/projectRegistryService';
 
+function formatEnum(val: any): string {
+  if (!val) return '';
+  if (typeof val === 'string') return val.toLowerCase();
+  // Anchor enum object like { mining: {} }
+  const key = Object.keys(val)[0];
+  return key ? key.toLowerCase() : '';
+}
+
 export const dynamic = 'force-dynamic';
 
 export async function GET() {
@@ -65,10 +73,10 @@ export async function GET() {
         onChain: chainData ? {
           symbol:              chainData.symbol,
           uri:                 chainData.uri,
-          supplyCap:           chainData.supplyCap.toNumber(),
-          tokensIssued:        chainData.tokensIssued.toNumber(),
-          minInvestmentUsdc:   chainData.minInvestmentUsdc.toNumber(),
-          maxInvestmentUsdc:   chainData.maxInvestmentUsdc.toNumber(),
+          supplyCap:           chainData.supplyCap.toNumber() / (10 ** (project.token_decimals || 9)),
+          tokensIssued:        chainData.tokensIssued.toNumber() / (10 ** (project.token_decimals || 9)),
+          minInvestmentUsdc:   chainData.minInvestmentUsdc.toNumber() / 1_000_000,
+          maxInvestmentUsdc:   chainData.maxInvestmentUsdc.toNumber() / 1_000_000,
           acceptedStablecoin:  chainData.acceptedStablecoin.toString(),
           treasuryWallet:      chainData.treasuryWallet.toString(),
           mint:                chainData.mint.toString(),
@@ -77,14 +85,14 @@ export async function GET() {
           subscriptionEnd:     chainData.subscriptionEnd.toNumber(),
           createdAt:           chainData.createdAt.toNumber(),
           distributionCadence: chainData.distributionCadence,
-          isActive:            chainData.status.active !== undefined, // derived for UI compatibility
-          status:              chainData.status,
+          isActive:            chainData.status.active !== undefined,
           isPaused:            chainData.isPaused,
           mintAuthorityRevoked: chainData.mintAuthorityRevoked,
           creator:             chainData.creator.toString(),
-          assetType:           chainData.assetType,
-          roundLimitTokens:    chainData.roundLimitTokens.toNumber(),
-          currentRoundIssued:  chainData.currentRoundIssued.toNumber(),
+          assetType:           formatEnum(chainData.assetType),
+          status:              chainData.status,
+          roundLimitTokens:    chainData.roundLimitTokens.toNumber() / (10 ** (project.token_decimals || 9)),
+          currentRoundIssued:  chainData.currentRoundIssued.toNumber() / (10 ** (project.token_decimals || 9)),
           pda:                 '', 
         } : null,
       };

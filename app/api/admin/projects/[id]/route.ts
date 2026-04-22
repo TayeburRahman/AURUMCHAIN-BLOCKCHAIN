@@ -8,8 +8,96 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient, createAdminClient } from '@/lib/supabase/server';
 import { AdminService, createAuditLog } from '@/lib/domains/admin/service';
 import { Database } from '@/lib/types/database.types';
+import { Connection } from '@solana/web3.js';
+import { ProjectRegistryService } from '@/lib/web3/services/projectRegistryService';
+
+function formatEnum(val: any): string {
+  if (!val) return '';
+  if (typeof val === 'string') return val.toLowerCase();
+  // Anchor enum object like { mining: {} }
+  const key = Object.keys(val)[0];
+  return key ? key.toLowerCase() : '';
+}
 
 type ProjectUpdate = Database['public']['Tables']['projects']['Update'];
+
+export async function GET(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const { id } = await params;
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+
+    if (!user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    // Check if user is admin
+    const isAdmin = await AdminService.isAdmin(user.id);
+    if (!isAdmin) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+
+    const adminSupabase = createAdminClient();
+    const { data: project, error } = await adminSupabase
+      .from('projects')
+      .select('*')
+      .eq('id', id)
+      .single();
+
+    if (error) {
+      return NextResponse.json({ error: error.message }, { status: 404 });
+    }
+
+    // New: On-chain enrichment
+    let enriched = { ...project, onChain: null };
+    if (project.blockchain_project_id !== null) {
+      try {
+        const connection = new Connection(process.env.NEXT_PUBLIC_SOLANA_RPC_URL || 'https://api.devnet.solana.com');
+        const service = new ProjectRegistryService(connection, {});
+        const chainData = await service.fetchProject(Number(project.blockchain_project_id));
+        
+        const decimals = project.token_decimals || 9;
+        const divisor = 10 ** decimals;
+
+        if (chainData) {
+          enriched.onChain = {
+            symbol:              chainData.symbol,
+            uri:                 chainData.uri,
+            supplyCap:           chainData.supplyCap.toNumber() / divisor,
+            tokensIssued:        chainData.tokensIssued.toNumber() / divisor,
+            minInvestmentUsdc:   chainData.minInvestmentUsdc.toNumber() / 1_000_000,
+            maxInvestmentUsdc:   chainData.maxInvestmentUsdc.toNumber() / 1_000_000,
+            acceptedStablecoin:  chainData.acceptedStablecoin.toString(),
+            treasuryWallet:      chainData.treasuryWallet.toString(),
+            mint:                chainData.mint.toString(),
+            lockupEndTs:         chainData.lockupEndTs.toNumber(),
+            subscriptionStart:   chainData.subscriptionStart.toNumber(),
+            subscriptionEnd:     chainData.subscriptionEnd.toNumber(),
+            createdAt:           chainData.createdAt.toNumber(),
+            distributionCadence: chainData.distributionCadence,
+            isActive:            chainData.status.active !== undefined,
+            isPaused:            chainData.isPaused,
+            mintAuthorityRevoked: chainData.mintAuthorityRevoked,
+            creator:             chainData.creator.toString(),
+            assetType:           formatEnum(chainData.assetType),
+            status:              chainData.status,
+            roundLimitTokens:    chainData.roundLimitTokens.toNumber() / divisor,
+            currentRoundIssued:  chainData.currentRoundIssued.toNumber() / divisor,
+          };
+        }
+      } catch (e) {
+        console.warn(`[AdminAPI] On-chain fetch failed for ${project.blockchain_project_id}:`, e);
+      }
+    }
+
+    return NextResponse.json(enriched);
+  } catch (error: any) {
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+}
 
 export async function PUT(
   request: NextRequest,
