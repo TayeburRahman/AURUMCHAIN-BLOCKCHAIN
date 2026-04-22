@@ -7,7 +7,7 @@ pub struct CalibrateRegistry<'info> {
     #[account(
         mut,
         seeds = [b"control"],
-        bump = control.bump,
+        bump,
     )]
     pub control: Account<'info, ControlAccount>,
 

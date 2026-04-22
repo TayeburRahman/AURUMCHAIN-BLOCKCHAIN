@@ -22,14 +22,14 @@ pub struct ProjectUpdateParams {
 pub struct UpdateProjectParams<'info> {
     #[account(
         seeds = [b"control"],
-        bump  = control.bump,
+        bump,
     )]
     pub control: Account<'info, ControlAccount>,
 
     #[account(
         mut,
         seeds = [b"project", project.project_id.to_le_bytes().as_ref()],
-        bump  = project.bump,
+        bump,
     )]
     pub project: Account<'info, ProjectAccount>,
 

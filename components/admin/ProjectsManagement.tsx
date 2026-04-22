@@ -13,6 +13,9 @@ type Project = Database['public']['Tables']['projects']['Row'];
 type ProjectInsert = Database['public']['Tables']['projects']['Insert'];
 
 export interface EnrichedProject extends Project {
+  token_symbol?: string | null;
+  metadata_uri?: string | null;
+  lockup_end_date?: string | null;
   onChain?: {
     symbol: string;
     uri: string;
@@ -195,24 +198,38 @@ export default function ProjectsManagement({ initialProjects, userId }: Projects
       } else if (editingProject.blockchain_project_id !== null && editingProject.blockchain_project_id !== undefined) {
         // ── UPDATE on-chain params ──
         try {
-          const chainUpdateParams: any = {};
-          if (formData.min_investment !== undefined && formData.min_investment !== null)
-            chainUpdateParams.minInvestmentUsdc = new BN(Math.round((formData.min_investment || 0) * 1_000_000));
-          if (formData.funding_goal !== undefined && formData.funding_goal !== null)
-            chainUpdateParams.maxInvestmentUsdc = new BN(Math.round((formData.funding_goal || 0) * 1_000_000));
-          if (formData.start_date)
-            chainUpdateParams.subscriptionStart = new BN(Math.floor(new Date(formData.start_date).getTime() / 1000));
-          if (formData.expected_completion_date)
-            chainUpdateParams.subscriptionEnd = new BN(Math.floor(new Date(formData.expected_completion_date).getTime() / 1000));
-          if ((formData as any).lockup_end_date)
-            chainUpdateParams.lockupEndTs = new BN(Math.floor(new Date((formData as any).lockup_end_date).getTime() / 1000));
-          if (formData.distribution_cadence !== undefined && formData.distribution_cadence !== null)
-            chainUpdateParams.distributionCadence = formData.distribution_cadence;
+          const chainUpdateParams: any = {
+            minInvestmentUsdc: (formData.min_investment !== undefined && formData.min_investment !== null)
+              ? new BN(Math.round((formData.min_investment || 0) * 1_000_000))
+              : null,
+            maxInvestmentUsdc: (formData.funding_goal !== undefined && formData.funding_goal !== null)
+              ? new BN(Math.round((formData.funding_goal || 0) * 1_000_000))
+              : null,
+            subscriptionStart: (formData.start_date)
+              ? new BN(Math.floor(new Date(formData.start_date).getTime() / 1000))
+              : null,
+            subscriptionEnd: (formData.expected_completion_date)
+              ? new BN(Math.floor(new Date(formData.expected_completion_date).getTime() / 1000))
+              : null,
+            distributionCadence: (formData.distribution_cadence !== undefined && formData.distribution_cadence !== null)
+              ? formData.distribution_cadence
+              : null,
+            lockupEndTs: (formData.lockup_end_date)
+              ? new BN(Math.floor(new Date(formData.lockup_end_date).getTime() / 1000))
+              : null,
+            roundLimitTokens: (formData.round_limit_tokens !== undefined && formData.round_limit_tokens !== null)
+              ? new BN(formData.round_limit_tokens).mul(new BN(10).pow(new BN(formData.token_decimals || 9)))
+              : null,
+            assetType: formData.asset_type ? toChainAssetType(formData.asset_type) : null,
+          };
 
-          if (Object.keys(chainUpdateParams).length > 0) {
+          if (Object.keys(chainUpdateParams).some(k => chainUpdateParams[k] !== null)) {
             await service.updateProject(editingProject.blockchain_project_id, chainUpdateParams);
           }
         } catch (chainErr: any) {
+          if (chainErr.message?.includes('102') || chainErr.message?.includes('0x66')) {
+            throw new Error('On-Chain Update Failed: This project is in a "LEGACY" format and cannot be updated on the blockchain. Any projects created AFTER this update will be fully editable.');
+          }
           throw new Error('On-Chain Update Failed: ' + chainErr.message);
         }
       }
@@ -255,27 +272,79 @@ export default function ProjectsManagement({ initialProjects, userId }: Projects
   // ── Realtime subscription: keep admin list in sync with Supabase changes ──
   useEffect(() => {
     const supabase = createClient();
+    const service = new ProjectRegistryService(connection, wallet);
+
+    const enrichAndSync = async (payload: any) => {
+      const dbProject = payload.new as any;
+      let enriched = { ...dbProject, onChain: null };
+
+      // Proactively fetch on-chain data if ID exists
+      if (dbProject.blockchain_project_id !== null) {
+        try {
+          const chainData = await service.fetchProject(Number(dbProject.blockchain_project_id));
+          if (chainData) {
+            enriched.onChain = {
+              symbol: chainData.symbol,
+              uri: chainData.uri,
+              supplyCap: chainData.supplyCap.toNumber(),
+              tokensIssued: chainData.tokensIssued.toNumber(),
+              minInvestmentUsdc: chainData.minInvestmentUsdc.toNumber(),
+              maxInvestmentUsdc: chainData.maxInvestmentUsdc.toNumber(),
+              acceptedStablecoin: chainData.acceptedStablecoin.toString(),
+              treasuryWallet: chainData.treasuryWallet.toString(),
+              mint: chainData.mint.toString(),
+              lockupEndTs: chainData.lockupEndTs.toNumber(),
+              subscriptionStart: chainData.subscriptionStart.toNumber(),
+              subscriptionEnd: chainData.subscriptionEnd.toNumber(),
+              createdAt: chainData.createdAt.toNumber(),
+              distributionCadence: chainData.distributionCadence,
+              isActive: chainData.status.active !== undefined,
+              status: chainData.status,
+              isPaused: chainData.isPaused,
+              mintAuthorityRevoked: chainData.mintAuthorityRevoked,
+              creator: chainData.creator.toString(),
+              assetType: chainData.assetType,
+              roundLimitTokens: chainData.roundLimitTokens.toNumber(),
+              currentRoundIssued: chainData.currentRoundIssued.toNumber(),
+            };
+          }
+        } catch (e) {
+          console.warn('[RealtimeSync] Failed to enrich project:', e);
+        }
+      }
+
+      setProjects((prev) => {
+        if (payload.eventType === 'INSERT') {
+          return [enriched, ...prev];
+        } else {
+          return prev.map((p) => (p.id === enriched.id ? enriched : p));
+        }
+      });
+    };
+
     const channel = supabase
       .channel('admin-projects-realtime')
       .on(
         'postgres_changes',
-        { event: '*', schema: 'public', table: 'projects' },
+        { event: 'INSERT', schema: 'public', table: 'projects' },
+        (payload) => { enrichAndSync(payload); }
+      )
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'projects' },
+        (payload) => { enrichAndSync(payload); }
+      )
+      .on(
+        'postgres_changes',
+        { event: 'DELETE', schema: 'public', table: 'projects' },
         (payload) => {
-          if (payload.eventType === 'INSERT') {
-            setProjects((prev) => [payload.new as any, ...prev]);
-          } else if (payload.eventType === 'UPDATE') {
-            setProjects((prev) =>
-              prev.map((p) => (p.id === (payload.new as any).id ? (payload.new as any) : p))
-            );
-          } else if (payload.eventType === 'DELETE') {
-            setProjects((prev) => prev.filter((p) => p.id !== (payload.old as any).id));
-          }
+          setProjects((prev) => prev.filter((p) => p.id !== (payload.old as any).id));
         }
       )
       .subscribe();
 
     return () => { supabase.removeChannel(channel); };
-  }, []);
+  }, [connection, wallet]);
 
   const handleEdit = (project: EnrichedProject) => {
     setEditingProject(project);
@@ -301,14 +370,17 @@ export default function ProjectsManagement({ initialProjects, userId }: Projects
       longitude: project.longitude,
       start_date: project.start_date,
       expected_completion_date: project.expected_completion_date,
-      token_symbol: '',
-      metadata_uri: '',
-      accepted_stablecoin: process.env.NEXT_PUBLIC_USDC_MINT || '',
-      treasury_wallet: process.env.NEXT_PUBLIC_ADMIN_WALLET || '',
-      lockup_end_date: '',
+      token_symbol: project.onChain?.symbol || project.token_symbol || '',
+      metadata_uri: project.onChain?.uri || project.metadata_uri || '',
+      token_decimals: project.token_decimals || (project.onChain as any)?.decimals || 9,
+      accepted_stablecoin: project.accepted_stablecoin || process.env.NEXT_PUBLIC_USDC_MINT || '',
+      treasury_wallet: project.treasury_wallet || process.env.NEXT_PUBLIC_ADMIN_WALLET || '',
+      lockup_end_date: project.onChain?.lockupEndTs 
+        ? new Date(project.onChain.lockupEndTs * 1000).toISOString().split('T')[0] 
+        : project.lockup_end_date ? new Date(project.lockup_end_date).toISOString().split('T')[0] : '',
       distribution_cadence: project.distribution_cadence || 0,
       asset_type: project.asset_type || 'real_estate',
-      round_limit_tokens: project.round_limit_tokens || 0,
+      round_limit_tokens: (project.onChain as any)?.roundLimitTokens || project.round_limit_tokens || 0,
     });
     setShowForm(true);
   };

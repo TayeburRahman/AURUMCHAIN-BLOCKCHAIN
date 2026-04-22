@@ -88,6 +88,8 @@ export class ProjectRegistryRepository {
       subscriptionEnd: BN | null;
       distributionCadence: number | null;
       lockupEndTs: BN | null;
+      roundLimitTokens: BN | null;
+      assetType: any | null;
     }
   ): Promise<TransactionInstruction> {
     return await this.program.methods

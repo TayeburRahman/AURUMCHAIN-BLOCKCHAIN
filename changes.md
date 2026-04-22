@@ -1,3 +1,32 @@
+## Feature: Project Registry Stabilization & Dashboard Hardening
+
+**Timestamp:** 2026-04-22T15:00:00+06:00
+**Github Commit Message:** Locked Project Recovery & Frontend Serialization Hardening
+
+Implemented a "Self-Healing" architecture to unlock legacy projects (100–105) and resolved critical frontend serialization errors. Replaced stored-bump validation with dynamic PDA derivation and implemented smart fallbacks for missing project metadata.
+
+### 1. Smart Contract: Self-Healing Registry (Rust)
+
+| File | Line Numbers | Feature Added | Reason for Addition |
+| :--- | :--- | :--- | :--- |
+| **[update_project_params.rs](file:///c:/Rupom/Projects/AURUMCHAIN/programs/project_registry/src/registry_logic/update_project_params.rs)** | **22–33** | Dynamic PDA Bumps | Removed frozen stored-bump validation (Error 102). Allows the program to interact with legacy projects that were initialized with non-canonical bumps. |
+| **[Logic Files (9x)](file:///c:/Rupom/Projects/AURUMCHAIN/programs/project_registry/src/registry_logic/)** | **Varies** | Dynamic Unlocking | Applied the dynamic bump fix to `issue_tokens`, `reset_round`, `update_status`, and all other registry logic files to ensure full project lifecycle support. |
+
+### 2. Frontend: Serialization & Data Persistence
+
+| File | Line Numbers | Feature Added | Reason for Addition |
+| :--- | :--- | :--- | :--- |
+| **[ProjectsManagement.tsx](file:///c:/Rupom/Projects/AURUMCHAIN/components/admin/ProjectsManagement.tsx)** | **198–216** | Strict `null` Serialization | Resolved `RangeError: indeterminate span` by explicitly passing `null` for optional fields to the Anchor client, ensuring correct memory calculation. |
+| **[ProjectsManagement.tsx](file:///c:/Rupom/Projects/AURUMCHAIN/components/admin/ProjectsManagement.tsx)** | **263-280** | Smart Metadata Fallback | Implemented a database-to-blockchain fallback. Ensures Token Symbol, Metadata URL, and Lock-up Date are displayed even if on-chain enrichment is pending. |
+
+### 3. Diagnostic & Recovery Tooling
+
+| File | Line Numbers | Feature Added | Reason for Addition |
+| :--- | :--- | :--- | :--- |
+| **[scan-registry.ts](file:///c:/Rupom/Projects/AURUMCHAIN/scripts/scan-registry.ts)** | **50–85** | Schema-Proof Reading | Added raw byte-size detection (612 vs 816 bytes) and hex dumping to diagnose account layout mismatches in legacy projects. |
+
+---
+
 ## Feature: Phased Token Launch — Phase 3 (On-Chain Verified Authority & Robust Init)
 
 **Timestamp:** 2026-04-22T12:08:26+06:00
