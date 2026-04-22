@@ -12,17 +12,44 @@ import { toChainStatus, toChainAssetType } from '@/lib/web3/utils/statusMappings
 type Project = Database['public']['Tables']['projects']['Row'];
 type ProjectInsert = Database['public']['Tables']['projects']['Insert'];
 
+export interface EnrichedProject extends Project {
+  onChain?: {
+    symbol: string;
+    uri: string;
+    supplyCap: number;
+    tokensIssued: number;
+    minInvestmentUsdc: number;
+    maxInvestmentUsdc: number;
+    acceptedStablecoin: string;
+    treasuryWallet: string;
+    mint: string;
+    lockupEndTs: number;
+    subscriptionStart: number;
+    subscriptionEnd: number;
+    createdAt: number;
+    distributionCadence: number;
+    isActive: boolean;
+    status: any;
+    isPaused: boolean;
+    mintAuthorityRevoked: boolean;
+    creator: string;
+    assetType: string;
+    roundLimitTokens: number;
+    currentRoundIssued: number;
+  } | null;
+}
+
 interface ProjectsManagementProps {
-  initialProjects: Project[];
+  initialProjects: EnrichedProject[];
   userId: string;
 }
 
 export default function ProjectsManagement({ initialProjects, userId }: ProjectsManagementProps) {
   const { connection } = useConnection();
   const wallet = useWallet();
-  const [projects, setProjects] = useState<Project[]>(initialProjects);
+  const [projects, setProjects] = useState<EnrichedProject[]>(initialProjects);
   const [showForm, setShowForm] = useState(false);
-  const [editingProject, setEditingProject] = useState<Project | null>(null);
+  const [editingProject, setEditingProject] = useState<EnrichedProject | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [statusChanging, setStatusChanging] = useState<string | null>(null); // tracks which project is being updated
@@ -249,7 +276,7 @@ export default function ProjectsManagement({ initialProjects, userId }: Projects
     return () => { supabase.removeChannel(channel); };
   }, []);
 
-  const handleEdit = (project: Project) => {
+  const handleEdit = (project: EnrichedProject) => {
     setEditingProject(project);
     setFormData({
       name: project.name,
@@ -334,13 +361,15 @@ export default function ProjectsManagement({ initialProjects, userId }: Projects
       lockup_end_date: '',
       distribution_cadence: 0,
       token_decimals: 9,
+      asset_type: 'real_estate',
+      round_limit_tokens: 0,
     });
     setEditingProject(null);
     setError(null);
   };
 
   // ── Unified status change (Syncs DB and Blockchain) ──────────────────────
-  const handleUpdatePhase = async (project: Project, newStatus: Project['status']) => {
+  const handleUpdatePhase = async (project: EnrichedProject, newStatus: Project['status']) => {
     if (!project.blockchain_project_id) {
        // If not on chain yet (Draft), just update Supabase
        await handleStatusChangeOnly(project.id, newStatus);
@@ -402,7 +431,7 @@ export default function ProjectsManagement({ initialProjects, userId }: Projects
 
   // ── On-chain boolean toggles (pause/resume/activate) ─────────────────────
   const handleChainAction = async (
-    project: Project,
+    project: EnrichedProject,
     action: 'togglePause' | 'revokeMintAuthority' | 'issueTokens' | 'resetRound'
   ) => {
     if (project.blockchain_project_id === null || project.blockchain_project_id === undefined) {
@@ -483,7 +512,7 @@ export default function ProjectsManagement({ initialProjects, userId }: Projects
     }
   };
 
-  const handleSetMint = async (project: Project) => {
+  const handleSetMint = async (project: EnrichedProject) => {
     const mintAddress = prompt('Enter the SPL Token Mint Address for this project:');
     if (!mintAddress || !project.blockchain_project_id) return;
 
@@ -1011,7 +1040,7 @@ export default function ProjectsManagement({ initialProjects, userId }: Projects
                     {project.status.toUpperCase()}
                   </span>
                   <span className="px-3 py-1 rounded-full text-xs font-bold bg-navy-light text-gray-300 border border-gold/10">
-                    {project.asset_type?.replace('_', ' ').toUpperCase() || 'REAL ESTATE'}
+                    {(project.onChain?.assetType || project.asset_type || 'real_estate').replace('_', ' ').toUpperCase()}
                   </span>
                   {project.is_paused && (
                     <span className="px-3 py-1 rounded-full text-xs font-bold bg-red-500/20 text-red-500 border border-red-500/30 animate-pulse">

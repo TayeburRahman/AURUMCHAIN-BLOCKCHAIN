@@ -55,6 +55,14 @@ export async function POST(request: NextRequest) {
         images: body.images,
         documents: body.documents,
         video_url: body.video_url,
+        // Phased Token fields
+        asset_type:             body.asset_type || 'real_estate',
+        round_limit_tokens:     body.round_limit_tokens || 0,
+        current_round_issued:   0,
+        distribution_cadence:   body.distribution_cadence || 0,
+        token_decimals:         body.token_decimals || 9,
+        accepted_stablecoin:    body.accepted_stablecoin,
+        treasury_wallet:        body.treasury_wallet,
         // Blockchain linkage — store so we can fetch on-chain data later
         blockchain_signature:   body.blockchain_signature   ?? null,
         blockchain_project_id:  body.blockchain_project_id  ?? null,
