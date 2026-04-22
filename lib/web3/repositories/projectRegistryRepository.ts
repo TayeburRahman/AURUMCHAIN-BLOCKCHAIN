@@ -1,6 +1,7 @@
 import { Program, BN } from '@coral-xyz/anchor';
 import { PublicKey, TransactionInstruction, SystemProgram } from '@solana/web3.js';
-import { getRegistryPDA, getProjectPDA } from '../utils/pdaHelpers';
+import { TOKEN_PROGRAM_ID } from '@solana/spl-token';
+import { getRegistryPDA, getProjectPDA, getMintAuthorityPDA } from '../utils/pdaHelpers';
 
 /**
  * ProjectRegistryRepository
@@ -43,6 +44,8 @@ export class ProjectRegistryRepository {
       distributionCadence: number;
       symbol: string;
       uri: string;
+      assetType: any;
+      roundLimitTokens: BN;
     }
   ): Promise<TransactionInstruction> {
     const idBN = new BN(projectId);
@@ -60,10 +63,13 @@ export class ProjectRegistryRepository {
         subscriptionStart: params.subscriptionStart,
         subscriptionEnd: params.subscriptionEnd,
         distributionCadence: params.distributionCadence,
+        assetType: params.assetType,
+        roundLimitTokens: params.roundLimitTokens,
       })
       .accounts({
         project: getProjectPDA(idBN, this.program.programId),
         control: getRegistryPDA(this.program.programId),
+        mintAuthorityPda: getMintAuthorityPDA(idBN, this.program.programId),
         admin: this.program.provider.publicKey,
         systemProgram: SystemProgram.programId,
       } as any)
@@ -116,12 +122,12 @@ export class ProjectRegistryRepository {
    */
   async getUpdateProjectStatusInstruction(
     projectId: number,
-    isActive: boolean,
+    newStatus: any,
     isPaused: boolean
   ): Promise<TransactionInstruction> {
     const idBN = new BN(projectId);
     return await this.program.methods
-      .updateProjectStatus(idBN, isActive, isPaused)
+      .updateProjectStatus(idBN, newStatus, isPaused)
       .accounts({
         project: getProjectPDA(idBN, this.program.programId),
         control: getRegistryPDA(this.program.programId),
@@ -239,5 +245,49 @@ export class ProjectRegistryRepository {
    */
   async fetchAllProjects(): Promise<any[]> {
     return await this.program.account.projectAccount.all();
+  }
+
+  /**
+   * Constructs the issue_tokens instruction.
+   */
+  async getIssueTokensInstruction(
+    projectId: number,
+    amount: BN,
+    mint: PublicKey,
+    recipientTokenAccount: PublicKey
+  ): Promise<TransactionInstruction> {
+    const idBN = new BN(projectId);
+    const mintAuthorityPda = getMintAuthorityPDA(idBN, this.program.programId);
+
+    return await this.program.methods
+      .issueTokens(amount)
+      .accounts({
+        project: getProjectPDA(idBN, this.program.programId),
+        control: getRegistryPDA(this.program.programId),
+        mint: mint,
+        recipientTokenAccount: recipientTokenAccount,
+        mintAuthorityPda: mintAuthorityPda,
+        admin: this.program.provider.publicKey,
+        tokenProgram: TOKEN_PROGRAM_ID,
+      } as any)
+      .instruction();
+  }
+
+  /**
+   * Constructs the reset_round instruction.
+   */
+  async getResetRoundInstruction(
+    projectId: number,
+    newRoundLimit: BN | null = null
+  ): Promise<TransactionInstruction> {
+    const idBN = new BN(projectId);
+    return await this.program.methods
+      .resetRound(newRoundLimit)
+      .accounts({
+        project: getProjectPDA(idBN, this.program.programId),
+        control: getRegistryPDA(this.program.programId),
+        admin: this.program.provider.publicKey,
+      } as any)
+      .instruction();
   }
 }

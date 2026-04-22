@@ -20,6 +20,7 @@
         { "name": "control", "isMut": true, "isSigner": false },
         { "name": "project", "isMut": true, "isSigner": false },
         { "name": "admin", "isMut": true, "isSigner": true },
+        { "name": "mintAuthorityPda", "isMut": true, "isSigner": false },
         { "name": "systemProgram", "isMut": false, "isSigner": false }
       ],
       "args": [
@@ -143,6 +144,16 @@
           { "name": "isEmergencyPaused", "type": "bool" },
           { "name": "operationalLimits", "type": "u64" },
           { "name": "projectCount", "type": "u64" },
+          { "name": "bump", "type": "u8" }
+        ]
+      }
+    },
+    {
+      "name": "MintAuthorityAccount",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          { "name": "projectId", "type": "u64" },
           { "name": "bump", "type": "u8" }
         ]
       }
