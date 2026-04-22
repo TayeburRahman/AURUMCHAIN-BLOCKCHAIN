@@ -1036,3 +1036,69 @@ Added a quick-access Wallet Connect button natively into the Admin interface hea
 | Line Numbers        | Feature Added             | Reason for Addition                                                                                                                                                           |
 | :------------------ | :------------------------ | :---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **(Header blocks)** | Inserted Button Component | Displayed the `<AdminWalletButton />` structurally aligned to the top-right flexbox rows so the admin can link their Supabase identity directly while viewing projects/stats. |
+
+## Feature: Phased Token Launch - Phase 1 (Project Registry Refactor)
+
+**Timestamp:** 2026-04-22T09:10:53+06:00
+Refactored the `project_registry` program to support a robust, phase-based lifecycle management system, replacing generic boolean flags with strict on-chain guards.
+
+### File: `programs/project_registry/src/state/project_account.rs`
+
+| Line Numbers | Feature Added | Reason for Addition |
+| :--- | :--- | :--- |
+| **12-25** | `ProjectStatus` & `AssetType` Enums | Defined formal lifecycle phases (`Draft`, `Funding`, `Active`, etc.) to prevent operational clashes between investment and trading windows. |
+| **45-140** | `ProjectAccount` Extension | Added `status`, `round_limit_tokens`, `current_round_issued`, and `asset_type` fields. Recalculated `SIZE` with explicit padding for byte-perfect deserialization by the compliance program. |
+
+### File: `programs/project_registry/src/registry_logic/update_project_status.rs`
+
+| Line Numbers | Feature Added | Reason for Addition |
+| :--- | :--- | :--- |
+| **32-75** | State Machine Guard Logic | Replaced `is_active: bool` with strict transition logic. Prevents illegal moves (e.g., Draft -> Active) and requires a set `mint` address before entering `Funding`. |
+
+### File: `programs/project_registry/src/registry_logic/issue_tokens.rs`
+
+| Line Numbers | Feature Added | Reason for Addition |
+| :--- | :--- | :--- |
+| **All New** (1-139) | Direct-to-Wallet Minting | Implemented PDA-based `mint_to` CPI. Enforces supply caps and per-round issuance limits securely at the contract level. |
+
+### File: `programs/project_registry/src/registry_logic/revoke_mint_authority.rs`
+
+| Line Numbers | Feature Added | Reason for Addition |
+| :--- | :--- | :--- |
+| **1-49** | Master Key Destruction | Upgraded to perform a permanent SPL `set_authority` CPI (None), ensuring the project can NEVER mint more tokens once the target funding rounds are complete. |
+
+### File: `programs/compliance_transfer/src/state/external_state.rs`
+
+| Line Numbers | Feature Added | Reason for Addition |
+| :--- | :--- | :--- |
+| **1-35** | Mirror Struct Update | Updated the byte-matched mirror of `ProjectAccount` to include all new phase and round fields, ensuring cross-program reads don't trigger deserialization crashes. |
+
+## Feature: Phased Token Launch - Phase 2 (Compliance Integration & IDL Sync)
+
+**Timestamp:** 2026-04-22T09:35:54+06:00
+Synchronized the `compliance_transfer` program with the new registry lifecycle and established a robust infrastructure for IDL auditability.
+
+### File: `programs/compliance_transfer/src/compliance_logic/subscribe_investment.rs`
+
+| Line Numbers | Feature Added | Reason for Addition |
+| :--- | :--- | :--- |
+| **80-85** | Phased Status Validation | Replaced the stale `is_active` check with a strict `ProjectStatus::Funding` requirement to ensure investments only happen during the correct window. |
+
+### File: `programs/compliance_transfer/src/compliance_logic/finalize_subscription.rs`
+
+| Line Numbers | Feature Added | Reason for Addition |
+| :--- | :--- | :--- |
+| **1-178** | Direct-to-Wallet Minting CPI | Refactored to perform a Cross-Program Invocation (CPI) into `project_registry::issue_tokens`. Tokens are now minted and delivered to investors automatically upon admin settlement. |
+| **87-99** | Dynamic Discriminator | Implemented runtime sha256 computation for the `issue_tokens` instruction discriminator, removing the fragility of hard-coded magic bytes. |
+
+### File: `package.json`
+
+| Line Numbers | Feature Added | Reason for Addition |
+| :--- | :--- | :--- |
+| **15-17** | IDL Patching Pipeline | Added `patch-idl` and `sync-idl` scripts to automate the flow of patching manual types into generated IDLs and syncing them to the frontend. |
+
+### File: `scripts/patch-idl.ts` & `scripts/idl-patch/compliance_transfer.patch.json`
+
+| Line Numbers | Feature Added | Reason for Addition |
+| :--- | :--- | :--- |
+| **All New** | IDL Infrastructure | Created a dedicated pipeline to maintain types that Anchor macros don't auto-generate (like foreign mirror structs), ensuring "Solscan Explorer" decoder rings remain fully detailed. |

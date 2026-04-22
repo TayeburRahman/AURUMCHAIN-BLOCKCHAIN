@@ -132,4 +132,10 @@ pub enum ComplianceError {
 
     #[msg("Invalid subscription status for this operation")]
     InvalidStatus,
+
+    #[msg("SPL mint CPI failed inside issue_tokens")]
+    MintFailed,
+
+    #[msg("Provided project_registry_program does not match on-chain control.registry_program")]
+    InvalidRegistryProgram,
 }
