@@ -63,6 +63,10 @@ export async function POST(request: NextRequest) {
         token_decimals:         body.token_decimals || 9,
         accepted_stablecoin:    body.accepted_stablecoin,
         treasury_wallet:        body.treasury_wallet,
+        // Metadata Fallback fields (Supabase Persistence)
+        token_symbol:           (body as any).token_symbol,
+        metadata_uri:           (body as any).metadata_uri,
+        lockup_end_date:        (body as any).lockup_end_date ? new Date((body as any).lockup_end_date).toISOString() : null,
         // Blockchain linkage — store so we can fetch on-chain data later
         blockchain_signature:   body.blockchain_signature   ?? null,
         blockchain_project_id:  body.blockchain_project_id  ?? null,

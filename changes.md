@@ -1,3 +1,36 @@
+## Feature: Registry Stabilization & Recovery Phase
+
+**Timestamp:** 2026-04-22T15:35:00+06:00
+**Github Commit Message:** Metadata Resilience, Legacy Project Recovery & UX Polish
+
+This phase focused on recovering "lost" metadata for legacy projects (100–108) and hardening the Admin Dashboard to prevent state mismatches and UI errors.
+
+### 1. Database & Persistence Layer
+
+| File | Line Numbers | Feature Added | Reason for Addition |
+| :--- | :--- | :--- | :--- |
+| **[011_add_project_metadata...sql](file:///c:/Rupom/Projects/AURUMCHAIN/supabase/migrations/011_add_project_metadata_columns.sql)** | **1–13 (NEW)** | Metadata Fallback Schema | Adds `token_symbol`, `metadata_uri`, and `lockup_end_date` to Supabase to provide a data fallback when on-chain fetches fail. |
+| **[route.ts (POST)](file:///c:/Rupom/Projects/AURUMCHAIN/app/api/admin/projects/route.ts)** | **66–70** | Metadata Persistence | Ensures new projects save their token symbol and URI to the database during creation for redundant storage. |
+| **[[id]/route.ts (PUT)](file:///c:/Rupom/Projects/AURUMCHAIN/app/api/admin/projects/[id]/route.ts)** | **59-63** | Metadata Updates | Allows manual overriding and synchronization of fallback metadata for existing projects. |
+
+### 2. Recovery & Migration Scripts
+
+| File | Line Numbers | Feature Added | Reason for Addition |
+| :--- | :--- | :--- | :--- |
+| **[import-orphans.ts](file:///c:/Rupom/Projects/AURUMCHAIN/scripts/import-orphans.ts)** | **1–100 (NEW)** | On-Chain Orphan Import | Scans Solana for legacy IDs (100-108) and reconstitutes their missing database records from raw blockchain memory. |
+| **[backfill-metadata.ts](file:///c:/Rupom/Projects/AURUMCHAIN/scripts/backfill-metadata.ts)** | **1–107 (NEW)** | Schema-Proof Reader | Uses dynamic offset calculation to extract strings from the legacy 612-byte account format without crashing. |
+
+### 3. Dashboard Hardening & UX Polish
+
+| File | Line Numbers | Feature Added | Reason for Addition |
+| :--- | :--- | :--- | :--- |
+| **[ProjectsManagement.tsx](file:///c:/Rupom/Projects/AURUMCHAIN/components/admin/ProjectsManagement.tsx)** | **15–42** | Resilient Interface Types | Added fallback metadata fields to the `EnrichedProject` type to resolve TypeScript "Property Missing" errors. |
+| **[ProjectsManagement.tsx](file:///c:/Rupom/Projects/AURUMCHAIN/components/admin/ProjectsManagement.tsx)** | **53, 659** | Auto-Scroll Anchor | Added `useRef` and `formRef` to allow the page to navigate dynamically to the project form. |
+| **[ProjectsManagement.tsx](file:///c:/Rupom/Projects/AURUMCHAIN/components/admin/ProjectsManagement.tsx)** | **371–388** | UX Trigger & Scroll | Implemented automatic smooth-scrolling to the form when the "Edit" or "Add" buttons are clicked. |
+| **[ProjectsManagement.tsx](file:///c:/Rupom/Projects/AURUMCHAIN/components/admin/ProjectsManagement.tsx)** | **371–380** | HTML5 Date Formatting | Replaced `.split('T')[0]` with `.slice(0, 16)` to fix the `datetime-local` input format mismatch error. |
+
+---
+
 ## Feature: Project Registry Stabilization & Dashboard Hardening
 
 **Timestamp:** 2026-04-22T15:00:00+06:00
@@ -7,23 +40,31 @@ Implemented a "Self-Healing" architecture to unlock legacy projects (100–105) 
 
 ### 1. Smart Contract: Self-Healing Registry (Rust)
 
-| File | Line Numbers | Feature Added | Reason for Addition |
-| :--- | :--- | :--- | :--- |
-| **[update_project_params.rs](file:///c:/Rupom/Projects/AURUMCHAIN/programs/project_registry/src/registry_logic/update_project_params.rs)** | **22–33** | Dynamic PDA Bumps | Removed frozen stored-bump validation (Error 102). Allows the program to interact with legacy projects that were initialized with non-canonical bumps. |
-| **[Logic Files (9x)](file:///c:/Rupom/Projects/AURUMCHAIN/programs/project_registry/src/registry_logic/)** | **Varies** | Dynamic Unlocking | Applied the dynamic bump fix to `issue_tokens`, `reset_round`, `update_status`, and all other registry logic files to ensure full project lifecycle support. |
+| File                                                                                                                                       | Line Numbers | Feature Added     | Reason for Addition                                                                                                                                          |
+| :----------------------------------------------------------------------------------------------------------------------------------------- | :----------- | :---------------- | :----------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **[update_project_params.rs](file:///c:/Rupom/Projects/AURUMCHAIN/programs/project_registry/src/registry_logic/update_project_params.rs)** | **22–33**    | Dynamic PDA Bumps | Removed frozen stored-bump validation (Error 102). Allows the program to interact with legacy projects that were initialized with non-canonical bumps.       |
+| **[Logic Files (9x)](file:///c:/Rupom/Projects/AURUMCHAIN/programs/project_registry/src/registry_logic/)**                                 | **Varies**   | Dynamic Unlocking | Applied the dynamic bump fix to `issue_tokens`, `reset_round`, `update_status`, and all other registry logic files to ensure full project lifecycle support. |
 
 ### 2. Frontend: Serialization & Data Persistence
 
-| File | Line Numbers | Feature Added | Reason for Addition |
-| :--- | :--- | :--- | :--- |
-| **[ProjectsManagement.tsx](file:///c:/Rupom/Projects/AURUMCHAIN/components/admin/ProjectsManagement.tsx)** | **198–216** | Strict `null` Serialization | Resolved `RangeError: indeterminate span` by explicitly passing `null` for optional fields to the Anchor client, ensuring correct memory calculation. |
-| **[ProjectsManagement.tsx](file:///c:/Rupom/Projects/AURUMCHAIN/components/admin/ProjectsManagement.tsx)** | **263-280** | Smart Metadata Fallback | Implemented a database-to-blockchain fallback. Ensures Token Symbol, Metadata URL, and Lock-up Date are displayed even if on-chain enrichment is pending. |
+| File                                                                                                       | Line Numbers | Feature Added               | Reason for Addition                                                                                                                                       |
+| :--------------------------------------------------------------------------------------------------------- | :----------- | :-------------------------- | :-------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **[ProjectsManagement.tsx](file:///c:/Rupom/Projects/AURUMCHAIN/components/admin/ProjectsManagement.tsx)** | **198–216**  | Strict `null` Serialization | Resolved `RangeError: indeterminate span` by explicitly passing `null` for optional fields to the Anchor client, ensuring correct memory calculation.     |
+| **[ProjectsManagement.tsx](file:///c:/Rupom/Projects/AURUMCHAIN/components/admin/ProjectsManagement.tsx)** | **263-280**  | Smart Metadata Fallback     | Implemented a database-to-blockchain fallback. Ensures Token Symbol, Metadata URL, and Lock-up Date are displayed even if on-chain enrichment is pending. |
 
 ### 3. Diagnostic & Recovery Tooling
 
-| File | Line Numbers | Feature Added | Reason for Addition |
-| :--- | :--- | :--- | :--- |
-| **[scan-registry.ts](file:///c:/Rupom/Projects/AURUMCHAIN/scripts/scan-registry.ts)** | **50–85** | Schema-Proof Reading | Added raw byte-size detection (612 vs 816 bytes) and hex dumping to diagnose account layout mismatches in legacy projects. |
+| File                                                                                  | Line Numbers | Feature Added        | Reason for Addition                                                                                                        |
+| :------------------------------------------------------------------------------------ | :----------- | :------------------- | :------------------------------------------------------------------------------------------------------------------------- |
+| **[scan-registry.ts](file:///c:/Rupom/Projects/AURUMCHAIN/scripts/scan-registry.ts)** | **50–85**    | Schema-Proof Reading | Added raw byte-size detection (612 vs 816 bytes) and hex dumping to diagnose account layout mismatches in legacy projects. |
+
+### 4. Admin Recovery & UX Polish
+
+| File                                                                                                       | Line Numbers | Feature Added            | Reason for Addition                                                                                     |
+| :--------------------------------------------------------------------------------------------------------- | :----------- | :----------------------- | :------------------------------------------------------------------------------------------------------ |
+| **[import-orphans.ts](file:///c:/Rupom/Projects/AURUMCHAIN/scripts/import-orphans.ts)**                    | **1-100**    | On-Chain Orphan Import   | Restored Projects 100-108 from Solana into Supabase, recovering "lost" legacy data.                     |
+| **[ProjectsManagement.tsx](file:///c:/Rupom/Projects/AURUMCHAIN/components/admin/ProjectsManagement.tsx)** | **640, 385** | Auto-Scroll to Form      | Improved UX by automatically scrolling the page to the Edit/Add form when triggered.                    |
+| **[ProjectsManagement.tsx](file:///c:/Rupom/Projects/AURUMCHAIN/components/admin/ProjectsManagement.tsx)** | **371-380**  | HTML5 Date Compatibility | Fixed console formatting errors by ensuring ISO dates are correctly sliced for `datetime-local` inputs. |
 
 ---
 
@@ -36,24 +77,24 @@ Implemented the "Sovereign Authority" model. Every new project now atomically in
 
 ### Step 3.1 — Verified Authority State & Registry Wiring
 
-| File | Line Numbers | Feature Added | Reason for Addition |
-| :--- | :--- | :--- | :--- |
+| File                                                                                                                | Line Numbers   | Feature Added                 | Reason for Addition                                                                                                                         |
+| :------------------------------------------------------------------------------------------------------------------ | :------------- | :---------------------------- | :------------------------------------------------------------------------------------------------------------------------------------------ |
 | **[mint_authority.rs](file:///c:/Rupom/Projects/AURUMCHAIN/programs/project_registry/src/state/mint_authority.rs)** | **1–10 (NEW)** | `MintAuthorityAccount` struct | Defines the on-chain data account for the authority. Its presence allows Solscan to resolve the "AURUMCHAIN" Program ID as the legal owner. |
-| **[mod.rs](file:///c:/Rupom/Projects/AURUMCHAIN/programs/project_registry/src/state/mod.rs)** | **4, 7** | Module Export | Registers the new authority state with the program registry. |
+| **[mod.rs](file:///c:/Rupom/Projects/AURUMCHAIN/programs/project_registry/src/state/mod.rs)**                       | **4, 7**       | Module Export                 | Registers the new authority state with the program registry.                                                                                |
 
 ### Step 3.2 — Atomic Verified Birth & Robustness
 
-| File | Line Numbers | Feature Added | Reason for Addition |
-| :--- | :--- | :--- | :--- |
-| **[create_project.rs](file:///c:/Rupom/Projects/AURUMCHAIN/programs/project_registry/src/registry_logic/create_project.rs)** | **36-43, 52-60** | `init_if_needed` for Project & Authority | Prevents "AccountAlreadyInitialized" (Error 3005) failures. If a transaction fails halfway, the next attempt self-heals by re-using the existing accounts. |
-| **[issue_tokens.rs](file:///c:/Rupom/Projects/AURUMCHAIN/programs/project_registry/src/registry_logic/issue_tokens.rs)** | **33-40** | `UncheckedAccount` Hybrid Bridge | Ensures `issue_tokens` is backward compatible. It handles both "Virtual" signers (Legacy Projects #1-102) and "Verified" signers (Project #103+). |
-| **[set_project_mint.rs](file:///c:/Rupom/Projects/AURUMCHAIN/programs/project_registry/src/registry_logic/set_project_mint.rs)** | **13-17** | Circular Seed Fix | Resolves a technical deadlock where the project account was trying to verify its own address before it was even loaded. |
+| File                                                                                                                             | Line Numbers     | Feature Added                            | Reason for Addition                                                                                                                                        |
+| :------------------------------------------------------------------------------------------------------------------------------- | :--------------- | :--------------------------------------- | :--------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **[create_project.rs](file:///c:/Rupom/Projects/AURUMCHAIN/programs/project_registry/src/registry_logic/create_project.rs)**     | **36-43, 52-60** | `init_if_needed` for Project & Authority | Prevents "AccountAlreadyInitialized" (Error 3005) failures. If a transaction fails halfway, the next attempt self-heals by re-using the existing accounts. |
+| **[issue_tokens.rs](file:///c:/Rupom/Projects/AURUMCHAIN/programs/project_registry/src/registry_logic/issue_tokens.rs)**         | **33-40**        | `UncheckedAccount` Hybrid Bridge         | Ensures `issue_tokens` is backward compatible. It handles both "Virtual" signers (Legacy Projects #1-102) and "Verified" signers (Project #103+).          |
+| **[set_project_mint.rs](file:///c:/Rupom/Projects/AURUMCHAIN/programs/project_registry/src/registry_logic/set_project_mint.rs)** | **13-17**        | Circular Seed Fix                        | Resolves a technical deadlock where the project account was trying to verify its own address before it was even loaded.                                    |
 
 ### Step 3.3 — Frontend Synchronisation
 
-| File | Line Numbers | Feature Added | Reason for Addition |
-| :--- | :--- | :--- | :--- |
-| **[projectRegistryRepository.ts](file:///c:/Rupom/Projects/AURUMCHAIN/lib/web3/repositories/projectRegistryRepository.ts)** | **69-74** | `mintAuthorityPda` Mapping | Updates the instruction builder to pass the new required authority account to the blockchain during creation. |
+| File                                                                                                                        | Line Numbers | Feature Added              | Reason for Addition                                                                                           |
+| :-------------------------------------------------------------------------------------------------------------------------- | :----------- | :------------------------- | :------------------------------------------------------------------------------------------------------------ |
+| **[projectRegistryRepository.ts](file:///c:/Rupom/Projects/AURUMCHAIN/lib/web3/repositories/projectRegistryRepository.ts)** | **69-74**    | `mintAuthorityPda` Mapping | Updates the instruction builder to pass the new required authority account to the blockchain during creation. |
 
 ---
 

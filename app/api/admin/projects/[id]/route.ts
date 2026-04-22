@@ -59,7 +59,8 @@ export async function PUT(
       'status', 'images', 'documents', 'video_url', 'mint_address',
       'mint_authority_revoked', 'is_paused', 'blockchain_signature', 'blockchain_project_id',
       'asset_type', 'round_limit_tokens', 'current_round_issued', 'distribution_cadence',
-      'token_decimals', 'accepted_stablecoin', 'treasury_wallet'
+      'token_decimals', 'accepted_stablecoin', 'treasury_wallet',
+      'token_symbol', 'metadata_uri', 'lockup_end_date'
     ];
 
     fieldsToUpdate.forEach(field => {

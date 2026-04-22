@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { Database } from '@/lib/types/database.types';
 import { useWallet, useConnection } from '@solana/wallet-adapter-react';
@@ -50,6 +50,7 @@ interface ProjectsManagementProps {
 export default function ProjectsManagement({ initialProjects, userId }: ProjectsManagementProps) {
   const { connection } = useConnection();
   const wallet = useWallet();
+  const formRef = useRef<HTMLDivElement>(null);
   const [projects, setProjects] = useState<EnrichedProject[]>(initialProjects);
   const [showForm, setShowForm] = useState(false);
   const [editingProject, setEditingProject] = useState<EnrichedProject | null>(null);
@@ -368,21 +369,24 @@ export default function ProjectsManagement({ initialProjects, userId }: Projects
       video_url: project.video_url,
       latitude: project.latitude,
       longitude: project.longitude,
-      start_date: project.start_date,
-      expected_completion_date: project.expected_completion_date,
+      start_date: project.start_date ? new Date(project.start_date).toISOString().slice(0, 16) : '',
+      expected_completion_date: project.expected_completion_date ? new Date(project.expected_completion_date).toISOString().slice(0, 16) : '',
       token_symbol: project.onChain?.symbol || project.token_symbol || '',
       metadata_uri: project.onChain?.uri || project.metadata_uri || '',
       token_decimals: project.token_decimals || (project.onChain as any)?.decimals || 9,
       accepted_stablecoin: project.accepted_stablecoin || process.env.NEXT_PUBLIC_USDC_MINT || '',
       treasury_wallet: project.treasury_wallet || process.env.NEXT_PUBLIC_ADMIN_WALLET || '',
       lockup_end_date: project.onChain?.lockupEndTs 
-        ? new Date(project.onChain.lockupEndTs * 1000).toISOString().split('T')[0] 
-        : project.lockup_end_date ? new Date(project.lockup_end_date).toISOString().split('T')[0] : '',
+        ? new Date(project.onChain.lockupEndTs * 1000).toISOString().slice(0, 16) 
+        : project.lockup_end_date ? new Date(project.lockup_end_date).toISOString().slice(0, 16) : '',
       distribution_cadence: project.distribution_cadence || 0,
       asset_type: project.asset_type || 'real_estate',
       round_limit_tokens: (project.onChain as any)?.roundLimitTokens || project.round_limit_tokens || 0,
     });
     setShowForm(true);
+    setTimeout(() => {
+      formRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 100);
   };
 
   const handleDelete = async (projectId: string) => {
@@ -639,7 +643,13 @@ export default function ProjectsManagement({ initialProjects, userId }: Projects
         <button
           onClick={() => {
             resetForm();
-            setShowForm(!showForm);
+            const nextShow = !showForm;
+            setShowForm(nextShow);
+            if (nextShow) {
+              setTimeout(() => {
+                formRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+              }, 100);
+            }
           }}
           className="bg-gradient-to-r from-gold to-gold-light text-navy font-bold py-2 px-6 rounded-lg transition-all duration-300 hover:scale-105"
         >
@@ -656,7 +666,7 @@ export default function ProjectsManagement({ initialProjects, userId }: Projects
 
       {/* Project Form */}
       {showForm && (
-        <div className="mb-8 glass rounded-xl p-6 border border-gold/20">
+        <div ref={formRef} className="mb-8 glass rounded-xl p-6 border border-gold/20">
           <h2 className="text-2xl font-bold text-white mb-6">
             {editingProject ? 'Edit Project' : 'Add New Project'}
           </h2>
