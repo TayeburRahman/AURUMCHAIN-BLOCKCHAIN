@@ -2,6 +2,14 @@ import { PublicKey } from '@solana/web3.js';
 import { BN } from '@coral-xyz/anchor';
 import { getServerAnchorProvider } from '../clients/serverAnchorProvider';
 import { getComplianceProgram, getRegistryProgram } from '../clients/anchorClients';
+import { getAssociatedTokenAddressSync, TOKEN_PROGRAM_ID } from '@solana/spl-token';
+import { 
+  getSubscriptionPDA, 
+  getComplianceControlPDA, 
+  getProjectPDA, 
+  getRegistryPDA, 
+  getMintAuthorityPDA 
+} from '../utils/pdaHelpers';
 import bs58 from 'bs58';
 
 /**
@@ -25,52 +33,60 @@ export class AdminBlockchainService {
   }): Promise<string> {
     try {
       const provider = getServerAnchorProvider();
-      const program = getComplianceProgram(provider.connection, provider.wallet);
+      const complianceProgram = getComplianceProgram(provider.connection, provider.wallet);
+      const registryProgram = getRegistryProgram(provider.connection, provider.wallet);
       
       const investorPubkey = new PublicKey(params.investor);
       const subscriptionIdBN = new BN(params.subscriptionId);
 
-      // 1. Derive Subscription PDA
-      const [subscriptionPda] = PublicKey.findProgramAddressSync(
-        [
-          Buffer.from("subscription"),
-          investorPubkey.toBuffer(),
-          subscriptionIdBN.toArrayLike(Buffer, "le", 8)
-        ],
-        program.programId
-      );
+      // 1. Fetch Subscription to get Project ID
+      console.log(`[AdminBlockchainService] Fetching subscription ${params.subscriptionId}...`);
+      const subscriptionPda = getSubscriptionPDA(investorPubkey, subscriptionIdBN, complianceProgram.programId);
+      const subscriptionData: any = await complianceProgram.account.investmentSubscriptionAccount.fetch(subscriptionPda);
+      const projectId = (subscriptionData.projectId as BN).toNumber();
 
-      // 2. Derive Control PDA
-      const [controlPda] = PublicKey.findProgramAddressSync(
-        [Buffer.from("compliance_control")],
-        program.programId
-      );
+      // 2. Fetch Project to get Mint
+      const projectPda = getProjectPDA(projectId, registryProgram.programId);
+      const projectData: any = await registryProgram.account.projectAccount.fetch(projectPda);
+      const mint = projectData.mint as PublicKey;
 
-      // 3. Prepare Tx Hash (64 bytes)
+      if (!mint || mint.equals(PublicKey.default)) {
+        throw new Error(`Project ${projectId} has no linked mint. Cannot settle.`);
+      }
+
+      // 3. Resolve Investor ATA
+      const investorTokenAccount = getAssociatedTokenAddressSync(mint, investorPubkey);
+
+      // 4. Prepare Tx Hash (64 bytes)
       let txHashBytes = Buffer.alloc(64);
       try {
-        // Attempt to decode as Base58 (Solana Signature)
         const decoded = bs58.decode(params.paymentTxHash);
         const dataToCopy = decoded.slice(0, 64);
         txHashBytes.set(dataToCopy);
       } catch {
-        // Fallback to literal string padding
         Buffer.from(params.paymentTxHash.slice(0, 64)).copy(txHashBytes);
       }
 
-      // 4. Execute transaction
-      console.log(`[AdminBlockchainService] Settling subscription ${params.subscriptionId} for ${params.investor}...`);
+      // 5. Execute transaction with ALL required accounts for CPI
+      console.log(`[AdminBlockchainService] Settling subscription ${params.subscriptionId} for project ${projectId}...`);
       
-      const tx = await program.methods
+      const tx = await complianceProgram.methods
         .finalizeSubscription(
           Array.from(txHashBytes),
           new BN(params.allocatedTokenAmount)
         )
         .accounts({
-          subscription: subscriptionPda,
-          control: controlPda,
-          authority: provider.wallet.publicKey,
-        })
+          subscription:           subscriptionPda,
+          control:                getComplianceControlPDA(complianceProgram.programId),
+          authority:              provider.wallet.publicKey,
+          projectRegistryProgram: registryProgram.programId,
+          registryControl:        getRegistryPDA(registryProgram.programId),
+          registryProject:        projectPda,
+          mint:                   mint,
+          investorTokenAccount:   investorTokenAccount,
+          mintAuthorityPda:       getMintAuthorityPDA(projectId, registryProgram.programId),
+          tokenProgram:           TOKEN_PROGRAM_ID,
+        } as any)
         .rpc();
 
       return tx;

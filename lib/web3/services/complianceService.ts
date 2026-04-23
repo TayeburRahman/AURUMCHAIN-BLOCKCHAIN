@@ -1,9 +1,11 @@
 import { Connection, PublicKey, Transaction, ComputeBudgetProgram } from '@solana/web3.js';
-import { BN } from '@coral-xyz/anchor';
+import { BN, Program } from '@coral-xyz/anchor';
 import { ComplianceRepository } from '../repositories/complianceRepository';
-import { getComplianceProgram } from '../utils/programDiscoverer';
+import { getComplianceProgram, getRegistryProgram } from '../utils/programDiscoverer';
 import { RecordVerifiedWalletSchema, RevokeWalletSchema, SubscribeInvestmentSchema, FinalizeSubscriptionSchema } from '../schemas/compliance';
 import { confirmTransactionRobustly } from '../utils/transactionUtils';
+import { getSubscriptionPDA, getProjectPDA } from '../utils/pdaHelpers';
+import { getAssociatedTokenAddressSync } from '@solana/spl-token';
 import { PROJECT_REGISTRY_PROGRAM_ID } from '../config/programs';
 
 /**
@@ -19,12 +21,13 @@ export class ComplianceService {
   private repository: ComplianceRepository;
   private connection: Connection;
   private wallet: any;
+  private program: Program;
 
   constructor(connection: Connection, wallet: any) {
     this.connection = connection;
     this.wallet = wallet;
-    const program = getComplianceProgram(connection, wallet);
-    this.repository = new ComplianceRepository(program);
+    this.program = getComplianceProgram(connection, wallet);
+    this.repository = new ComplianceRepository(this.program);
   }
 
   /**
@@ -209,18 +212,38 @@ export class ComplianceService {
 
   /**
    * PREPARES and SENDS the finalize_subscription transaction.
+   * Resolves all mandatory accounts for the registry CPI internally.
    */
   async finalizeSubscription(input: any) {
     try {
       if (!this.wallet.publicKey) throw new Error("UNAUTHORIZED: Wallet not connected");
 
       const validated = FinalizeSubscriptionSchema.parse(input);
+      const investorPubkey = new PublicKey(validated.investor);
+      const subscriptionIdBN = new BN(validated.subscriptionId);
 
+      // 1. Resolve Subscription & Project Metadata for CPI
+      const subscriptionPda = getSubscriptionPDA(investorPubkey, subscriptionIdBN, this.program.programId);
+      const subscriptionData: any = await this.program.account.investmentSubscriptionAccount.fetch(subscriptionPda);
+      const projectId = (subscriptionData.projectId as BN).toNumber();
+
+      const registryProgram = getRegistryProgram(this.connection, this.wallet);
+      const projectPda = getProjectPDA(projectId, registryProgram.programId);
+      const projectData: any = await registryProgram.account.projectAccount.fetch(projectPda);
+      const mint = projectData.mint as PublicKey;
+
+      const investorTokenAccount = getAssociatedTokenAddressSync(mint, investorPubkey);
+
+      // 2. Prepare Instruction via Repository
       const instruction = await this.repository.getFinalizeSubscriptionInstruction(
-        new PublicKey(validated.investor),
-        new BN(validated.subscriptionId),
+        investorPubkey,
+        subscriptionIdBN,
         validated.txHash,
-        new BN(validated.tokenAmount)
+        new BN(validated.tokenAmount),
+        projectId,
+        registryProgram.programId,
+        mint,
+        investorTokenAccount
       );
 
       const signature = await this.sendAndConfirm(instruction);

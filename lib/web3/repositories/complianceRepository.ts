@@ -1,6 +1,13 @@
 import { Program, BN } from '@coral-xyz/anchor';
 import { PublicKey, TransactionInstruction, SystemProgram } from '@solana/web3.js';
-import { getComplianceControlPDA, getEligibilityPDA, getSubscriptionPDA, getProjectPDA } from '../utils/pdaHelpers';
+import { 
+  getComplianceControlPDA, 
+  getEligibilityPDA, 
+  getSubscriptionPDA, 
+  getProjectPDA, 
+  getRegistryPDA, 
+  getMintAuthorityPDA 
+} from '../utils/pdaHelpers';
 
 /**
  * ComplianceRepository
@@ -146,19 +153,34 @@ export class ComplianceRepository {
 
   /**
    * Constructs finalize_subscription instruction.
+   * Now requires all accounts for the issue_tokens CPI in Program 1.
    */
   async getFinalizeSubscriptionInstruction(
-    investor:       PublicKey,
-    subscriptionId: BN,
-    txHash:         number[],
-    tokenAmount:    BN
+    investor:               PublicKey,
+    subscriptionId:         BN,
+    txHash:                 number[],
+    tokenAmount:            BN,
+    projectId:              number,
+    registryProgramId:      PublicKey,
+    mint:                   PublicKey,
+    investorTokenAccount:   PublicKey
   ): Promise<TransactionInstruction> {
+    const TOKEN_PROGRAM_ID = new PublicKey('TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA');
+    const idBN = new BN(projectId);
+
     return await this.program.methods
       .finalizeSubscription(txHash, tokenAmount)
       .accounts({
-        subscription: getSubscriptionPDA(investor, subscriptionId, this.program.programId),
-        control:      getComplianceControlPDA(this.program.programId),
-        authority:    this.program.provider.publicKey!,
+        subscription:           getSubscriptionPDA(investor, subscriptionId, this.program.programId),
+        control:                getComplianceControlPDA(this.program.programId),
+        authority:              this.program.provider.publicKey!,
+        projectRegistryProgram: registryProgramId,
+        registryControl:        getRegistryPDA(registryProgramId),
+        registryProject:        getProjectPDA(idBN, registryProgramId),
+        mint:                   mint,
+        investorTokenAccount:   investorTokenAccount,
+        mintAuthorityPda:       getMintAuthorityPDA(idBN, registryProgramId),
+        tokenProgram:           TOKEN_PROGRAM_ID,
       } as any)
       .instruction();
   }

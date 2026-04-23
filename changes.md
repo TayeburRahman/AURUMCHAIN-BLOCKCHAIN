@@ -1,3 +1,26 @@
+## Feature: Milestone 2 - Blockchain Settlement & Account Resolution
+
+**Timestamp:** 2026-04-23T08:25:00+06:00
+**Github Commit Message:** Resolved CPI Missing Accounts & TypeScript Service Hardening
+
+This phase resolved the critical "Missing Accounts" error during project settlement by implementing on-chain account resolution. The service layer now dynamically fetches project metadata to resolve mints and ATAs, ensuring Cross-Program Invocations (CPI) to the Registry program are fully compliant.
+
+### 1. Web3 Service & Repository Layer
+
+| File | Line Numbers | Feature Added | Reason for Addition | Timestamp |
+| :--- | :--- | :--- | :--- | :--- |
+| **[complianceRepository.ts](file:///c:/Rupom/Projects/AURUMCHAIN/lib/web3/repositories/complianceRepository.ts)** | **3-10, 150-181** | Expanded CPI Accounts | Added all 10 mandatory accounts (Registry, Project, Mint, etc.) to the `finalizeSubscription` instruction to support the new minting CPI. | 2026-04-23T08:25 |
+| **[adminBlockchainService.ts](file:///c:/Rupom/Projects/AURUMCHAIN/lib/web3/services/adminBlockchainService.ts)** | **5-13, 28-97** | On-Chain Data Resolution | Refactored `settleInvestment` to fetch Subscription/Project data on-chain and resolve the Mint and Investor ATA automatically. | 2026-04-23T08:25 |
+| **[complianceService.ts](file:///c:/Rupom/Projects/AURUMCHAIN/lib/web3/services/complianceService.ts)** | **2, 20-30, 216-254** | Service Property Fix | Added the missing `program` property and implemented internal metadata resolution for the `finalizeSubscription` method. | 2026-04-23T08:25 |
+
+### 2. Testing & Verification
+
+| File | Line Numbers | Feature Added | Reason for Addition | Timestamp |
+| :--- | :--- | :--- | :--- | :--- |
+| **[simulate-full-flow.ts](file:///c:/Rupom/Projects/AURUMCHAIN/tests/simulate-full-flow.ts)** | **34, 90** | Active Project Targeting | Updated the test to use Project 108 (active funding) and fixed hardcoded IDs to verify the settlement fix on live devnet. | 2026-04-23T08:25 |
+
+---
+
 ## Feature: Registry Stabilization & Recovery Phase
 
 **Timestamp:** 2026-04-22T15:35:00+06:00
