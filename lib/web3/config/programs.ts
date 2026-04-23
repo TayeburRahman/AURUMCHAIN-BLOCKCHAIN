@@ -23,3 +23,9 @@ export const COMPLIANCE_PROGRAM_ID = new PublicKey(
 export const METAPLEX_METADATA_PROGRAM_ID = new PublicKey(
   'metaqbxxUerdq28cj1RbAWkYQm3ybzjb6a8bt518x1s'
 );
+
+// Allocation & Distribution Program ID
+export const ALLOCATION_DISTRIBUTION_PROGRAM_ID = new PublicKey(
+  process.env.NEXT_PUBLIC_ALLOCATION_DISTRIBUTION_PROGRAM_ID || 
+  'GG9mE55B6mMJFSY8RYVjCt62THVVrMjv55pVzHsZs8nT'
+);
