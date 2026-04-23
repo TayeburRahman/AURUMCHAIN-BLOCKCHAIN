@@ -240,6 +240,13 @@ export async function DELETE(
       return NextResponse.json({ error: 'Project not found' }, { status: 404 });
     }
 
+    // Guard: Only allow deletion if the project is in 'draft' status
+    if (existingProject.status !== 'draft') {
+      return NextResponse.json({ 
+        error: `Cannot delete project in '${existingProject.status}' state. Only 'draft' projects can be deleted for data integrity.` 
+      }, { status: 400 });
+    }
+
     // Use admin client to bypass RLS (admin auth already verified above)
     const adminSupabase = createAdminClient();
 

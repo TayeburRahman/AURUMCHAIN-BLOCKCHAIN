@@ -230,7 +230,10 @@
           {
             "name": "assetType",
             "type": { "option": { "defined": "AssetType" } }
-          }
+          },
+          { "name": "name", "type": { "option": "string" } },
+          { "name": "symbol", "type": { "option": "string" } },
+          { "name": "uri", "type": { "option": "string" } }
         ]
       }
     },

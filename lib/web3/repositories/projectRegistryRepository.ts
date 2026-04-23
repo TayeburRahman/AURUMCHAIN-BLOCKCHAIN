@@ -90,6 +90,9 @@ export class ProjectRegistryRepository {
       lockupEndTs: BN | null;
       roundLimitTokens: BN | null;
       assetType: any | null;
+      name: string | null;
+      symbol: string | null;
+      uri: string | null;
     }
   ): Promise<TransactionInstruction> {
     return await this.program.methods

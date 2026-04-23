@@ -43,6 +43,10 @@ pub fn handle_update_project_status(
         || project.status == ProjectStatus::Canceled;
     require!(!is_terminal, RegistryError::InvalidStatusTransition);
 
+    // Guard: cannot push back to Draft once moved out.
+    // Since projects start as Draft, any update TO Draft is a "push back".
+    require!(new_status != ProjectStatus::Draft, RegistryError::InvalidStatusTransition);
+
     // Guard: cannot open for funding without a mint address being set first.
     if new_status == ProjectStatus::Funding {
         require!(

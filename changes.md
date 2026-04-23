@@ -1,3 +1,27 @@
+## Feature: Milestone 2 - Project Lifecycle Guards & Transparency
+
+**Timestamp:** 2026-04-23T08:56:00+06:00
+**Github Commit Message:** Enforced status guards and on-chain project detail syncing
+
+This phase implemented strict lifecycle rules to prevent "demoting" projects back to Draft and restricted deletions to the Draft phase only. It also added support for syncing project Name, Symbol, and URI (Logo) directly to the blockchain for auditable transparency.
+
+### 1. Smart Contract & Repository (Blockchain)
+
+| File | Line Numbers | Feature Added | Reason for Addition | Timestamp |
+| :--- | :--- | :--- | :--- | :--- |
+| **[update_project_status.rs](file:///c:/Rupom/Projects/AURUMCHAIN/programs/project_registry/src/registry_logic/update_project_status.rs)** | **46-49** | Status Pushback Guard | Prevent projects in Funding/Active states from being moved back to Draft. | 2026-04-23T08:56 |
+| **[update_project_params.rs](file:///c:/Rupom/Projects/AURUMCHAIN/programs/project_registry/src/registry_logic/update_project_params.rs)** | **19-21, 78-87** | On-Chain Detail Syncing | Added `name`, `symbol`, and `uri` to update parameters for client-side auditability. | 2026-04-23T08:56 |
+| **[projectRegistryRepository.ts](file:///c:/Rupom/Projects/AURUMCHAIN/lib/web3/repositories/projectRegistryRepository.ts)** | **93-95** | Update Param Types | Updated repository methods to support the new optional transparency fields. | 2026-04-23T08:56 |
+
+### 2. Backend API & Frontend Dashboard
+
+| File | Line Numbers | Feature Added | Reason for Addition | Timestamp |
+| :--- | :--- | :--- | :--- | :--- |
+| **[route.ts](file:///c:/Rupom/Projects/AURUMCHAIN/app/api/admin/projects/%5Bid%5D/route.ts)** | **243-247** | Deletion API Guard | Hard-blocked the deletion of non-Draft projects via the admin API. | 2026-04-23T08:56 |
+| **[ProjectsManagement.tsx](file:///c:/Rupom/Projects/AURUMCHAIN/components/admin/ProjectsManagement.tsx)** | **225-227, 450-456, 1072-1088** | UI Lifecycle Lockdown | Restricted status options during creation/editing and disabled the Delete button for active projects. | 2026-04-23T08:56 |
+
+---
+
 ## Feature: Milestone 2 - Blockchain Settlement & Account Resolution
 
 **Timestamp:** 2026-04-23T08:25:00+06:00

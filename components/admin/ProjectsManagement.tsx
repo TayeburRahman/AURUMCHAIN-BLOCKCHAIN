@@ -222,6 +222,9 @@ export default function ProjectsManagement({ initialProjects, userId }: Projects
               ? new BN(formData.round_limit_tokens).mul(new BN(10).pow(new BN(formData.token_decimals || 9)))
               : null,
             assetType: formData.asset_type ? toChainAssetType(formData.asset_type) : null,
+            name: formData.name || null,
+            symbol: formData.token_symbol || null,
+            uri: formData.metadata_uri || null,
           };
 
           if (Object.keys(chainUpdateParams).some(k => chainUpdateParams[k] !== null)) {
@@ -445,6 +448,12 @@ export default function ProjectsManagement({ initialProjects, userId }: Projects
 
     if (!wallet.connected) { setError('Connect your Phantom wallet to update on-chain status.'); return; }
     
+    // Guard: Prevent moving back to Draft if already on-chain
+    if (newStatus === 'draft') {
+      setError('Cannot move an on-chain project back to Draft status. Projects must move forward in their lifecycle.');
+      return;
+    }
+
     setStatusChanging(project.id);
     try {
       const service = new ProjectRegistryService(connection, wallet);
@@ -1060,12 +1069,18 @@ export default function ProjectsManagement({ initialProjects, userId }: Projects
                   required
                   className="w-full px-4 py-2 bg-navy/50 border border-gold/20 rounded-lg text-white focus:outline-none focus:border-gold"
                 >
-                  <option value="draft">Draft</option>
-                  <option value="funding">Funding</option>
-                  <option value="funded">Funded</option>
-                  <option value="active">Active</option>
-                  <option value="completed">Completed</option>
-                  <option value="cancelled">Cancelled</option>
+                  {editingProject ? (
+                    <>
+                      <option value="draft" disabled={editingProject.blockchain_project_id !== null}>Draft</option>
+                      <option value="funding">Funding</option>
+                      <option value="funded">Funded</option>
+                      <option value="active">Active</option>
+                      <option value="completed">Completed</option>
+                      <option value="cancelled">Cancelled</option>
+                    </>
+                  ) : (
+                    <option value="draft">Draft (Mandatory Initial State)</option>
+                  )}
                 </select>
               </div>
             </div>
@@ -1285,7 +1300,7 @@ export default function ProjectsManagement({ initialProjects, userId }: Projects
                     className="px-3 py-1.5 bg-navy/80 border border-gold/20 rounded-lg text-xs text-white focus:outline-none focus:border-gold transition-colors disabled:opacity-50 cursor-pointer flex-1"
                     title="Update On-Chain Project Phase"
                   >
-                    <option value="draft">Draft</option>
+                    <option value="draft" disabled={project.blockchain_project_id !== null && project.blockchain_project_id !== undefined}>Draft</option>
                     <option value="funding">Funding</option>
                     <option value="active">Active</option>
                     <option value="completed">Completed</option>
@@ -1385,8 +1400,13 @@ export default function ProjectsManagement({ initialProjects, userId }: Projects
                   </button>
                   <button
                     onClick={() => handleDelete(project.id)}
-                    disabled={loading}
-                    className="px-4 py-2 bg-red-500/20 text-red-400 rounded-lg hover:bg-red-500/30 transition-colors disabled:opacity-50 text-sm"
+                    disabled={loading || project.status !== 'draft'}
+                    className={`px-4 py-2 rounded-lg transition-colors text-sm ${
+                      project.status === 'draft' 
+                        ? 'bg-red-500/20 text-red-400 hover:bg-red-500/30' 
+                        : 'bg-gray-500/10 text-gray-500 cursor-not-allowed'
+                    }`}
+                    title={project.status !== 'draft' ? "Only projects in 'Draft' status can be deleted." : ""}
                   >
                     Delete
                   </button>

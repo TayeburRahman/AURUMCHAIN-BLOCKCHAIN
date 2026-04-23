@@ -16,6 +16,9 @@ pub struct ProjectUpdateParams {
     pub round_limit_tokens:     Option<u64>,
     // Asset type can be corrected by super_admin only.
     pub asset_type:             Option<AssetType>,
+    pub name:                   Option<String>,
+    pub symbol:                 Option<String>,
+    pub uri:                    Option<String>,
 }
 
 #[derive(Accounts)]
@@ -74,6 +77,15 @@ pub fn handle_update_project_params(
     }
     if let Some(asset_type) = params.asset_type {
         project.asset_type = asset_type;
+    }
+    if let Some(name) = params.name {
+        project.name = name;
+    }
+    if let Some(symbol) = params.symbol {
+        project.symbol = symbol;
+    }
+    if let Some(uri) = params.uri {
+        project.uri = uri;
     }
 
     emit!(ProjectUpdated { project_id: project.project_id });
