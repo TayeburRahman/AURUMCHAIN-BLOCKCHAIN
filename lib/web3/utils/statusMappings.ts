@@ -35,10 +35,11 @@ export const fromChainStatus = (chainStatus: any): string => {
  * Maps a Supabase asset_type string to an Anchor-compatible AssetType object.
  */
 export const toChainAssetType = (dbType: string): any => {
-  switch (dbType.toLowerCase()) {
+  const type = dbType.toLowerCase().replace('-', '_');
+  switch (type) {
     case 'real_estate': return { realEstate: {} };
     case 'mining':      return { mining: {} };
     case 'other':       return { other: {} };
-    default:            return { realEstate: {} };
+    default:            return { other: {} };
   }
 };

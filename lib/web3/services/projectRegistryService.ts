@@ -206,12 +206,11 @@ export class ProjectRegistryService {
         }
       );
 
-      // Map string assetType to Anchor enum format
+      // Map string assetType to Anchor enum format (AC-BC-101)
       const mappedAssetType = 
-        params.assetType === 'mining' ? { mining: {} } :
-        params.assetType === 'industrial' ? { mining: {} } : // Mapping industrial to mining logic
-        params.assetType === 'other' ? { other: {} } :
-        { realEstate: {} };
+        (params.assetType === 'mining' || params.assetType === 'industrial') ? { mining: {} } :
+        (params.assetType === 'real-estate' || params.assetType === 'real_estate') ? { realEstate: {} } :
+        { other: {} }; // Fallback to 'other' for safety
 
       const createProjectIx = await this.repository.getCreateProjectInstruction(nextId, {
         name: params.name,
