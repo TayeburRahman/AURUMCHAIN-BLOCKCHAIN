@@ -1,5 +1,26 @@
 ## Feature: Milestone 2 - Project Lifecycle Guards & Transparency
 
+**Timestamp:** 2026-04-23T09:16:00+06:00
+**Github Commit Message:** Fixed API 500 errors and restored on-chain data mapping in dashboard
+
+Resolved critical bugs discovered during verification of the lifecycle guards. These fixes ensure data consistency between the frontend, API, and blockchain.
+
+### 1. Backend API (Bug Fixes)
+
+| File | Line Numbers | Feature Added | Reason for Addition | Timestamp |
+| :--- | :--- | :--- | :--- | :--- |
+| **[route.ts](file:///c:/Rupom/Projects/AURUMCHAIN/app/api/admin/projects/%5Bid%5D/route.ts)** | **159-171** | Data Normalization | Converted dash-case to snake_case for `asset_type` and mapped empty strings to `null` to fix Postgres date syntax errors. | 2026-04-23T09:16 |
+
+### 2. Frontend Dashboard (Bug Fixes)
+
+| File | Line Numbers | Feature Added | Reason for Addition | Timestamp |
+| :--- | :--- | :--- | :--- | :--- |
+| **[page.tsx](file:///c:/Rupom/Projects/AURUMCHAIN/app/admin/projects/page.tsx)** | **60-77** | On-Chain Data Mapping | Restored missing `symbol`, `uri`, and `lockupEndTs` fields in the initial load to ensure the Edit form is correctly pre-filled. | 2026-04-23T09:16 |
+
+---
+
+## Feature: Milestone 2 - Project Lifecycle Guards & Transparency
+
 **Timestamp:** 2026-04-23T08:56:00+06:00
 **Github Commit Message:** Enforced status guards and on-chain project detail syncing
 

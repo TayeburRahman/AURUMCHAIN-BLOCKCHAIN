@@ -57,6 +57,8 @@ export default async function AdminProjectsPage() {
           return {
             id: p.id,
             onChain: {
+              symbol:              chainData.symbol,
+              uri:                 chainData.uri,
               supplyCap:           chainData.supplyCap.toNumber() / divisor,
               tokensIssued:        chainData.tokensIssued.toNumber() / divisor,
               minInvestmentUsdc:   chainData.minInvestmentUsdc.toNumber() / 1_000_000,
@@ -68,6 +70,9 @@ export default async function AdminProjectsPage() {
               assetType:           formatEnum(chainData.assetType),
               status:              chainData.status,
               acceptedStablecoin:  chainData.acceptedStablecoin.toString(),
+              lockupEndTs:         chainData.lockupEndTs.toNumber(),
+              treasuryWallet:      chainData.treasuryWallet.toString(),
+              mint:                chainData.mint.toString(),
             }
           };
         } catch (e) {

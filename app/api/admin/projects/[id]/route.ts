@@ -153,7 +153,20 @@ export async function PUT(
 
     fieldsToUpdate.forEach(field => {
       if (Object.prototype.hasOwnProperty.call(body, field)) {
-        updateData[field] = (body as any)[field];
+        let value = (body as any)[field];
+        
+        // Data Normalization: Bridge dash-case (frontend) to snake_case (DB)
+        if (field === 'asset_type' && value === 'real-estate') {
+          value = 'real_estate';
+        }
+
+        // Fix: Convert empty strings to null for optional fields (like dates)
+        // This prevents Postgres errors like "invalid input syntax for type date: ''"
+        if (value === "") {
+          value = null;
+        }
+        
+        updateData[field] = value;
       }
     });
 
