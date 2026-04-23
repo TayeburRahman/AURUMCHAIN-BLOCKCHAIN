@@ -119,9 +119,8 @@ pub fn handle_record_verified_wallet(
 
     // 5. Serialize back
     let writer = &mut data[..];
-    // Write discriminator manually (InvestorEligibilityAccount)
-    let disc = [213, 219, 137, 241, 143, 227, 230, 203]; // InvestorEligibilityAccount discriminator
-    writer[..8].copy_from_slice(&disc);
+    // Write standard discriminator
+    writer[..8].copy_from_slice(&InvestorEligibilityAccount::DISCRIMINATOR_STANDARD);
     eligibility.serialize(&mut &mut data[8..])?;
 
     // ── Events ─────────────────────────────────────────────────────────────

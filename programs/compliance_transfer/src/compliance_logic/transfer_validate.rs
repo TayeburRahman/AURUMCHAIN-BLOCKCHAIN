@@ -11,18 +11,26 @@ pub struct TransferValidate<'info> {
     pub control: Account<'info, ComplianceControl>,
 
     /// Sender's eligibility PDA
+    /// CHECK: Manual discriminator check
     #[account(
-        seeds = [b"eligibility", sender_eligibility.wallet.as_ref()],
-        bump  = sender_eligibility.bump,
+        seeds = [b"eligibility", sender_wallet.key().as_ref()],
+        bump,
     )]
-    pub sender_eligibility: Account<'info, InvestorEligibilityAccount>,
+    pub sender_eligibility: UncheckedAccount<'info>,
 
+    /// CHECK: Wallet for seed derivation
+    pub sender_wallet: UncheckedAccount<'info>,
+    
     /// Receiver's eligibility PDA
+    /// CHECK: Manual discriminator check
     #[account(
-        seeds = [b"eligibility", receiver_eligibility.wallet.as_ref()],
-        bump  = receiver_eligibility.bump,
+        seeds = [b"eligibility", receiver_wallet.key().as_ref()],
+        bump,
     )]
-    pub receiver_eligibility: Account<'info, InvestorEligibilityAccount>,
+    pub receiver_eligibility: UncheckedAccount<'info>,
+
+    /// CHECK: Wallet for seed derivation
+    pub receiver_wallet: UncheckedAccount<'info>,
 
     /// CHECK: Backend signer
     #[account(
@@ -37,15 +45,16 @@ pub struct TransferValidate<'info> {
 pub fn handle_transfer_validate(
     ctx:                      Context<TransferValidate>,
     _project_id:               u64,
-    amount:                   u64, // ADDED: Required by AC-BC-202-1
+    amount:                   u64,
     project_transfers_paused: bool,
     lockup_end_ts:            i64,
 ) -> Result<TransferDecision> {
     let clock   = Clock::get()?;
     let control = &ctx.accounts.control;
-    let sender  = &ctx.accounts.sender_eligibility;
-    let receiver = &ctx.accounts.receiver_eligibility;
     let bypass  = control.kyc_bypass;
+
+    let sender = InvestorEligibilityAccount::load_checked(&ctx.accounts.sender_eligibility)?;
+    let receiver = InvestorEligibilityAccount::load_checked(&ctx.accounts.receiver_eligibility)?;
 
     let mut decision = TransferDecision {
         allowed:     true,

@@ -17,14 +17,13 @@ pub struct SubscribeInvestment<'info> {
     #[account(mut)]
     pub investor: Signer<'info>,
 
+    /// CHECK: Manual discriminator check to handle legacy and standard versions
     #[account(
+        mut,
         seeds = [b"eligibility", investor.key().as_ref()],
-        bump = eligibility.bump,
-        constraint = eligibility.investment_allowed @ ComplianceError::Unauthorized,
-        constraint = eligibility.kyc_status == KycStatus::Approved @ ComplianceError::SenderNotApproved,
-        constraint = eligibility.aml_status == AmlStatus::Clear @ ComplianceError::SenderAmlBlocked,
+        bump,
     )]
-    pub eligibility: Account<'info, InvestorEligibilityAccount>,
+    pub eligibility: UncheckedAccount<'info>,
 
     /// CHECK: Validated via manual owner and seed check in handler
     pub project_account: UncheckedAccount<'info>,
@@ -51,7 +50,16 @@ pub fn handle_subscribe_investment(
     investment_amount: u64,
     payment_asset:     Pubkey,
 ) -> Result<()> {
-    let clock   = Clock::get()?;
+    let clock = Clock::get()?;
+    
+    // ── Eligibility Validation ──────────────────────────────────────────────
+    let eligibility = InvestorEligibilityAccount::load_checked(&ctx.accounts.eligibility)?;
+    
+    // Constraints check
+    require!(eligibility.investment_allowed, ComplianceError::Unauthorized);
+    require!(eligibility.kyc_status == KycStatus::Approved, ComplianceError::SenderNotApproved);
+    require!(eligibility.aml_status == AmlStatus::Clear, ComplianceError::SenderAmlBlocked);
+    // ────────────────────────────────────────────────────────────────────────
     
     // 0. Manual Security Checks (AC-BC-406 CROSS-PROGRAM FIX)
     

@@ -33,4 +33,26 @@ pub struct InvestorEligibilityAccount {
 impl InvestorEligibilityAccount {
     // 8 (disc) + 32 + 1 + 1 + 32 + 1 + 1 + 8 + 8 + 1 + 1 + 32 + 1 + 31 (padding) = 158
     pub const SIZE: usize = 8 + 32 + 1 + 1 + 32 + 1 + 1 + 8 + 8 + 1 + 1 + 32 + 1 + 31;
+
+    // --- Discriminator Management ---
+    // Standard Anchor: sha256("account:InvestorEligibilityAccount")[..8]
+    pub const DISCRIMINATOR_STANDARD: [u8; 8] = [38, 90, 191, 114, 179, 67, 120, 93];
+    // Legacy/Hardcoded: Found on-chain (likely global:InvestorEligibilityAccount)
+    pub const DISCRIMINATOR_LEGACY: [u8; 8] = [213, 219, 137, 241, 143, 227, 230, 203];
+
+    /// Centralized helper to deserialize while accepting both legacy and standard signatures.
+    pub fn load_checked(info: &AccountInfo) -> Result<Self> {
+        let data = info.try_borrow_data()?;
+        if info.data_is_empty() {
+            return Err(ErrorCode::AccountNotInitialized.into());
+        }
+
+        let disc = &data[0..8];
+        if disc != &Self::DISCRIMINATOR_STANDARD && disc != &Self::DISCRIMINATOR_LEGACY {
+            return Err(ErrorCode::AccountDiscriminatorMismatch.into());
+        }
+
+        let mut reader = &data[8..];
+        Ok(Self::deserialize(&mut reader)?)
+    }
 }

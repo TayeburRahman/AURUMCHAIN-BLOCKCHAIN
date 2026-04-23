@@ -4,12 +4,16 @@ use crate::ComplianceError;
 
 #[derive(Accounts)]
 pub struct RevokeWallet<'info> {
+    /// CHECK: Manual discriminator check
     #[account(
         mut,
-        seeds = [b"eligibility", eligibility.wallet.as_ref()],
-        bump  = eligibility.bump,
+        seeds = [b"eligibility", wallet.key().as_ref()],
+        bump,
     )]
-    pub eligibility: Account<'info, InvestorEligibilityAccount>,
+    pub eligibility: UncheckedAccount<'info>,
+
+    /// CHECK: Wallet for seed derivation
+    pub wallet: UncheckedAccount<'info>,
 
     #[account(
         seeds = [b"compliance_control"],
@@ -28,12 +32,19 @@ pub struct RevokeWallet<'info> {
 
 pub fn handle_revoke_wallet(ctx: Context<RevokeWallet>) -> Result<()> {
     let clock = Clock::get()?;
-    let eligibility = &mut ctx.accounts.eligibility;
-
+    
+    // ── Eligibility Validation ──────────────────────────────────────────────
+    let mut data = ctx.accounts.eligibility.try_borrow_mut_data()?;
+    let mut eligibility = InvestorEligibilityAccount::load_checked(&ctx.accounts.eligibility)?;
+    // ────────────────────────────────────────────────────────────────────────
+    
     eligibility.kyc_status         = KycStatus::Rejected;
     eligibility.aml_status         = AmlStatus::Blocked;
     eligibility.investment_allowed = false;
     eligibility.transfer_allowed   = false;
+
+    // Serialize back
+    eligibility.serialize(&mut &mut data[8..])?;
 
     emit!(WalletRevoked {
         wallet:     eligibility.wallet,

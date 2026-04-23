@@ -32,6 +32,7 @@
       "name": "refreshEligibility",
       "accounts": [
         { "name": "eligibility", "isMut": true, "isSigner": false },
+        { "name": "wallet", "isMut": false, "isSigner": false },
         { "name": "control", "isMut": false, "isSigner": false },
         { "name": "authority", "isMut": false, "isSigner": true }
       ],
@@ -43,6 +44,7 @@
       "name": "revokeWallet",
       "accounts": [
         { "name": "eligibility", "isMut": true, "isSigner": false },
+        { "name": "wallet", "isMut": false, "isSigner": false },
         { "name": "control", "isMut": false, "isSigner": false },
         { "name": "authority", "isMut": false, "isSigner": true }
       ],
@@ -75,7 +77,9 @@
       "accounts": [
         { "name": "control", "isMut": false, "isSigner": false },
         { "name": "senderEligibility", "isMut": false, "isSigner": false },
+        { "name": "senderWallet", "isMut": false, "isSigner": false },
         { "name": "receiverEligibility", "isMut": false, "isSigner": false },
+        { "name": "receiverWallet", "isMut": false, "isSigner": false },
         { "name": "caller", "isMut": false, "isSigner": true }
       ],
       "args": [
@@ -91,7 +95,7 @@
       "accounts": [
         { "name": "subscription", "isMut": true, "isSigner": false },
         { "name": "investor", "isMut": true, "isSigner": true },
-        { "name": "eligibility", "isMut": false, "isSigner": false },
+        { "name": "eligibility", "isMut": true, "isSigner": false },
         { "name": "projectAccount", "isMut": false, "isSigner": false },
         { "name": "projectRegistryProgram", "isMut": false, "isSigner": false },
         { "name": "control", "isMut": false, "isSigner": false },

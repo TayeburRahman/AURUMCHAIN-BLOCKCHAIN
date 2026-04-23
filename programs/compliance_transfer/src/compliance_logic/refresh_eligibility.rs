@@ -5,12 +5,16 @@ use crate::compliance_logic::RecordWalletParams;
 
 #[derive(Accounts)]
 pub struct RefreshVerifiedWallet<'info> {
+    /// CHECK: Manual discriminator check
     #[account(
         mut,
-        seeds = [b"eligibility", eligibility.wallet.as_ref()],
-        bump  = eligibility.bump,
+        seeds = [b"eligibility", wallet.key().as_ref()],
+        bump,
     )]
-    pub eligibility: Account<'info, InvestorEligibilityAccount>,
+    pub eligibility: UncheckedAccount<'info>,
+
+    /// CHECK: Wallet for seed derivation
+    pub wallet: UncheckedAccount<'info>,
 
     #[account(
         seeds = [b"compliance_control"],
@@ -33,11 +37,15 @@ pub fn handle_refresh_eligibility(
 ) -> Result<()> {
     let clock = Clock::get()?;
 
+    // ── Eligibility Validation ──────────────────────────────────────────────
+    let mut data = ctx.accounts.eligibility.try_borrow_mut_data()?;
+    let mut eligibility = InvestorEligibilityAccount::load_checked(&ctx.accounts.eligibility)?;
+    // ────────────────────────────────────────────────────────────────────────
+
     if params.expiry_timestamp > 0 {
         require!(params.expiry_timestamp > clock.unix_timestamp, ComplianceError::InvalidExpiry);
     }
 
-    let eligibility = &mut ctx.accounts.eligibility;
     eligibility.kyc_status               = params.kyc_status.clone();
     eligibility.aml_status               = params.aml_status.clone();
     eligibility.identity_hash            = params.identity_hash;
@@ -58,6 +66,10 @@ pub fn handle_refresh_eligibility(
         AmlStatus::Flagged => 1,
         AmlStatus::Blocked => 2,
     };
+
+    // 5. Serialize back
+    eligibility.serialize(&mut &mut data[8..])?;
+    // Note: We keep the discriminator that was already there (legacy or standard)
 
     emit!(crate::compliance_logic::record_verified_wallet::WalletVerified {
         wallet:             eligibility.wallet,
