@@ -349,6 +349,8 @@ export class ProjectRegistryRepository {
       }
     );
 
+    const results: any[] = [];
+
     for (const { pubkey, account } of accounts) {
       const decoded = this.decodeProjectManual(account.data, pubkey);
       if (decoded) {

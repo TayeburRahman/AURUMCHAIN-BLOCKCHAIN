@@ -93,6 +93,22 @@ export function ComplianceReviewList({ initialPending }: { initialPending: any[]
     }
   };
 
+  const handleToggleBypass = async (walletAddress: string, currentState: boolean) => {
+    if (!wallet.connected) return;
+    setLoadingId(walletAddress);
+    setError(null);
+    try {
+      const service = new ComplianceService(connection, wallet);
+      const result = await service.toggleLockupBypass(walletAddress, !currentState);
+      if (!result.success) throw new Error(result.error || "Failed to toggle bypass");
+      alert(`Success! Lockup bypass ${!currentState ? 'ENABLED' : 'DISABLED'} for ${walletAddress}`);
+    } catch (err: any) {
+      setError(err.message || "Bypass toggle failed");
+    } finally {
+      setLoadingId(null);
+    }
+  };
+
   const handleReject = async (kyc: any, walletAddress: string) => {
     if (!wallet.connected) return;
 
@@ -148,7 +164,8 @@ export function ComplianceReviewList({ initialPending }: { initialPending: any[]
               kyc={kyc} 
               onApprove={handleApprove} 
               onReject={handleReject}
-              isLoading={loadingId === kyc.id}
+              onToggleBypass={handleToggleBypass}
+              isLoading={loadingId === kyc.id || loadingId === (kyc.metadata?.wallet_address)}
               expiryDate={expiryDate}
               setExpiryDate={setExpiryDate}
             />
@@ -159,7 +176,7 @@ export function ComplianceReviewList({ initialPending }: { initialPending: any[]
   );
 }
 
-function KycCard({ kyc, onApprove, onReject, isLoading, expiryDate, setExpiryDate }: any) {
+function KycCard({ kyc, onApprove, onReject, onToggleBypass, isLoading, expiryDate, setExpiryDate }: any) {
   const walletAddress = kyc.metadata?.wallet_address || ""; 
   const [shouldVerify, setShouldVerify] = useState(false);
   const { eligibility, loading: onChainLoading, error: rpcError } = useWalletEligibility(walletAddress, { enabled: shouldVerify });
@@ -251,6 +268,20 @@ function KycCard({ kyc, onApprove, onReject, isLoading, expiryDate, setExpiryDat
             >
               {isLoading ? 'Processing...' : 'Approve On-Chain'}
             </button>
+            {eligibility && (
+              <button 
+                onClick={() => onToggleBypass(walletAddress, eligibility.lockupBypass)}
+                disabled={isLoading}
+                className={`px-4 py-2 rounded-lg font-bold transition-all border ${
+                  eligibility.lockupBypass 
+                    ? 'bg-orange-500/20 text-orange-400 border-orange-500/30 hover:bg-orange-500/30' 
+                    : 'bg-blue-500/20 text-blue-400 border-blue-500/30 hover:bg-blue-500/30'
+                }`}
+                title={eligibility.lockupBypass ? "Disable Emergency Exit" : "Enable Emergency Exit"}
+              >
+                {eligibility.lockupBypass ? '🔓 Unlocked' : '🔒 Locked'}
+              </button>
+            )}
             <button 
               onClick={() => onReject(kyc, walletAddress)}
               disabled={isLoading}

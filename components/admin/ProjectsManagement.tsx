@@ -163,7 +163,7 @@ export default function ProjectsManagement({ initialProjects, userId }: Projects
     // Frontend Guard: Prevent lockup reduction
     if (editingProject && formData.lockup_end_date) {
       const newLockup = Math.floor(new Date(formData.lockup_end_date).getTime() / 1000);
-      const currentLockup = editingProject.onChain?.lockupEndTs?.toNumber() || 0;
+      const currentLockup = editingProject.onChain?.lockupEndTs || 0;
       if (newLockup < currentLockup) {
         setError(`Lock-up End Date cannot be reduced. Current on-chain date: ${new Date(currentLockup * 1000).toLocaleString()}`);
         setLoading(false);
