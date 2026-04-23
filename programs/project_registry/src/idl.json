@@ -181,6 +181,7 @@
           { "name": "subscriptionEnd", "type": "i64" },
           { "name": "createdAt", "type": "i64" },
           { "name": "distributionCadence", "type": "u8" },
+          { "name": "durationMonths", "type": "u8" },
           { "name": "status", "type": { "defined": "ProjectStatus" } },
           { "name": "isPaused", "type": "bool" },
           { "name": "mintAuthorityRevoked", "type": "bool" },
@@ -210,6 +211,7 @@
           { "name": "subscriptionStart", "type": "i64" },
           { "name": "subscriptionEnd", "type": "i64" },
           { "name": "distributionCadence", "type": "u8" },
+          { "name": "durationMonths", "type": "u8" },
           { "name": "assetType", "type": { "defined": "AssetType" } },
           { "name": "roundLimitTokens", "type": "u64" }
         ]
@@ -225,6 +227,7 @@
           { "name": "subscriptionStart", "type": { "option": "i64" } },
           { "name": "subscriptionEnd", "type": { "option": "i64" } },
           { "name": "distributionCadence", "type": { "option": "u8" } },
+          { "name": "durationMonths", "type": { "option": "u8" } },
           { "name": "lockupEndTs", "type": { "option": "i64" } },
           { "name": "roundLimitTokens", "type": { "option": "u64" } },
           {
@@ -429,6 +432,11 @@
       "code": 6014,
       "name": "RoundLimitExceeded",
       "msg": "Token issuance would exceed the current round limit"
+    },
+    {
+      "code": 6015,
+      "name": "LockupCannotBeReduced",
+      "msg": "The lock-up end date can only be extended, not reduced."
     }
   ]
 }

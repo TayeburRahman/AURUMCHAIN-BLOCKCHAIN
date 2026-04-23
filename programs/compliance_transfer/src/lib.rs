@@ -78,6 +78,13 @@ pub mod compliance_transfer {
     ) -> Result<()> {
         handle_finalize_subscription(ctx, settlement_tx_hash, allocated_token_amount)
     }
+
+    pub fn toggle_lockup_bypass(
+        ctx:     Context<ToggleLockupBypass>,
+        enabled: bool,
+    ) -> Result<()> {
+        handle_toggle_lockup_bypass(ctx, enabled)
+    }
 }
 
 #[error_code]

@@ -50,8 +50,7 @@ pub struct ProjectAccount {
     pub subscription_end:       i64,
     pub created_at:             i64,
     pub distribution_cadence:   u8,
-    // ── Phase-Control Fields (Step 1.1) ──────────────────────────────────────
-    // is_active: bool was REMOVED — replaced by status below.
+    pub duration_months:        u8,
     pub status:                 ProjectStatus,
     pub is_paused:              bool,
     pub mint_authority_revoked: bool,
@@ -84,6 +83,7 @@ impl ProjectAccount {
         + 8         // subscription_end
         + 8         // created_at
         + 1         // distribution_cadence
+        + 1         // duration_months
         + 1         // status (ProjectStatus variant)
         + 1         // is_paused
         + 1         // mint_authority_revoked
@@ -91,7 +91,7 @@ impl ProjectAccount {
         + 8         // current_round_issued
         + 1         // asset_type (AssetType variant)
         + 1         // bump
-        + 64;       // alignment padding
+        + 63;       // alignment padding
 }
 
 // Default impl for ProjectStatus (needed by #[derive(Default)] on ProjectAccount).

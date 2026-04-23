@@ -6,6 +6,7 @@ mod admin_actions;
 mod transfer_validate;
 mod subscribe_investment;
 mod finalize_subscription;
+mod toggle_lockup_bypass;
 
 // Standard Program 1 Pattern: 
 // Private module declarations + Glob re-exports
@@ -17,6 +18,7 @@ pub use admin_actions::*;
 pub use transfer_validate::*;
 pub use subscribe_investment::*;
 pub use finalize_subscription::*;
+pub use toggle_lockup_bypass::*;
 
 use anchor_lang::prelude::*;
 use crate::state::{KycStatus, AmlStatus};

@@ -66,8 +66,10 @@ pub fn handle_transfer_validate(
 
     // 3. Lock-up period check (0x03)
     if lockup_end_ts > 0 && clock.unix_timestamp < lockup_end_ts && decision.allowed {
-        decision.allowed = false;
-        decision.reason_code = 0x03;
+        if !sender.lockup_bypass {
+            decision.allowed = false;
+            decision.reason_code = 0x03;
+        }
     }
 
     // 4. Compliance Logic (Only if not bypassed)

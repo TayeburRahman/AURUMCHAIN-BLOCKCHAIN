@@ -147,6 +147,7 @@ export class ProjectRegistryService {
     treasuryWallet: PublicKey;
     acceptedStablecoin: PublicKey;
     distributionCadence: number;
+    durationMonths: number;
     tokenDecimals: number;
     assetType?: any;
     roundLimitTokens?: number;
@@ -225,6 +226,7 @@ export class ProjectRegistryService {
         acceptedStablecoin: params.acceptedStablecoin,
         treasuryWallet: params.treasuryWallet,
         distributionCadence: params.distributionCadence,
+        durationMonths: params.durationMonths,
         assetType: mappedAssetType, 
         roundLimitTokens: new BN(params.roundLimitTokens || params.supplyCap).mul(new BN(10).pow(new BN(params.tokenDecimals))),
       });

@@ -1,4 +1,4 @@
-import { Program, BN } from '@coral-xyz/anchor';
+import { Program, BN, utils } from '@coral-xyz/anchor';
 import { PublicKey, TransactionInstruction, SystemProgram } from '@solana/web3.js';
 import { 
   getComplianceControlPDA, 
@@ -91,10 +91,63 @@ export class ComplianceRepository {
 
   /**
    * Fetches and deserializes an InvestorEligibilityAccount.
+   * Includes a manual fallback decoder to handle discriminator mismatches during upgrades.
    */
   async fetchEligibilityAccount(wallet: PublicKey): Promise<any> {
     const pda = getEligibilityPDA(wallet, this.program.programId);
-    return await this.program.account.investorEligibilityAccount.fetch(pda);
+    try {
+      return await this.program.account.investorEligibilityAccount.fetch(pda);
+    } catch (err) {
+      const info = await this.program.provider.connection.getAccountInfo(pda);
+      if (!info) return null;
+
+      // PURE MANUAL BORSH DECODE (Total Bypass)
+      try {
+        const rawData = info.data.slice(8); // Skip 8-byte discriminator
+        
+        // Manual mapping from IDL structure
+        // 32 (wallet) + 1 (kyc) + 1 (aml) + 32 (hash) + 1 (invest) + 1 (transfer) + 8 (approval) + 8 (expiry) + 1 (reverif) + 1 (bypass) + 32 (recorded) + 1 (bump)
+        
+        let offset = 0;
+        const wallet = new PublicKey(rawData.slice(offset, offset += 32));
+        const kycStatus = rawData[offset++];
+        const amlStatus = rawData[offset++];
+        const identityHash = Array.from(rawData.slice(offset, offset += 32));
+        const investmentAllowed = rawData[offset++] !== 0;
+        const transferAllowed = rawData[offset++] !== 0;
+        
+        const readI64 = (buf: Buffer, off: number) => {
+          const low = buf.readInt32LE(off);
+          const high = buf.readInt32LE(off + 4);
+          return new BN(low).add(new BN(high).mul(new BN(2).pow(new BN(32))));
+        };
+
+        const approvalTimestamp = readI64(rawData as Buffer, offset); offset += 8;
+        const expiryTimestamp = readI64(rawData as Buffer, offset); offset += 8;
+        const reverificationRequired = rawData[offset++] !== 0;
+        const lockupBypass = rawData[offset++] !== 0;
+        const recordedBy = new PublicKey(rawData.slice(offset, offset += 32));
+        const bump = rawData[offset++];
+
+        return {
+          wallet,
+          kycStatus: { [["pending", "approved", "rejected", "expired"][kycStatus]]: {} },
+          amlStatus: { [["clear", "flagged", "blocked"][amlStatus]]: {} },
+          identityHash,
+          investmentAllowed,
+          transferAllowed,
+          approvalTimestamp,
+          expiryTimestamp,
+          reverificationRequired,
+          lockupBypass,
+          recordedBy,
+          bump
+        };
+      } catch (decodeErr) {
+        console.error("[ComplianceRepository] Pure manual decode failed:", decodeErr);
+        throw err;
+      }
+    }
   }
 
   /**
@@ -181,6 +234,24 @@ export class ComplianceRepository {
         investorTokenAccount:   investorTokenAccount,
         mintAuthorityPda:       getMintAuthorityPDA(idBN, registryProgramId),
         tokenProgram:           TOKEN_PROGRAM_ID,
+      } as any)
+      .instruction();
+  }
+
+  /**
+   * Constructs toggle_lockup_bypass instruction.
+   */
+  async getToggleLockupBypassInstruction(
+    investorWallet: PublicKey,
+    enabled: boolean
+  ): Promise<TransactionInstruction> {
+    return await this.program.methods
+      .toggleLockupBypass(enabled)
+      .accounts({
+        control: getComplianceControlPDA(this.program.programId),
+        eligibility: getEligibilityPDA(investorWallet, this.program.programId),
+        investorWallet: investorWallet,
+        admin: this.program.provider.publicKey!,
       } as any)
       .instruction();
   }

@@ -253,6 +253,26 @@ export class ComplianceService {
       return this.handleError(error);
     }
   }
+
+  /**
+   * PREPARES and SENDS the toggle_lockup_bypass transaction.
+   */
+  async toggleLockupBypass(investorWallet: string, enabled: boolean) {
+    try {
+      if (!this.wallet.publicKey) throw new Error("UNAUTHORIZED: Wallet not connected");
+
+      const instruction = await this.repository.getToggleLockupBypassInstruction(
+        new PublicKey(investorWallet),
+        enabled
+      );
+
+      const signature = await this.sendAndConfirm(instruction);
+      return this.formatResponse(true, { signature, status: 'updated' });
+
+    } catch (error: any) {
+      return this.handleError(error);
+    }
+  }
 }
 
 /**

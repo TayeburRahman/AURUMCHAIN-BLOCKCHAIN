@@ -159,6 +159,17 @@ export default function ProjectsManagement({ initialProjects, userId }: Projects
     if (loading) return; // Prevent double-clicks causing concurrent Phantom popups
     setLoading(true);
     setError(null);
+    
+    // Frontend Guard: Prevent lockup reduction
+    if (editingProject && formData.lockup_end_date) {
+      const newLockup = Math.floor(new Date(formData.lockup_end_date).getTime() / 1000);
+      const currentLockup = editingProject.onChain?.lockupEndTs?.toNumber() || 0;
+      if (newLockup < currentLockup) {
+        setError(`Lock-up End Date cannot be reduced. Current on-chain date: ${new Date(currentLockup * 1000).toLocaleString()}`);
+        setLoading(false);
+        return;
+      }
+    }
 
     try {
       if (!wallet.connected) {
@@ -185,6 +196,7 @@ export default function ProjectsManagement({ initialProjects, userId }: Projects
             subscriptionStart: Math.floor(new Date(formData.start_date || Date.now()).getTime() / 1000),
             subscriptionEnd: Math.floor(new Date(formData.expected_completion_date || Date.now() + 86400000).getTime() / 1000),
             distributionCadence: formData.distribution_cadence || 0,
+            durationMonths: formData.project_duration_months || 0,
             tokenDecimals: formData.token_decimals || 9,
             assetType: toChainAssetType(formData.asset_type || 'real_estate'),
             roundLimitTokens: formData.round_limit_tokens || formData.total_tokens || 0,
@@ -214,6 +226,9 @@ export default function ProjectsManagement({ initialProjects, userId }: Projects
               : null,
             distributionCadence: (formData.distribution_cadence !== undefined && formData.distribution_cadence !== null)
               ? formData.distribution_cadence
+              : null,
+            durationMonths: (formData.project_duration_months !== undefined && formData.project_duration_months !== null)
+              ? formData.project_duration_months
               : null,
             lockupEndTs: (formData.lockup_end_date)
               ? new BN(Math.floor(new Date(formData.lockup_end_date).getTime() / 1000))

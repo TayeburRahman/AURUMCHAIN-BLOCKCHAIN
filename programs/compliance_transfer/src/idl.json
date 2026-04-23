@@ -5,23 +5,23 @@
     {
       "name": "initializeCompliance",
       "accounts": [
-        { "name": "control",       "isMut": true,  "isSigner": false },
-        { "name": "payer",         "isMut": true,  "isSigner": true  },
+        { "name": "control", "isMut": true, "isSigner": false },
+        { "name": "payer", "isMut": true, "isSigner": true },
         { "name": "systemProgram", "isMut": false, "isSigner": false }
       ],
       "args": [
-        { "name": "authority",        "type": "publicKey" },
-        { "name": "superAdmin",       "type": "publicKey" },
-        { "name": "registryProgram",  "type": "publicKey" }
+        { "name": "authority", "type": "publicKey" },
+        { "name": "superAdmin", "type": "publicKey" },
+        { "name": "registryProgram", "type": "publicKey" }
       ]
     },
     {
       "name": "recordVerifiedWallet",
       "accounts": [
-        { "name": "eligibility",   "isMut": true,  "isSigner": false },
-        { "name": "wallet",        "isMut": false, "isSigner": false },
-        { "name": "control",       "isMut": false, "isSigner": false },
-        { "name": "authority",     "isMut": true,  "isSigner": true  },
+        { "name": "eligibility", "isMut": true, "isSigner": false },
+        { "name": "wallet", "isMut": false, "isSigner": false },
+        { "name": "control", "isMut": false, "isSigner": false },
+        { "name": "authority", "isMut": true, "isSigner": true },
         { "name": "systemProgram", "isMut": false, "isSigner": false }
       ],
       "args": [
@@ -31,9 +31,9 @@
     {
       "name": "refreshEligibility",
       "accounts": [
-        { "name": "eligibility", "isMut": true,  "isSigner": false },
-        { "name": "control",     "isMut": false, "isSigner": false },
-        { "name": "authority",   "isMut": false, "isSigner": true  }
+        { "name": "eligibility", "isMut": true, "isSigner": false },
+        { "name": "control", "isMut": false, "isSigner": false },
+        { "name": "authority", "isMut": false, "isSigner": true }
       ],
       "args": [
         { "name": "params", "type": { "defined": "RecordWalletParams" } }
@@ -42,86 +42,96 @@
     {
       "name": "revokeWallet",
       "accounts": [
-        { "name": "eligibility", "isMut": true,  "isSigner": false },
-        { "name": "control",     "isMut": false, "isSigner": false },
-        { "name": "authority",   "isMut": false, "isSigner": true  }
+        { "name": "eligibility", "isMut": true, "isSigner": false },
+        { "name": "control", "isMut": false, "isSigner": false },
+        { "name": "authority", "isMut": false, "isSigner": true }
       ],
       "args": []
     },
     {
       "name": "setKycBypass",
       "accounts": [
-        { "name": "control",    "isMut": true,  "isSigner": false },
-        { "name": "superAdmin", "isMut": false, "isSigner": true  }
+        { "name": "control", "isMut": true, "isSigner": false },
+        { "name": "superAdmin", "isMut": false, "isSigner": true }
       ],
       "args": [
         { "name": "enabled", "type": "bool" },
-        { "name": "nonce",   "type": "u64"  }
+        { "name": "nonce", "type": "u64" }
       ]
     },
     {
       "name": "setGlobalTransferPause",
       "accounts": [
-        { "name": "control",   "isMut": true,  "isSigner": false },
-        { "name": "authority", "isMut": false, "isSigner": true  }
+        { "name": "control", "isMut": true, "isSigner": false },
+        { "name": "authority", "isMut": false, "isSigner": true }
       ],
       "args": [
         { "name": "paused", "type": "bool" },
-        { "name": "nonce",  "type": "u64"  }
+        { "name": "nonce", "type": "u64" }
       ]
     },
     {
       "name": "transferValidate",
       "accounts": [
-        { "name": "control",             "isMut": false, "isSigner": false },
-        { "name": "senderEligibility",   "isMut": false, "isSigner": false },
+        { "name": "control", "isMut": false, "isSigner": false },
+        { "name": "senderEligibility", "isMut": false, "isSigner": false },
         { "name": "receiverEligibility", "isMut": false, "isSigner": false },
-        { "name": "caller",              "isMut": false, "isSigner": true  }
+        { "name": "caller", "isMut": false, "isSigner": true }
       ],
       "args": [
-        { "name": "projectId",              "type": "u64"  },
-        { "name": "amount",                 "type": "u64"  },
+        { "name": "projectId", "type": "u64" },
+        { "name": "amount", "type": "u64" },
         { "name": "projectTransfersPaused", "type": "bool" },
-        { "name": "lockupEndTs",            "type": "i64"  }
+        { "name": "lockupEndTs", "type": "i64" }
       ],
       "returns": { "defined": "TransferDecision" }
     },
     {
       "name": "subscribeInvestment",
       "accounts": [
-        { "name": "subscription",          "isMut": true,  "isSigner": false },
-        { "name": "investor",              "isMut": true,  "isSigner": true  },
-        { "name": "eligibility",           "isMut": false, "isSigner": false },
-        { "name": "projectAccount",        "isMut": false, "isSigner": false },
-        { "name": "projectRegistryProgram","isMut": false, "isSigner": false },
-        { "name": "control",               "isMut": false, "isSigner": false },
-        { "name": "systemProgram",         "isMut": false, "isSigner": false }
+        { "name": "subscription", "isMut": true, "isSigner": false },
+        { "name": "investor", "isMut": true, "isSigner": true },
+        { "name": "eligibility", "isMut": false, "isSigner": false },
+        { "name": "projectAccount", "isMut": false, "isSigner": false },
+        { "name": "projectRegistryProgram", "isMut": false, "isSigner": false },
+        { "name": "control", "isMut": false, "isSigner": false },
+        { "name": "systemProgram", "isMut": false, "isSigner": false }
       ],
       "args": [
-        { "name": "subscriptionId",   "type": "u64"       },
-        { "name": "projectId",        "type": "u64"       },
-        { "name": "investmentAmount", "type": "u64"       },
-        { "name": "paymentAsset",     "type": "publicKey" }
+        { "name": "subscriptionId", "type": "u64" },
+        { "name": "projectId", "type": "u64" },
+        { "name": "investmentAmount", "type": "u64" },
+        { "name": "paymentAsset", "type": "publicKey" }
       ]
     },
     {
       "name": "finalizeSubscription",
       "accounts": [
-        { "name": "subscription",          "isMut": true,  "isSigner": false },
-        { "name": "control",               "isMut": false, "isSigner": false },
-        { "name": "authority",             "isMut": false, "isSigner": true  },
-        { "name": "projectRegistryProgram","isMut": false, "isSigner": false },
-        { "name": "registryControl",       "isMut": false, "isSigner": false },
-        { "name": "registryProject",       "isMut": true,  "isSigner": false },
-        { "name": "mint",                  "isMut": true,  "isSigner": false },
-        { "name": "investorTokenAccount",  "isMut": true,  "isSigner": false },
-        { "name": "mintAuthorityPda",      "isMut": false, "isSigner": false },
-        { "name": "tokenProgram",          "isMut": false, "isSigner": false }
+        { "name": "subscription", "isMut": true, "isSigner": false },
+        { "name": "control", "isMut": false, "isSigner": false },
+        { "name": "authority", "isMut": false, "isSigner": true },
+        { "name": "projectRegistryProgram", "isMut": false, "isSigner": false },
+        { "name": "registryControl", "isMut": false, "isSigner": false },
+        { "name": "registryProject", "isMut": true, "isSigner": false },
+        { "name": "mint", "isMut": true, "isSigner": false },
+        { "name": "investorTokenAccount", "isMut": true, "isSigner": false },
+        { "name": "mintAuthorityPda", "isMut": false, "isSigner": false },
+        { "name": "tokenProgram", "isMut": false, "isSigner": false }
       ],
       "args": [
-        { "name": "settlementTxHash",     "type": { "array": ["u8", 64] } },
+        { "name": "settlementTxHash", "type": { "array": ["u8", 64] } },
         { "name": "allocatedTokenAmount", "type": "u64" }
       ]
+    },
+    {
+      "name": "toggleLockupBypass",
+      "accounts": [
+        { "name": "control", "isMut": false, "isSigner": false },
+        { "name": "eligibility", "isMut": true, "isSigner": false },
+        { "name": "investorWallet", "isMut": false, "isSigner": false },
+        { "name": "admin", "isMut": false, "isSigner": true }
+      ],
+      "args": [{ "name": "enabled", "type": "bool" }]
     }
   ],
   "accounts": [
@@ -130,12 +140,12 @@
       "type": {
         "kind": "struct",
         "fields": [
-          { "name": "authority",       "type": "publicKey" },
-          { "name": "superAdmin",      "type": "publicKey" },
+          { "name": "authority", "type": "publicKey" },
+          { "name": "superAdmin", "type": "publicKey" },
           { "name": "registryProgram", "type": "publicKey" },
-          { "name": "kycBypass",       "type": "bool"      },
-          { "name": "transfersPaused", "type": "bool"      },
-          { "name": "bump",            "type": "u8"        }
+          { "name": "kycBypass", "type": "bool" },
+          { "name": "transfersPaused", "type": "bool" },
+          { "name": "bump", "type": "u8" }
         ]
       }
     },
@@ -144,18 +154,18 @@
       "type": {
         "kind": "struct",
         "fields": [
-          { "name": "wallet",                  "type": "publicKey"                  },
-          { "name": "kycStatus",               "type": { "defined": "KycStatus"  } },
-          { "name": "amlStatus",               "type": { "defined": "AmlStatus"  } },
-          { "name": "identityHash",            "type": { "array": ["u8", 32]     } },
-          { "name": "investmentAllowed",       "type": "bool"                       },
-          { "name": "transferAllowed",         "type": "bool"                       },
-          { "name": "expiryTimestamp",         "type": "i64"                        },
-          { "name": "updatedAt",               "type": "i64"                        },
-          { "name": "approvalTimestamp",       "type": "i64"                        },
-          { "name": "reverificationRequired",  "type": "bool"                       },
-          { "name": "recordedBy",              "type": "publicKey"                  },
-          { "name": "bump",                    "type": "u8"                         }
+          { "name": "wallet", "type": "publicKey" },
+          { "name": "kycStatus", "type": { "defined": "KycStatus" } },
+          { "name": "amlStatus", "type": { "defined": "AmlStatus" } },
+          { "name": "identityHash", "type": { "array": ["u8", 32] } },
+          { "name": "investmentAllowed", "type": "bool" },
+          { "name": "transferAllowed", "type": "bool" },
+          { "name": "approvalTimestamp", "type": "i64" },
+          { "name": "expiryTimestamp", "type": "i64" },
+          { "name": "reverificationRequired", "type": "bool" },
+          { "name": "lockupBypass", "type": "bool" },
+          { "name": "recordedBy", "type": "publicKey" },
+          { "name": "bump", "type": "u8" }
         ]
       }
     },
@@ -164,18 +174,18 @@
       "type": {
         "kind": "struct",
         "fields": [
-          { "name": "subscriptionId",      "type": "u64"                                   },
-          { "name": "investor",            "type": "publicKey"                             },
-          { "name": "projectId",           "type": "u64"                                   },
-          { "name": "investmentAmount",    "type": "u64"                                   },
-          { "name": "paymentAsset",        "type": "publicKey"                             },
-          { "name": "status",              "type": { "defined": "SubscriptionStatus" }     },
-          { "name": "allocatedTokenAmount","type": "u64"                                   },
-          { "name": "settlementTxHash",    "type": { "array": ["u8", 64] }                 },
-          { "name": "settledAt",           "type": "i64"                                   },
-          { "name": "createdAt",           "type": "i64"                                   },
-          { "name": "updatedAt",           "type": "i64"                                   },
-          { "name": "bump",                "type": "u8"                                    }
+          { "name": "subscriptionId", "type": "u64" },
+          { "name": "investor", "type": "publicKey" },
+          { "name": "projectId", "type": "u64" },
+          { "name": "investmentAmount", "type": "u64" },
+          { "name": "paymentAsset", "type": "publicKey" },
+          { "name": "status", "type": { "defined": "SubscriptionStatus" } },
+          { "name": "allocatedTokenAmount", "type": "u64" },
+          { "name": "settlementTxHash", "type": { "array": ["u8", 64] } },
+          { "name": "settledAt", "type": "i64" },
+          { "name": "createdAt", "type": "i64" },
+          { "name": "updatedAt", "type": "i64" },
+          { "name": "bump", "type": "u8" }
         ]
       }
     }
@@ -186,12 +196,12 @@
       "type": {
         "kind": "struct",
         "fields": [
-          { "name": "kycStatus",          "type": { "defined": "KycStatus" } },
-          { "name": "amlStatus",          "type": { "defined": "AmlStatus" } },
-          { "name": "identityHash",       "type": { "array": ["u8", 32]   } },
-          { "name": "investmentAllowed",  "type": "bool"                     },
-          { "name": "transferAllowed",    "type": "bool"                     },
-          { "name": "expiryTimestamp",    "type": "i64"                      }
+          { "name": "kycStatus", "type": { "defined": "KycStatus" } },
+          { "name": "amlStatus", "type": { "defined": "AmlStatus" } },
+          { "name": "identityHash", "type": { "array": ["u8", 32] } },
+          { "name": "investmentAllowed", "type": "bool" },
+          { "name": "transferAllowed", "type": "bool" },
+          { "name": "expiryTimestamp", "type": "i64" }
         ]
       }
     },
@@ -200,31 +210,32 @@
       "type": {
         "kind": "struct",
         "fields": [
-          { "name": "projectId",           "type": "u64"                                  },
-          { "name": "registry",            "type": "publicKey"                            },
-          { "name": "creator",             "type": "publicKey"                            },
-          { "name": "name",                "type": "string"                               },
-          { "name": "symbol",              "type": "string"                               },
-          { "name": "uri",                 "type": "string"                               },
-          { "name": "supplyCap",           "type": "u64"                                  },
-          { "name": "tokensIssued",        "type": "u64"                                  },
-          { "name": "minInvestmentUsdc",   "type": "u64"                                  },
-          { "name": "maxInvestmentUsdc",   "type": "u64"                                  },
-          { "name": "acceptedStablecoin",  "type": "publicKey"                            },
-          { "name": "treasuryWallet",      "type": "publicKey"                            },
-          { "name": "mint",                "type": "publicKey"                            },
-          { "name": "lockupEndTs",         "type": "i64"                                  },
-          { "name": "subscriptionStart",   "type": "i64"                                  },
-          { "name": "subscriptionEnd",     "type": "i64"                                  },
-          { "name": "createdAt",           "type": "i64"                                  },
-          { "name": "distributionCadence", "type": "u8"                                   },
-          { "name": "status",              "type": { "defined": "ProjectStatus" }         },
-          { "name": "isPaused",            "type": "bool"                                 },
-          { "name": "mintAuthorityRevoked","type": "bool"                                 },
-          { "name": "roundLimitTokens",    "type": "u64"                                  },
-          { "name": "currentRoundIssued",  "type": "u64"                                  },
-          { "name": "assetType",           "type": { "defined": "AssetType" }             },
-          { "name": "bump",                "type": "u8"                                   }
+          { "name": "projectId", "type": "u64" },
+          { "name": "registry", "type": "publicKey" },
+          { "name": "creator", "type": "publicKey" },
+          { "name": "name", "type": "string" },
+          { "name": "symbol", "type": "string" },
+          { "name": "uri", "type": "string" },
+          { "name": "supplyCap", "type": "u64" },
+          { "name": "tokensIssued", "type": "u64" },
+          { "name": "minInvestmentUsdc", "type": "u64" },
+          { "name": "maxInvestmentUsdc", "type": "u64" },
+          { "name": "acceptedStablecoin", "type": "publicKey" },
+          { "name": "treasuryWallet", "type": "publicKey" },
+          { "name": "mint", "type": "publicKey" },
+          { "name": "lockupEndTs", "type": "i64" },
+          { "name": "subscriptionStart", "type": "i64" },
+          { "name": "subscriptionEnd", "type": "i64" },
+          { "name": "createdAt", "type": "i64" },
+          { "name": "distributionCadence", "type": "u8" },
+          { "name": "durationMonths", "type": "u8" },
+          { "name": "status", "type": { "defined": "ProjectStatus" } },
+          { "name": "isPaused", "type": "bool" },
+          { "name": "mintAuthorityRevoked", "type": "bool" },
+          { "name": "roundLimitTokens", "type": "u64" },
+          { "name": "currentRoundIssued", "type": "u64" },
+          { "name": "assetType", "type": { "defined": "AssetType" } },
+          { "name": "bump", "type": "u8" }
         ]
       }
     },
@@ -233,8 +244,8 @@
       "type": {
         "kind": "struct",
         "fields": [
-          { "name": "allowed",    "type": "bool" },
-          { "name": "reasonCode", "type": "u8"   }
+          { "name": "allowed", "type": "bool" },
+          { "name": "reasonCode", "type": "u8" }
         ]
       }
     },
@@ -243,11 +254,11 @@
       "type": {
         "kind": "enum",
         "variants": [
-          { "name": "Draft"      },
-          { "name": "Funding"    },
-          { "name": "Active"     },
-          { "name": "Completed"  },
-          { "name": "Canceled"   }
+          { "name": "Draft" },
+          { "name": "Funding" },
+          { "name": "Active" },
+          { "name": "Completed" },
+          { "name": "Canceled" }
         ]
       }
     },
@@ -257,8 +268,8 @@
         "kind": "enum",
         "variants": [
           { "name": "RealEstate" },
-          { "name": "Mining"     },
-          { "name": "Other"      }
+          { "name": "Mining" },
+          { "name": "Other" }
         ]
       }
     },
@@ -267,10 +278,10 @@
       "type": {
         "kind": "enum",
         "variants": [
-          { "name": "Pending"  },
+          { "name": "Pending" },
           { "name": "Approved" },
           { "name": "Rejected" },
-          { "name": "Expired"  }
+          { "name": "Expired" }
         ]
       }
     },
@@ -279,7 +290,7 @@
       "type": {
         "kind": "enum",
         "variants": [
-          { "name": "Clear"   },
+          { "name": "Clear" },
           { "name": "Flagged" },
           { "name": "Blocked" }
         ]
@@ -290,10 +301,10 @@
       "type": {
         "kind": "enum",
         "variants": [
-          { "name": "Pending"   },
-          { "name": "Settled"   },
+          { "name": "Pending" },
+          { "name": "Settled" },
           { "name": "Allocated" },
-          { "name": "Refunded"  }
+          { "name": "Refunded" }
         ]
       }
     }
@@ -302,101 +313,177 @@
     {
       "name": "GlobalPauseChanged",
       "fields": [
-        { "name": "transfersPaused", "type": "bool",      "index": false },
-        { "name": "changedBy",       "type": "publicKey", "index": false },
-        { "name": "timestamp",       "type": "i64",       "index": false }
+        { "name": "transfersPaused", "type": "bool", "index": false },
+        { "name": "changedBy", "type": "publicKey", "index": false },
+        { "name": "timestamp", "type": "i64", "index": false }
       ]
     },
     {
       "name": "KycBypassChanged",
       "fields": [
-        { "name": "bypassEnabled", "type": "bool",      "index": false },
-        { "name": "changedBy",     "type": "publicKey", "index": false },
-        { "name": "timestamp",     "type": "i64",       "index": false }
+        { "name": "bypassEnabled", "type": "bool", "index": false },
+        { "name": "changedBy", "type": "publicKey", "index": false },
+        { "name": "timestamp", "type": "i64", "index": false }
       ]
     },
     {
       "name": "InvestmentSettled",
       "fields": [
-        { "name": "subscriptionId", "type": "u64",                    "index": false },
-        { "name": "investor",       "type": "publicKey",              "index": false },
-        { "name": "projectId",      "type": "u64",                    "index": false },
-        { "name": "txHash",         "type": { "array": ["u8", 64] },  "index": false },
-        { "name": "timestamp",      "type": "i64",                    "index": false }
+        { "name": "subscriptionId", "type": "u64", "index": false },
+        { "name": "investor", "type": "publicKey", "index": false },
+        { "name": "projectId", "type": "u64", "index": false },
+        { "name": "txHash", "type": { "array": ["u8", 64] }, "index": false },
+        { "name": "timestamp", "type": "i64", "index": false }
       ]
     },
     {
       "name": "TokensAllocated",
       "fields": [
-        { "name": "subscriptionId", "type": "u64",       "index": false },
-        { "name": "investor",       "type": "publicKey", "index": false },
-        { "name": "amount",         "type": "u64",       "index": false },
-        { "name": "timestamp",      "type": "i64",       "index": false }
+        { "name": "subscriptionId", "type": "u64", "index": false },
+        { "name": "investor", "type": "publicKey", "index": false },
+        { "name": "amount", "type": "u64", "index": false },
+        { "name": "timestamp", "type": "i64", "index": false }
       ]
     },
     {
       "name": "WalletVerified",
       "fields": [
-        { "name": "wallet",             "type": "publicKey", "index": false },
-        { "name": "kycStatus",          "type": "u8",        "index": false },
-        { "name": "amlStatus",          "type": "u8",        "index": false },
-        { "name": "investmentAllowed",  "type": "bool",      "index": false },
-        { "name": "transferAllowed",    "type": "bool",      "index": false },
-        { "name": "expiryTimestamp",    "type": "i64",       "index": false },
-        { "name": "timestamp",          "type": "i64",       "index": false }
+        { "name": "wallet", "type": "publicKey", "index": false },
+        { "name": "kycStatus", "type": "u8", "index": false },
+        { "name": "amlStatus", "type": "u8", "index": false },
+        { "name": "investmentAllowed", "type": "bool", "index": false },
+        { "name": "transferAllowed", "type": "bool", "index": false },
+        { "name": "expiryTimestamp", "type": "i64", "index": false },
+        { "name": "timestamp", "type": "i64", "index": false }
       ]
     },
     {
       "name": "WalletRevoked",
       "fields": [
-        { "name": "wallet",     "type": "publicKey", "index": false },
-        { "name": "revokedBy",  "type": "publicKey", "index": false },
-        { "name": "timestamp",  "type": "i64",       "index": false }
+        { "name": "wallet", "type": "publicKey", "index": false },
+        { "name": "revokedBy", "type": "publicKey", "index": false },
+        { "name": "timestamp", "type": "i64", "index": false }
       ]
     },
     {
       "name": "InvestmentSubscribed",
       "fields": [
-        { "name": "subscriptionId",   "type": "u64",       "index": false },
-        { "name": "investor",         "type": "publicKey", "index": false },
-        { "name": "projectId",        "type": "u64",       "index": false },
-        { "name": "investmentAmount", "type": "u64",       "index": false },
-        { "name": "timestamp",        "type": "i64",       "index": false }
+        { "name": "subscriptionId", "type": "u64", "index": false },
+        { "name": "investor", "type": "publicKey", "index": false },
+        { "name": "projectId", "type": "u64", "index": false },
+        { "name": "investmentAmount", "type": "u64", "index": false },
+        { "name": "timestamp", "type": "i64", "index": false }
       ]
     },
     {
       "name": "TransferValidated",
       "fields": [
-        { "name": "sender",      "type": "publicKey", "index": false },
-        { "name": "receiver",    "type": "publicKey", "index": false },
-        { "name": "projectId",   "type": "u64",       "index": false },
-        { "name": "amount",      "type": "u64",       "index": false },
-        { "name": "allowed",     "type": "bool",      "index": false },
-        { "name": "bypassUsed",  "type": "bool",      "index": false },
-        { "name": "reasonCode",  "type": "u8",        "index": false },
-        { "name": "timestamp",   "type": "i64",       "index": false }
+        { "name": "sender", "type": "publicKey", "index": false },
+        { "name": "receiver", "type": "publicKey", "index": false },
+        { "name": "projectId", "type": "u64", "index": false },
+        { "name": "amount", "type": "u64", "index": false },
+        { "name": "allowed", "type": "bool", "index": false },
+        { "name": "bypassUsed", "type": "bool", "index": false },
+        { "name": "reasonCode", "type": "u8", "index": false },
+        { "name": "timestamp", "type": "i64", "index": false }
       ]
     }
   ],
   "errors": [
-    { "code": 6000, "name": "Unauthorized",           "msg": "Caller is not authorized to perform this action"                                         },
-    { "code": 6001, "name": "GlobalTransfersPaused",  "msg": "Token transfers are globally paused by compliance admin"                                 },
-    { "code": 6002, "name": "ProjectTransfersPaused", "msg": "Token transfers are paused for this project"                                             },
-    { "code": 6003, "name": "SenderNotApproved",      "msg": "Sender wallet is not KYC approved or transfer not allowed"                               },
-    { "code": 6004, "name": "ReceiverNotApproved",    "msg": "Receiver wallet is not KYC approved or transfer not allowed"                             },
-    { "code": 6005, "name": "SenderKycExpired",       "msg": "Sender KYC eligibility has expired – re-verification required"                           },
-    { "code": 6006, "name": "ReceiverKycExpired",     "msg": "Receiver KYC eligibility has expired – re-verification required"                         },
-    { "code": 6007, "name": "SenderAmlBlocked",       "msg": "Sender wallet is AML flagged or sanctioned"                                              },
-    { "code": 6008, "name": "ReceiverAmlBlocked",     "msg": "Receiver wallet is AML flagged or sanctioned"                                            },
-    { "code": 6009, "name": "LockupActive",           "msg": "Token lock-up period is still active for this project"                                   },
-    { "code": 6010, "name": "InvalidExpiry",          "msg": "Expiry timestamp must be in the future"                                                  },
-    { "code": 6011, "name": "EmptyIdentityHash",      "msg": "Identity hash cannot be all zeros"                                                       },
-    { "code": 6012, "name": "InvestmentTooLow",       "msg": "Investment amount is below project minimum"                                              },
-    { "code": 6013, "name": "InvestmentTooHigh",      "msg": "Investment amount exceeds project maximum"                                               },
-    { "code": 6014, "name": "ProjectNotActive",       "msg": "Project is not active or is paused"                                                      },
-    { "code": 6015, "name": "AlreadySettled",         "msg": "Subscription is already settled or allocated"                                            },
-    { "code": 6016, "name": "InvalidStatus",          "msg": "Invalid subscription status for this operation"                                          },
-    { "code": 6017, "name": "MintFailed",             "msg": "SPL mint CPI failed inside issue_tokens"                                                 },
-    { "code": 6018, "name": "InvalidRegistryProgram", "msg": "Provided project_registry_program does not match on-chain control.registry_program"      }
+    {
+      "code": 6000,
+      "name": "Unauthorized",
+      "msg": "Caller is not authorized to perform this action"
+    },
+    {
+      "code": 6001,
+      "name": "GlobalTransfersPaused",
+      "msg": "Token transfers are globally paused by compliance admin"
+    },
+    {
+      "code": 6002,
+      "name": "ProjectTransfersPaused",
+      "msg": "Token transfers are paused for this project"
+    },
+    {
+      "code": 6003,
+      "name": "SenderNotApproved",
+      "msg": "Sender wallet is not KYC approved or transfer not allowed"
+    },
+    {
+      "code": 6004,
+      "name": "ReceiverNotApproved",
+      "msg": "Receiver wallet is not KYC approved or transfer not allowed"
+    },
+    {
+      "code": 6005,
+      "name": "SenderKycExpired",
+      "msg": "Sender KYC eligibility has expired – re-verification required"
+    },
+    {
+      "code": 6006,
+      "name": "ReceiverKycExpired",
+      "msg": "Receiver KYC eligibility has expired – re-verification required"
+    },
+    {
+      "code": 6007,
+      "name": "SenderAmlBlocked",
+      "msg": "Sender wallet is AML flagged or sanctioned"
+    },
+    {
+      "code": 6008,
+      "name": "ReceiverAmlBlocked",
+      "msg": "Receiver wallet is AML flagged or sanctioned"
+    },
+    {
+      "code": 6009,
+      "name": "LockupActive",
+      "msg": "Token lock-up period is still active for this project"
+    },
+    {
+      "code": 6010,
+      "name": "InvalidExpiry",
+      "msg": "Expiry timestamp must be in the future"
+    },
+    {
+      "code": 6011,
+      "name": "EmptyIdentityHash",
+      "msg": "Identity hash cannot be all zeros"
+    },
+    {
+      "code": 6012,
+      "name": "InvestmentTooLow",
+      "msg": "Investment amount is below project minimum"
+    },
+    {
+      "code": 6013,
+      "name": "InvestmentTooHigh",
+      "msg": "Investment amount exceeds project maximum"
+    },
+    {
+      "code": 6014,
+      "name": "ProjectNotActive",
+      "msg": "Project is not active or is paused"
+    },
+    {
+      "code": 6015,
+      "name": "AlreadySettled",
+      "msg": "Subscription is already settled or allocated"
+    },
+    {
+      "code": 6016,
+      "name": "InvalidStatus",
+      "msg": "Invalid subscription status for this operation"
+    },
+    {
+      "code": 6017,
+      "name": "MintFailed",
+      "msg": "SPL mint CPI failed inside issue_tokens"
+    },
+    {
+      "code": 6018,
+      "name": "InvalidRegistryProgram",
+      "msg": "Provided project_registry_program does not match on-chain control.registry_program"
+    }
   ]
 }

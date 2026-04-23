@@ -134,4 +134,6 @@ pub enum RegistryError {
     MintNotSet,
     #[msg("Token issuance would exceed the current round limit")]
     RoundLimitExceeded,
+    #[msg("The lock-up end date can only be extended, not reduced.")]
+    LockupCannotBeReduced,
 }

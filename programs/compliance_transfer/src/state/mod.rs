@@ -11,30 +11,33 @@ pub use external_state::*;
 
 use anchor_lang::prelude::*;
 
-#[derive(AnchorSerialize, AnchorDeserialize, Clone, PartialEq)]
+#[derive(AnchorSerialize, AnchorDeserialize, Clone, PartialEq, Default)]
 pub enum KycStatus {
+    #[default]
     Pending,
     Approved,
     Rejected,
     Expired,
 }
 
-#[derive(AnchorSerialize, AnchorDeserialize, Clone, PartialEq)]
+#[derive(AnchorSerialize, AnchorDeserialize, Clone, PartialEq, Default)]
 pub enum AmlStatus {
+    #[default]
     Clear,
     Flagged,
     Blocked,
 }
 
-#[derive(AnchorSerialize, AnchorDeserialize, Clone, PartialEq)]
+#[derive(AnchorSerialize, AnchorDeserialize, Clone, PartialEq, Default)]
 pub enum SubscriptionStatus {
+    #[default]
     Pending,
     Settled,
     Allocated,
     Refunded,
 }
 
-#[derive(AnchorSerialize, AnchorDeserialize, Clone, Copy, PartialEq)]
+#[derive(AnchorSerialize, AnchorDeserialize, Clone, Copy, PartialEq, Default)]
 pub struct TransferDecision {
     pub allowed:     bool,
     pub reason_code: u8,

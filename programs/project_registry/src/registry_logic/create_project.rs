@@ -16,6 +16,7 @@ pub struct CreateProjectParams {
     pub subscription_start:     i64,
     pub subscription_end:       i64,
     pub distribution_cadence:   u8,
+    pub duration_months:        u8,
     // ── Phase fields ──────────────────────────────────────────────────────────
     // asset_type drives UI presets & default round_limit behaviour.
     pub asset_type:             AssetType,
@@ -136,6 +137,7 @@ pub fn handle_create_project(
     project.subscription_start  = params.subscription_start;
     project.subscription_end    = params.subscription_end;
     project.distribution_cadence = params.distribution_cadence;
+    project.duration_months      = params.duration_months;
     project.created_at             = clock.unix_timestamp;
     project.tokens_issued          = 0;
     // New projects start as Draft — admin must explicitly move to Funding.

@@ -9,6 +9,7 @@ pub struct ProjectUpdateParams {
     pub subscription_start:     Option<i64>,
     pub subscription_end:       Option<i64>,
     pub distribution_cadence:   Option<u8>,
+    pub duration_months:        Option<u8>,
     pub lockup_end_ts:          Option<i64>,
     // ── Phase fields ─────────────────────────────────────────────────────────
     // New round limit for the current or next phase.
@@ -66,7 +67,11 @@ pub fn handle_update_project_params(
     if let Some(cadence) = params.distribution_cadence {
         project.distribution_cadence = cadence;
     }
+    if let Some(duration) = params.duration_months {
+        project.duration_months = duration;
+    }
     if let Some(lockup) = params.lockup_end_ts {
+        require!(lockup >= project.lockup_end_ts, RegistryError::LockupCannotBeReduced);
         project.lockup_end_ts = lockup;
     }
     // Phase field updates
