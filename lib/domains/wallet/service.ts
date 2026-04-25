@@ -28,35 +28,59 @@ export class WalletService {
       throw new Error('This wallet is already linked to another account');
     }
 
-    // Deactivate any existing wallets for this user
+    // Deactivate any other wallets for this user first
     await supabase
       .from('wallet_links')
       .update({ is_active: false, disconnected_at: new Date().toISOString() })
       .eq('user_id', input.userId)
-      .eq('is_active', true);
+      .neq('wallet_address', input.walletAddress);
 
-    // Upsert wallet link (handles reconnection of same wallet)
-    const { data, error } = await supabase
+    // Check if THIS specific wallet already exists for this user
+    const { data: existingLink } = await supabase
       .from('wallet_links')
-      .upsert({
-        user_id: input.userId,
-        wallet_address: input.walletAddress,
-        chain_id: input.chainId,
-        wallet_type: input.walletType,
-        is_active: true,
-        disconnected_at: null,
-        connected_at: new Date().toISOString(),
-        verified: false, // Reset verification for fresh handshake
-      }, {
-        onConflict: 'user_id, wallet_address'
-      })
-      .select()
+      .select('*')
+      .eq('user_id', input.userId)
+      .eq('wallet_address', input.walletAddress)
       .single();
 
-    if (error) {
-      console.error('Supabase upsert error:', error);
-      throw error;
+    let result;
+    if (existingLink) {
+      // Reactivate and update existing link
+      const { data, error } = await supabase
+        .from('wallet_links')
+        .update({
+          is_active: true,
+          disconnected_at: null,
+          connected_at: new Date().toISOString(),
+          verified: false,
+          wallet_type: input.walletType || existingLink.wallet_type
+        })
+        .eq('id', existingLink.id)
+        .select()
+        .single();
+      
+      if (error) throw error;
+      result = data;
+    } else {
+      // Create new link
+      const { data, error } = await supabase
+        .from('wallet_links')
+        .insert({
+          user_id: input.userId,
+          wallet_address: input.walletAddress,
+          chain_id: input.chainId,
+          wallet_type: input.walletType,
+          is_active: true,
+          verified: false,
+        })
+        .select()
+        .single();
+      
+      if (error) throw error;
+      result = data;
     }
+
+    const data = result;
 
     // Update eligibility state
     await updateEligibilityOnWalletChange(input.userId, 'wallet_connected');

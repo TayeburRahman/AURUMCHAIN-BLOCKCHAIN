@@ -16,6 +16,7 @@ export interface EnrichedProject extends Project {
   token_symbol?: string | null;
   metadata_uri?: string | null;
   lockup_end_date?: string | null;
+  distribution_mode?: number | null; // Added to root (missing from base Project)
   onChain?: {
     symbol: string;
     uri: string;
@@ -31,6 +32,8 @@ export interface EnrichedProject extends Project {
     subscriptionEnd: number;
     createdAt: number;
     distributionCadence: number;
+    distributionMode: number; // New Field
+    tokenPriceUsdc: number;   // New Field
     isActive: boolean;
     status: any;
     isPaused: boolean;
@@ -67,6 +70,7 @@ export default function ProjectsManagement({ initialProjects, userId }: Projects
     lockup_end_date?: string;
     distribution_cadence?: number;
     token_decimals?: number;
+    distribution_mode?: number;  // New Field
   }>({
     name: '',
     slug: '',
@@ -92,6 +96,7 @@ export default function ProjectsManagement({ initialProjects, userId }: Projects
     distribution_cadence: 0,
     token_decimals: 9,
     asset_type: 'real_estate',
+    distribution_mode: 0, // Default: Parallel
     round_limit_tokens: 0,
   });
 
@@ -99,6 +104,7 @@ export default function ProjectsManagement({ initialProjects, userId }: Projects
     e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>
   ) => {
     const { name, value } = e.target;
+
     setFormData((prev) => {
       const updated = {
         ...prev,
@@ -112,14 +118,15 @@ export default function ProjectsManagement({ initialProjects, userId }: Projects
           name === 'expected_return_percentage' ||
           name === 'project_duration_months' ||
           name === 'distribution_cadence' ||
+          name === 'distribution_mode' ||
           name === 'token_decimals' ||
           name === 'round_limit_tokens'
             ? parseFloat(value) || 0
             : value,
       };
 
-      // Auto-calculate tokens if Goal or Price changes
-      if (name === 'funding_goal' || name === 'token_price') {
+      // Auto-calculate tokens if Goal or Price changes (ONLY for new projects)
+      if (!editingProject && (name === 'funding_goal' || name === 'token_price')) {
         const goal = name === 'funding_goal' ? parseFloat(value) || 0 : prev.funding_goal || 0;
         const price = name === 'token_price' ? parseFloat(value) || 0 : prev.token_price || 0;
 
@@ -132,6 +139,11 @@ export default function ProjectsManagement({ initialProjects, userId }: Projects
             updated.available_tokens = totalTokens;
           }
         }
+      }
+
+      // Force Round Limit = Total Tokens for Real Estate
+      if (updated.asset_type === 'real_estate' || !updated.asset_type) {
+        updated.round_limit_tokens = updated.total_tokens;
       }
 
       return updated;
@@ -160,16 +172,7 @@ export default function ProjectsManagement({ initialProjects, userId }: Projects
     setLoading(true);
     setError(null);
     
-    // Frontend Guard: Prevent lockup reduction
-    if (editingProject && formData.lockup_end_date) {
-      const newLockup = Math.floor(new Date(formData.lockup_end_date).getTime() / 1000);
-      const currentLockup = editingProject.onChain?.lockupEndTs || 0;
-      if (newLockup < currentLockup) {
-        setError(`Lock-up End Date cannot be reduced. Current on-chain date: ${new Date(currentLockup * 1000).toLocaleString()}`);
-        setLoading(false);
-        return;
-      }
-    }
+    // Note: Lock-up validation is handled on-chain
 
     try {
       if (!wallet.connected) {
@@ -178,33 +181,36 @@ export default function ProjectsManagement({ initialProjects, userId }: Projects
 
       // Step 1: Blockchain — create NEW project on-chain, or UPDATE params for existing chain-linked project
       const service = new ProjectRegistryService(connection, wallet);
+      let submissionData = { ...formData }; // Use local copy to avoid state mutation race conditions
 
       if (!editingProject) {
         // ── CREATE ──
-        formData.status = 'draft'; // Ensure DB and Blockchain start in sync as Draft
+        submissionData.status = 'draft'; 
         try {
           const chainResult = await service.createProjectWithMint({
-            name: formData.name || 'Unnamed Project',
-            symbol: formData.token_symbol || 'TKN',
-            uri: formData.metadata_uri || 'https://metadata.placeholder',
-            supplyCap: formData.total_tokens || 1000000,
-            minInvestmentUsdc: formData.min_investment || 100,
-            maxInvestmentUsdc: formData.funding_goal || 1_000_000,
-            acceptedStablecoin: new PublicKey(formData.accepted_stablecoin || process.env.NEXT_PUBLIC_USDC_MINT || 'AJujcxZiQ1jUvSixiFLQNWFCpUtMuVsbyPCQ8ByU3jvf'),
-            treasuryWallet: new PublicKey(formData.treasury_wallet || wallet.publicKey!.toBase58()),
-            lockupEndTs: Math.floor(new Date(formData.lockup_end_date || Date.now()).getTime() / 1000),
-            subscriptionStart: Math.floor(new Date(formData.start_date || Date.now()).getTime() / 1000),
-            subscriptionEnd: Math.floor(new Date(formData.expected_completion_date || Date.now() + 86400000).getTime() / 1000),
-            distributionCadence: formData.distribution_cadence || 0,
-            durationMonths: formData.project_duration_months || 0,
-            tokenDecimals: formData.token_decimals || 9,
-            assetType: toChainAssetType(formData.asset_type || 'real_estate'),
-            roundLimitTokens: formData.round_limit_tokens || formData.total_tokens || 0,
+            name: submissionData.name || 'Unnamed Project',
+            symbol: submissionData.token_symbol || 'TKN',
+            uri: submissionData.metadata_uri || 'https://metadata.placeholder',
+            supplyCap: submissionData.total_tokens || 1000000,
+            minInvestmentUsdc: submissionData.min_investment || 100,
+            maxInvestmentUsdc: submissionData.funding_goal || 1_000_000,
+            acceptedStablecoin: new PublicKey(submissionData.accepted_stablecoin || process.env.NEXT_PUBLIC_USDC_MINT || 'AJujcxZiQ1jUvSixiFLQNWFCpUtMuVsbyPCQ8ByU3jvf'),
+            treasuryWallet: new PublicKey(submissionData.treasury_wallet || wallet.publicKey!.toBase58()),
+            lockupEndTs: Math.floor(new Date(submissionData.lockup_end_date || Date.now()).getTime() / 1000),
+            subscriptionStart: Math.floor(new Date(submissionData.start_date || Date.now()).getTime() / 1000),
+            subscriptionEnd: Math.floor(new Date(submissionData.expected_completion_date || Date.now() + 86400000).getTime() / 1000),
+            distributionCadence: submissionData.distribution_cadence || 0,
+            durationMonths: submissionData.project_duration_months || 0,
+            tokenDecimals: submissionData.token_decimals || 9,
+            tokenPriceUsdc: submissionData.token_price || 1,
+            distributionMode: submissionData.distribution_mode || 0,
+            assetType: toChainAssetType(submissionData.asset_type || 'real_estate'),
+            roundLimitTokens: submissionData.round_limit_tokens || submissionData.total_tokens || 0,
           });
           
-          formData.blockchain_signature  = chainResult.signature;
-          (formData as any).blockchain_project_id = chainResult.projectId;
-          (formData as any).mint_address = chainResult.mintAddress;
+          submissionData.blockchain_signature = chainResult.signature;
+          (submissionData as any).blockchain_project_id = chainResult.projectId;
+          (submissionData as any).mint_address = chainResult.mintAddress;
         } catch (chainErr: any) {
           throw new Error('Blockchain Transaction Failed: ' + chainErr.message);
         }
@@ -240,6 +246,8 @@ export default function ProjectsManagement({ initialProjects, userId }: Projects
             name: formData.name || null,
             symbol: formData.token_symbol || null,
             uri: formData.metadata_uri || null,
+            tokenPriceUsdc: (formData.token_price !== undefined) ? new BN(Math.round(formData.token_price * 1_000_000)) : null,
+            distributionMode: (formData.distribution_mode !== undefined) ? formData.distribution_mode : null,
           };
 
           if (Object.keys(chainUpdateParams).some(k => chainUpdateParams[k] !== null)) {
@@ -263,7 +271,7 @@ export default function ProjectsManagement({ initialProjects, userId }: Projects
       const response = await fetch(url, {
         method,
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData),
+        body: JSON.stringify(submissionData),
       });
 
       if (!response.ok) {
@@ -363,33 +371,34 @@ export default function ProjectsManagement({ initialProjects, userId }: Projects
       description: project.description,
       location: project.location,
       country: project.country,
-      funding_goal: project.funding_goal,
-      current_funding: project.current_funding,
-      min_investment: project.min_investment,
-      token_price: project.token_price,
-      total_tokens: project.total_tokens,
-      available_tokens: project.available_tokens,
-      expected_return_percentage: project.expected_return_percentage,
-      project_duration_months: project.project_duration_months,
+      funding_goal: project.funding_goal ?? 0,
+      current_funding: project.current_funding ?? 0,
+      min_investment: project.min_investment ?? 0,
+      token_price: project.onChain?.tokenPriceUsdc ?? project.token_price ?? 1,
+      total_tokens: project.onChain?.supplyCap ?? project.total_tokens ?? 0,
+      available_tokens: project.onChain ? (project.onChain.supplyCap - project.onChain.tokensIssued) : (project.available_tokens ?? 0),
+      expected_return_percentage: project.expected_return_percentage ?? 0,
+      project_duration_months: project.project_duration_months ?? 12,
       status: project.status,
       images: project.images,
       documents: project.documents,
       video_url: project.video_url,
-      latitude: project.latitude,
-      longitude: project.longitude,
-      start_date: project.start_date ? new Date(project.start_date).toISOString().slice(0, 16) : '',
-      expected_completion_date: project.expected_completion_date ? new Date(project.expected_completion_date).toISOString().slice(0, 16) : '',
+      latitude: project.latitude ?? 0,
+      longitude: project.longitude ?? 0,
+      start_date: project.start_date ? new Date(project.start_date).toLocaleString('sv').slice(0, 16).replace(' ', 'T') : '',
+      expected_completion_date: project.expected_completion_date ? new Date(project.expected_completion_date).toLocaleString('sv').slice(0, 16).replace(' ', 'T') : '',
       token_symbol: project.onChain?.symbol || project.token_symbol || '',
       metadata_uri: project.onChain?.uri || project.metadata_uri || '',
       token_decimals: project.token_decimals || (project.onChain as any)?.decimals || 9,
       accepted_stablecoin: project.accepted_stablecoin || process.env.NEXT_PUBLIC_USDC_MINT || '',
       treasury_wallet: project.treasury_wallet || process.env.NEXT_PUBLIC_ADMIN_WALLET || '',
       lockup_end_date: project.onChain?.lockupEndTs 
-        ? new Date(project.onChain.lockupEndTs * 1000).toISOString().slice(0, 16) 
-        : project.lockup_end_date ? new Date(project.lockup_end_date).toISOString().slice(0, 16) : '',
+        ? new Date(project.onChain.lockupEndTs * 1000).toLocaleString('sv').slice(0, 16).replace(' ', 'T')
+        : project.lockup_end_date ? new Date(project.lockup_end_date).toLocaleString('sv').slice(0, 16).replace(' ', 'T') : '',
       distribution_cadence: project.distribution_cadence || 0,
+      distribution_mode: (project.onChain as any)?.distributionMode ?? project.distribution_mode ?? 0,
       asset_type: project.asset_type || 'real_estate',
-      round_limit_tokens: (project.onChain as any)?.roundLimitTokens || project.round_limit_tokens || 0,
+      round_limit_tokens: (project.onChain as any)?.roundLimitTokens ?? project.round_limit_tokens ?? 0,
     });
     setShowForm(true);
     setTimeout(() => {
@@ -408,11 +417,12 @@ export default function ProjectsManagement({ initialProjects, userId }: Projects
         method: 'DELETE',
       });
 
-      if (!response.ok) {
+      if (!response.ok && response.status !== 404) {
         const data = await response.json();
         throw new Error(data.error || 'Failed to delete project');
       }
 
+      // If success OR already deleted (404), remove from local state
       setProjects(projects.filter(p => p.id !== projectId));
     } catch (err: any) {
       setError(err.message);
@@ -445,6 +455,7 @@ export default function ProjectsManagement({ initialProjects, userId }: Projects
       treasury_wallet: process.env.NEXT_PUBLIC_ADMIN_WALLET || '',
       lockup_end_date: '',
       distribution_cadence: 0,
+      distribution_mode: 0,
       token_decimals: 9,
       asset_type: 'real_estate',
       round_limit_tokens: 0,
@@ -455,7 +466,7 @@ export default function ProjectsManagement({ initialProjects, userId }: Projects
 
   // ── Unified status change (Syncs DB and Blockchain) ──────────────────────
   const handleUpdatePhase = async (project: EnrichedProject, newStatus: Project['status']) => {
-    if (!project.blockchain_project_id) {
+    if (project.blockchain_project_id === null || project.blockchain_project_id === undefined) {
        // If not on chain yet (Draft), just update Supabase
        await handleStatusChangeOnly(project.id, newStatus);
        return;
@@ -497,7 +508,45 @@ export default function ProjectsManagement({ initialProjects, userId }: Projects
       );
       alert(`Phase updated to ${newStatus.toUpperCase()}`);
     } catch (err: any) {
-      setError(err.message);
+      if (err.message?.includes('3003') || err.message?.includes('AccountNotInitialized')) {
+        setError('On-Chain Update Failed: This project is in a "LEGACY" format and cannot be updated on the blockchain. Any projects created AFTER this update will be fully editable.');
+      } else if (err.message?.includes('6012')) {
+        setError('INVALID_TRANSITION: This project is in a terminal state (Completed/Canceled) and cannot be modified further on-chain.');
+      } else {
+        setError(err.message);
+      }
+    } finally {
+      setStatusChanging(null);
+    }
+  };
+
+  const handleSyncFromChain = async (project: EnrichedProject) => {
+    if (!project.onChain) return;
+    const chainStatusStr = fromChainStatus(project.onChain.status);
+    
+    setStatusChanging(project.id);
+    try {
+      const body = { 
+        status: chainStatusStr,
+        available_tokens: Math.floor(project.onChain.supplyCap - project.onChain.tokensIssued),
+        current_round_issued: Math.floor(project.onChain.currentRoundIssued || 0),
+      };
+      console.log(`[Sync] Sending update for project ${project.id}:`, body);
+
+      const response = await fetch(`/api/admin/projects/${project.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+
+      if (!response.ok) throw new Error("DB sync failed.");
+
+      setProjects((prev) =>
+        prev.map((p) => (p.id === project.id ? { ...p, status: chainStatusStr as any } : p))
+      );
+      alert(`Database successfully synced with Blockchain: ${chainStatusStr.toUpperCase()}`);
+    } catch (err: any) {
+      setError(`Sync failed: ${err.message}`);
     } finally {
       setStatusChanging(null);
     }
@@ -527,6 +576,10 @@ export default function ProjectsManagement({ initialProjects, userId }: Projects
   ) => {
     if (project.blockchain_project_id === null || project.blockchain_project_id === undefined) {
       setError('This project has no on-chain record.'); return;
+    }
+    if ((project.onChain as any)?.isLegacy) {
+      setError('This project is in a LEGACY format and its on-chain state cannot be modified.');
+      return;
     }
     if (!wallet.connected) { setError('Connect your Phantom wallet first.'); return; }
     if (statusChanging) return;
@@ -596,9 +649,9 @@ export default function ProjectsManagement({ initialProjects, userId }: Projects
           const divisor = 10 ** decimals;
           
           if (freshChainData) {
-            const issuedCount = freshChainData.tokensIssued.toNumber() / divisor;
-            const roundIssued = freshChainData.currentRoundIssued.toNumber() / divisor;
-            const totalCap = freshChainData.supplyCap.toNumber() / divisor;
+            const issuedCount = Number(freshChainData.tokensIssued) / divisor;
+            const roundIssued = Number(freshChainData.currentRoundIssued) / divisor;
+            const totalCap = Number(freshChainData.supplyCap) / divisor;
 
             await fetch(`/api/admin/projects/${project.id}`, {
               method: 'PUT',
@@ -629,8 +682,8 @@ export default function ProjectsManagement({ initialProjects, userId }: Projects
           const divisor = 10 ** decimals;
           
           if (freshChainData) {
-            const roundIssued = freshChainData.currentRoundIssued.toNumber() / divisor;
-            const roundLimit = freshChainData.roundLimitTokens.toNumber() / divisor;
+            const roundIssued = Number(freshChainData.currentRoundIssued) / divisor;
+            const roundLimit = Number(freshChainData.roundLimitTokens) / divisor;
 
             await fetch(`/api/admin/projects/${project.id}`, {
               method: 'PUT',
@@ -648,7 +701,11 @@ export default function ProjectsManagement({ initialProjects, userId }: Projects
         await refreshProject(project.id, project.blockchain_project_id);
       }
     } catch (err: any) {
-      setError(err.message);
+      if (err.message?.includes('3003') || err.message?.includes('AccountNotInitialized')) {
+        setError('This action failed because the project is in a LEGACY format and its on-chain state cannot be modified.');
+      } else {
+        setError(err.message);
+      }
     } finally {
       setStatusChanging(null);
     }
@@ -662,6 +719,11 @@ export default function ProjectsManagement({ initialProjects, userId }: Projects
       new PublicKey(mintAddress); // Validate pubkey format
     } catch (e) {
       alert('Invalid Solana address format.');
+      return;
+    }
+
+    if ((project.onChain as any)?.isLegacy) {
+      setError('This project is in a LEGACY format and its on-chain state cannot be modified.');
       return;
     }
 
@@ -885,10 +947,13 @@ export default function ProjectsManagement({ initialProjects, userId }: Projects
                   name="total_tokens"
                   value={formData.total_tokens}
                   onChange={handleInputChange}
+                  readOnly={editingProject?.blockchain_project_id !== null && editingProject?.blockchain_project_id !== undefined}
                   required
                   min="0"
                   step="1"
-                  className="w-full px-4 py-2 bg-navy/50 border border-gold/20 rounded-lg text-white focus:outline-none focus:border-gold"
+                  className={`w-full px-4 py-2 bg-navy/50 border border-gold/20 rounded-lg text-white focus:outline-none focus:border-gold ${
+                    (editingProject?.blockchain_project_id !== null && editingProject?.blockchain_project_id !== undefined) ? 'opacity-60 cursor-not-allowed' : ''
+                  }`}
                 />
               </div>
               <div>
@@ -900,10 +965,13 @@ export default function ProjectsManagement({ initialProjects, userId }: Projects
                   name="available_tokens"
                   value={formData.available_tokens}
                   onChange={handleInputChange}
+                  readOnly={editingProject?.blockchain_project_id !== null && editingProject?.blockchain_project_id !== undefined}
                   required
                   min="0"
                   step="1"
-                  className="w-full px-4 py-2 bg-navy/50 border border-gold/20 rounded-lg text-white focus:outline-none focus:border-gold"
+                  className={`w-full px-4 py-2 bg-navy/50 border border-gold/20 rounded-lg text-white focus:outline-none focus:border-gold ${
+                    (editingProject?.blockchain_project_id !== null && editingProject?.blockchain_project_id !== undefined) ? 'opacity-60 cursor-not-allowed' : ''
+                  }`}
                 />
               </div>
               <div>
@@ -936,7 +1004,7 @@ export default function ProjectsManagement({ initialProjects, userId }: Projects
                   <option value="other">Other Assets</option>
                 </select>
               </div>
-              <div>
+              <div className={formData.asset_type === 'real_estate' ? 'hidden' : ''}>
                 <label className="block text-sm font-medium text-gray-300 mb-2">
                   Round Token Limit *
                 </label>
@@ -991,17 +1059,20 @@ export default function ProjectsManagement({ initialProjects, userId }: Projects
                   name="token_decimals"
                   value={formData.token_decimals}
                   onChange={handleInputChange}
+                  readOnly={editingProject?.blockchain_project_id !== null && editingProject?.blockchain_project_id !== undefined}
                   required
                   min="0"
                   max="14"
-                  className="w-full px-4 py-2 bg-navy/50 border border-gold/20 rounded-lg text-white focus:outline-none focus:border-gold"
+                  className={`w-full px-4 py-2 bg-navy/50 border border-gold/20 rounded-lg text-white focus:outline-none focus:border-gold ${
+                    (editingProject?.blockchain_project_id !== null && editingProject?.blockchain_project_id !== undefined) ? 'opacity-60 cursor-not-allowed' : ''
+                  }`}
                 />
               </div>
             </div>
 
-            <div className="grid md:grid-cols-3 gap-4">
+            <div className="grid md:grid-cols-4 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">
+                <label className="block text-sm font-medium text-gray-300 mb-2 text-[10px] uppercase">
                   Metadata URL (Arweave/Pinata)
                 </label>
                 <input
@@ -1014,7 +1085,7 @@ export default function ProjectsManagement({ initialProjects, userId }: Projects
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">
+                <label className="block text-sm font-medium text-gray-300 mb-2 text-[10px] uppercase">
                   Lock-up End Date
                 </label>
                 <input
@@ -1026,7 +1097,7 @@ export default function ProjectsManagement({ initialProjects, userId }: Projects
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">
+                <label className="block text-sm font-medium text-gray-300 mb-2 text-[10px] uppercase">
                   Distribution Cadence
                 </label>
                 <select
@@ -1039,6 +1110,20 @@ export default function ProjectsManagement({ initialProjects, userId }: Projects
                   <option value={1}>Quarterly</option>
                   <option value={2}>Bi-Annually</option>
                   <option value={3}>Annually</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2 text-[10px] uppercase">
+                  Payout Model
+                </label>
+                <select
+                  name="distribution_mode"
+                  value={formData.distribution_mode ?? 0}
+                  onChange={handleInputChange}
+                  className="w-full px-4 py-2 bg-navy/50 border border-gold/20 rounded-lg text-white focus:outline-none focus:border-gold"
+                >
+                  <option value={0}>Parallel</option>
+                  <option value={1}>Sequential</option>
                 </select>
               </div>
             </div>
@@ -1253,6 +1338,12 @@ export default function ProjectsManagement({ initialProjects, userId }: Projects
                       {project.project_duration_months ?? '—'} months
                     </span>
                   </div>
+                  <div>
+                    <span className="text-gray-500">Payout:</span>
+                    <span className="text-white font-medium ml-2">
+                      {(project.onChain as any)?.distributionMode === 1 || project.distribution_mode === 1 ? 'Sequential' : 'Parallel'}
+                    </span>
+                  </div>
                 </div>
 
                 {/* Round Progress Bar */}
@@ -1272,7 +1363,13 @@ export default function ProjectsManagement({ initialProjects, userId }: Projects
                         <div 
                           className="h-full bg-gradient-to-r from-gold to-gold-light transition-all duration-500"
                           style={{ 
-                            width: `${Math.min(100, (((project as any).current_round_issued || 0) / ((project as any).round_limit_tokens || 1)) * 100)}%` 
+                            width: `${Math.min(100, (
+                              (() => {
+                                const issued = project.onChain?.currentRoundIssued ?? (project as any).current_round_issued ?? 0;
+                                const limit = project.onChain?.roundLimitTokens ?? (project as any).round_limit_tokens ?? 0;
+                                return (issued / (limit || 1)) * 100;
+                              })()
+                            ))}%` 
                           }}
                         />
                      </div>
@@ -1310,10 +1407,10 @@ export default function ProjectsManagement({ initialProjects, userId }: Projects
                   <select
                     id={`status-${project.id}`}
                     value={project.status}
-                    disabled={statusChanging === project.id}
+                    disabled={statusChanging === project.id || project.status === 'completed' || project.status === 'canceled'}
                     onChange={(e) => handleUpdatePhase(project, e.target.value as Project['status'])}
                     className="px-3 py-1.5 bg-navy/80 border border-gold/20 rounded-lg text-xs text-white focus:outline-none focus:border-gold transition-colors disabled:opacity-50 cursor-pointer flex-1"
-                    title="Update On-Chain Project Phase"
+                    title={project.status === 'completed' || project.status === 'canceled' ? "Terminal state reached. Cannot update phase." : "Update On-Chain Project Phase"}
                   >
                     <option value="draft" disabled={project.blockchain_project_id !== null && project.blockchain_project_id !== undefined}>Draft</option>
                     <option value="funding">Funding</option>
@@ -1325,9 +1422,9 @@ export default function ProjectsManagement({ initialProjects, userId }: Projects
                   {/* Quick Sync Button if out of sync */}
                   {project.onChain && fromChainStatus(project.onChain.status) !== project.status && (
                     <button
-                      onClick={() => handleUpdatePhase(project, project.status)}
+                      onClick={() => handleSyncFromChain(project)}
                       disabled={statusChanging === project.id}
-                      title="On-Chain status differs. Click to Force Sync."
+                      title={`Blockchain is ${fromChainStatus(project.onChain.status).toUpperCase()}. Click to sync Database.`}
                       className="p-1 px-2 bg-orange-500/20 text-orange-400 border border-orange-500/40 rounded hover:bg-orange-500/30 transition-all animate-pulse"
                     >
                       🔄

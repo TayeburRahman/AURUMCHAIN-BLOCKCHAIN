@@ -27,6 +27,15 @@ export const walletLinkSchema = z.object({
   isActive: z.boolean().default(true),
   disconnectedAt: z.date().optional(),
 
+  // On-chain synchronized state (Solana Integrity)
+  kycStatus: z.number().default(0),
+  amlStatus: z.number().default(0),
+  identityHash: z.string().optional(),
+  canInvest: z.boolean().default(false),
+  canTransfer: z.boolean().default(false),
+  kycExpiry: z.date().optional(),
+  onChainSyncedAt: z.date().optional(),
+
   metadata: z.record(z.string(), z.unknown()).optional(),
   createdAt: z.date(),
   updatedAt: z.date(),

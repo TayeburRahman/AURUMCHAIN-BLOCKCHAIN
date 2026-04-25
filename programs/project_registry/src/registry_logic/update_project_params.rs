@@ -20,6 +20,8 @@ pub struct ProjectUpdateParams {
     pub name:                   Option<String>,
     pub symbol:                 Option<String>,
     pub uri:                    Option<String>,
+    pub token_price_usdc:       Option<u64>,
+    pub distribution_mode:      Option<u8>,
 }
 
 #[derive(Accounts)]
@@ -71,7 +73,10 @@ pub fn handle_update_project_params(
         project.duration_months = duration;
     }
     if let Some(lockup) = params.lockup_end_ts {
-        require!(lockup >= project.lockup_end_ts, RegistryError::LockupCannotBeReduced);
+        // Guard: lockup cannot be reduced unless project is in Draft status
+        if !matches!(project.status, ProjectStatus::Draft) {
+            require!(lockup >= project.lockup_end_ts, RegistryError::LockupCannotBeReduced);
+        }
         project.lockup_end_ts = lockup;
     }
     // Phase field updates
@@ -91,6 +96,12 @@ pub fn handle_update_project_params(
     }
     if let Some(uri) = params.uri {
         project.uri = uri;
+    }
+    if let Some(price) = params.token_price_usdc {
+        project.token_price_usdc = price;
+    }
+    if let Some(mode) = params.distribution_mode {
+        project.distribution_mode = mode;
     }
 
     emit!(ProjectUpdated { project_id: project.project_id });

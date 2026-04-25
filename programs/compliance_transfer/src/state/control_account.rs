@@ -14,6 +14,9 @@ pub struct ComplianceControl {
     /// Program 1 ID – stored for reference and future CPI
     pub registry_program: Pubkey,   // 32
     pub bump:             u8,       //  1
+    /// ── FUTURE EXPANSION PADDING ─────────────────────────────────────────────
+    /// Add global flags (e.g., transfer_mode, marketplace_program_id) here.
+    pub padding:          [u8; 64], 
 }
 
 impl ComplianceControl {

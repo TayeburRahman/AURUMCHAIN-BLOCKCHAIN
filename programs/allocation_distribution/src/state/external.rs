@@ -8,6 +8,7 @@ use anchor_lang::prelude::*;
 pub enum ExternalProjectStatus {
     Draft,
     Funding,
+    Funded,
     Active,
     Completed,
     Canceled,
@@ -35,6 +36,7 @@ pub struct ShadowProjectAccount {
     pub tokens_issued:          u64,
     pub min_investment_usdc:    u64,
     pub max_investment_usdc:    u64,
+    pub token_price_usdc:       u64,             // Added to match Registry
     pub accepted_stablecoin:    Pubkey,
     pub treasury_wallet:        Pubkey,
     pub mint:                   Pubkey,
@@ -43,7 +45,8 @@ pub struct ShadowProjectAccount {
     pub subscription_end:       i64,
     pub created_at:             i64,
     pub distribution_cadence:   u8,
-    pub duration_months:        u8,
+    pub duration_months:        u8,              // Moved to match Registry order
+    pub distribution_mode:      u8,              // Added to match Registry
     pub status:                 ExternalProjectStatus,
     pub is_paused:              bool,
     pub mint_authority_revoked: bool,
@@ -51,4 +54,8 @@ pub struct ShadowProjectAccount {
     pub current_round_issued:   u64,
     pub asset_type:             ExternalAssetType,
     pub bump:                   u8,
+
+    /// ── FUTURE EXPANSION PADDING ─────────────────────────────────────────────
+    /// To add a new feature: insert field above and subtract its size from here.
+    pub padding:                [u8; 42],
 }

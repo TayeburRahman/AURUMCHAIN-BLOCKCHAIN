@@ -6,7 +6,7 @@ mod compliance_logic;
 use crate::compliance_logic::*;
 use crate::state::TransferDecision;
 
-declare_id!("CHWFf4LBaq3VECZ6hiH4YZWNrqezkDteiDq1VbYLFtTs");
+declare_id!("5u14TuRE7ozsKketfqF4R7XPvi7bof9RA455VcKME3Vy");
 
 #[program]
 pub mod compliance_transfer {

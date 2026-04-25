@@ -144,7 +144,8 @@
           { "name": "isEmergencyPaused", "type": "bool" },
           { "name": "operationalLimits", "type": "u64" },
           { "name": "projectCount", "type": "u64" },
-          { "name": "bump", "type": "u8" }
+          { "name": "bump", "type": "u8" },
+          { "name": "padding", "type": { "array": ["u8", 64] } }
         ]
       }
     },
@@ -173,6 +174,7 @@
           { "name": "tokensIssued", "type": "u64" },
           { "name": "minInvestmentUsdc", "type": "u64" },
           { "name": "maxInvestmentUsdc", "type": "u64" },
+          { "name": "tokenPriceUsdc", "type": "u64" },
           { "name": "acceptedStablecoin", "type": "publicKey" },
           { "name": "treasuryWallet", "type": "publicKey" },
           { "name": "mint", "type": "publicKey" },
@@ -182,13 +184,15 @@
           { "name": "createdAt", "type": "i64" },
           { "name": "distributionCadence", "type": "u8" },
           { "name": "durationMonths", "type": "u8" },
+          { "name": "distributionMode", "type": "u8" },
           { "name": "status", "type": { "defined": "ProjectStatus" } },
           { "name": "isPaused", "type": "bool" },
           { "name": "mintAuthorityRevoked", "type": "bool" },
           { "name": "roundLimitTokens", "type": "u64" },
           { "name": "currentRoundIssued", "type": "u64" },
           { "name": "assetType", "type": { "defined": "AssetType" } },
-          { "name": "bump", "type": "u8" }
+          { "name": "bump", "type": "u8" },
+          { "name": "padding", "type": { "array": ["u8", 42] } }
         ]
       }
     }
@@ -205,6 +209,7 @@
           { "name": "supplyCap", "type": "u64" },
           { "name": "minInvestmentUsdc", "type": "u64" },
           { "name": "maxInvestmentUsdc", "type": "u64" },
+          { "name": "tokenPriceUsdc", "type": "u64" },
           { "name": "acceptedStablecoin", "type": "publicKey" },
           { "name": "treasuryWallet", "type": "publicKey" },
           { "name": "lockupEndTs", "type": "i64" },
@@ -212,6 +217,7 @@
           { "name": "subscriptionEnd", "type": "i64" },
           { "name": "distributionCadence", "type": "u8" },
           { "name": "durationMonths", "type": "u8" },
+          { "name": "distributionMode", "type": "u8" },
           { "name": "assetType", "type": { "defined": "AssetType" } },
           { "name": "roundLimitTokens", "type": "u64" }
         ]
@@ -236,7 +242,9 @@
           },
           { "name": "name", "type": { "option": "string" } },
           { "name": "symbol", "type": { "option": "string" } },
-          { "name": "uri", "type": { "option": "string" } }
+          { "name": "uri", "type": { "option": "string" } },
+          { "name": "tokenPriceUsdc", "type": { "option": "u64" } },
+          { "name": "distributionMode", "type": { "option": "u8" } }
         ]
       }
     },
@@ -247,10 +255,18 @@
         "variants": [
           { "name": "Draft" },
           { "name": "Funding" },
+          { "name": "Funded" },
           { "name": "Active" },
           { "name": "Completed" },
           { "name": "Canceled" }
         ]
+      }
+    },
+    {
+      "name": "DistributionMode",
+      "type": {
+        "kind": "enum",
+        "variants": [{ "name": "Parallel" }, { "name": "Sequential" }]
       }
     },
     {

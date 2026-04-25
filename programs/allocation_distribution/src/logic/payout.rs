@@ -7,6 +7,23 @@ pub fn handle_execute_payout(ctx: Context<ExecutePayout>) -> Result<()> {
     let epoch                  = &mut ctx.accounts.epoch;
     let payout_record          = &mut ctx.accounts.payout_record;
     let investor_token_account = &ctx.accounts.investor_token_account;
+    let project                = &ctx.accounts.project_account;
+
+    // 0. Status & Guard Check
+    require!(
+        project.status == ExternalProjectStatus::Active,
+        DistributionError::Unauthorized
+    );
+    require!(!project.is_paused, DistributionError::Unauthorized);
+
+    // 0.1 Timeline Guard: Parallel (0) vs Sequential (1)
+    if project.distribution_mode == 1 { // Sequential
+        let clock = Clock::get()?;
+        require!(
+            clock.unix_timestamp >= project.lockup_end_ts,
+            DistributionError::Unauthorized // Payouts blocked until lockup ends
+        );
+    }
 
     // 1. Calculate amount
     let balance = investor_token_account.amount;

@@ -9,7 +9,7 @@
 
 import { NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/server';
-import { Connection } from '@solana/web3.js';
+import { createDefaultConnection } from '@/lib/web3/config/rpc';
 import { ProjectRegistryService } from '@/lib/web3/services/projectRegistryService';
 
 function formatEnum(val: any): string {
@@ -37,18 +37,28 @@ export async function GET() {
     if (!projects || projects.length === 0) return NextResponse.json([]);
 
     // 2. Fetch on-chain project accounts individually (bypasses Alchemy's getProgramAccounts restriction)
-    const connection = new Connection(process.env.NEXT_PUBLIC_SOLANA_RPC_URL || 'https://api.devnet.solana.com');
-    const service = new ProjectRegistryService(connection, {}); // Read-only mode
+    const connection = createDefaultConnection();
+    const service = new ProjectRegistryService(connection, undefined); // Read-only mode
     
     const chainFetchPromises = projects
-      .filter((p: any) => p.blockchain_project_id !== null)
+      .filter((p: any) => p.blockchain_project_id !== null && p.blockchain_project_id !== undefined && !isNaN(Number(p.blockchain_project_id)))
       .map(async (p: any) => {
         try {
           const id = Number(p.blockchain_project_id);
-          const account = await service.fetchProject(id);
+          
+          // Add a timeout to prevent hanging the whole API if one project fetch is slow
+          const timeout = new Promise((_, reject) => 
+            setTimeout(() => reject(new Error('Timeout')), 5000)
+          );
+          
+          const account = await Promise.race([
+            service.fetchProject(id),
+            timeout
+          ]);
+          
           return { id, account };
-        } catch (e) {
-          console.warn(`[GET /api/projects] Failed to fetch on-chain data for project ${p.blockchain_project_id}:`, e);
+        } catch (e: any) {
+          console.error(`[GET /api/projects] On-chain fetch failed or timed out for project ${p.blockchain_project_id}:`, e.message || e);
           return { id: Number(p.blockchain_project_id), account: null };
         }
       });
@@ -64,43 +74,59 @@ export async function GET() {
 
     // 3. Merge data
     const enriched = projects.map((project) => {
-      const chainData = project.blockchain_project_id !== null 
-        ? chainMap.get(project.blockchain_project_id) 
-        : null;
+      try {
+        const chainData = project.blockchain_project_id !== null 
+          ? chainMap.get(Number(project.blockchain_project_id)) 
+          : null;
 
-      return {
-        ...project,
-        onChain: chainData ? {
-          symbol:              chainData.symbol,
-          uri:                 chainData.uri,
-          supplyCap:           chainData.supplyCap.toNumber() / (10 ** (project.token_decimals || 9)),
-          tokensIssued:        chainData.tokensIssued.toNumber() / (10 ** (project.token_decimals || 9)),
-          minInvestmentUsdc:   chainData.minInvestmentUsdc.toNumber() / 1_000_000,
-          maxInvestmentUsdc:   chainData.maxInvestmentUsdc.toNumber() / 1_000_000,
-          acceptedStablecoin:  chainData.acceptedStablecoin.toString(),
-          treasuryWallet:      chainData.treasuryWallet.toString(),
-          mint:                chainData.mint.toString(),
-          lockupEndTs:         chainData.lockupEndTs.toNumber(),
-          subscriptionStart:   chainData.subscriptionStart.toNumber(),
-          subscriptionEnd:     chainData.subscriptionEnd.toNumber(),
-          createdAt:           chainData.createdAt.toNumber(),
-          distributionCadence: chainData.distributionCadence,
-          isActive:            chainData.status.active !== undefined,
-          isPaused:            chainData.isPaused,
-          mintAuthorityRevoked: chainData.mintAuthorityRevoked,
-          creator:             chainData.creator.toString(),
-          assetType:           formatEnum(chainData.assetType),
-          status:              chainData.status,
-          roundLimitTokens:    chainData.roundLimitTokens.toNumber() / (10 ** (project.token_decimals || 9)),
-          currentRoundIssued:  chainData.currentRoundIssued.toNumber() / (10 ** (project.token_decimals || 9)),
-          pda:                 '', 
-        } : null,
-      };
+        if (!chainData) return { ...project, onChain: null };
+
+        // Helper for safe BN conversion (handles u64 > 2^53)
+        const safeNum = (bn: any, decimals = 0) => {
+          if (!bn) return 0;
+          const s = bn.toString();
+          return parseFloat(s) / (10 ** decimals);
+        };
+
+        const decimals = project.token_decimals || 9;
+
+        return {
+          ...project,
+          onChain: {
+            symbol:              chainData.symbol || '',
+            uri:                 chainData.uri || '',
+            supplyCap:           safeNum(chainData.supplyCap, decimals),
+            tokensIssued:        safeNum(chainData.tokensIssued, decimals),
+            minInvestmentUsdc:   safeNum(chainData.minInvestmentUsdc, 6),
+            maxInvestmentUsdc:   safeNum(chainData.maxInvestmentUsdc, 6),
+            acceptedStablecoin:  chainData.acceptedStablecoin?.toString() || '',
+            treasuryWallet:      chainData.treasuryWallet?.toString() || '',
+            mint:                chainData.mint?.toString() || '',
+            lockupEndTs:         safeNum(chainData.lockupEndTs),
+            subscriptionStart:   safeNum(chainData.subscriptionStart),
+            subscriptionEnd:     safeNum(chainData.subscriptionEnd),
+            createdAt:           safeNum(chainData.createdAt),
+            distributionCadence: Number(chainData.distributionCadence || 0),
+            isActive:            chainData.status?.active !== undefined,
+            isPaused:            !!chainData.isPaused,
+            mintAuthorityRevoked: !!chainData.mintAuthorityRevoked,
+            creator:             chainData.creator?.toString() || '',
+            assetType:           formatEnum(chainData.assetType),
+            status:              chainData.status,
+            roundLimitTokens:    safeNum(chainData.roundLimitTokens, decimals),
+            currentRoundIssued:  safeNum(chainData.currentRoundIssued, decimals),
+            pda:                 '', 
+          }
+        };
+      } catch (err) {
+        console.error(`[GET /api/projects] Enrichment failed for project ${project.id}:`, err);
+        return { ...project, onChain: null }; // Fallback to DB-only data for this specific project
+      }
     });
 
     return NextResponse.json(enriched);
   } catch (err: any) {
-    console.error('[GET /api/projects] Unexpected error:', err);
+    console.error('[GET /api/projects] CRITICAL FAILURE:', err);
     return NextResponse.json(
       { error: err.message || 'Failed to fetch projects' },
       { status: 500 }

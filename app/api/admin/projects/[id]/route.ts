@@ -8,7 +8,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient, createAdminClient } from '@/lib/supabase/server';
 import { AdminService, createAuditLog } from '@/lib/domains/admin/service';
 import { Database } from '@/lib/types/database.types';
-import { Connection } from '@solana/web3.js';
+import { createDefaultConnection } from '@/lib/web3/config/rpc';
 import { ProjectRegistryService } from '@/lib/web3/services/projectRegistryService';
 
 function formatEnum(val: any): string {
@@ -55,7 +55,7 @@ export async function GET(
     let enriched = { ...project, onChain: null };
     if (project.blockchain_project_id !== null) {
       try {
-        const connection = new Connection(process.env.NEXT_PUBLIC_SOLANA_RPC_URL || 'https://api.devnet.solana.com');
+        const connection = createDefaultConnection();
         const service = new ProjectRegistryService(connection, {});
         const chainData = await service.fetchProject(Number(project.blockchain_project_id));
         
@@ -66,26 +66,28 @@ export async function GET(
           enriched.onChain = {
             symbol:              chainData.symbol,
             uri:                 chainData.uri,
-            supplyCap:           chainData.supplyCap.toNumber() / divisor,
-            tokensIssued:        chainData.tokensIssued.toNumber() / divisor,
-            minInvestmentUsdc:   chainData.minInvestmentUsdc.toNumber() / 1_000_000,
-            maxInvestmentUsdc:   chainData.maxInvestmentUsdc.toNumber() / 1_000_000,
+            supplyCap:           Number(chainData.supplyCap) / divisor,
+            tokensIssued:        Number(chainData.tokensIssued) / divisor,
+            minInvestmentUsdc:   Number(chainData.minInvestmentUsdc) / 1_000_000,
+            maxInvestmentUsdc:   Number(chainData.maxInvestmentUsdc) / 1_000_000,
             acceptedStablecoin:  chainData.acceptedStablecoin.toString(),
             treasuryWallet:      chainData.treasuryWallet.toString(),
             mint:                chainData.mint.toString(),
-            lockupEndTs:         chainData.lockupEndTs.toNumber(),
-            subscriptionStart:   chainData.subscriptionStart.toNumber(),
-            subscriptionEnd:     chainData.subscriptionEnd.toNumber(),
-            createdAt:           chainData.createdAt.toNumber(),
+            lockupEndTs:         Number(chainData.lockupEndTs),
+            subscriptionStart:   Number(chainData.subscriptionStart),
+            subscriptionEnd:     Number(chainData.subscriptionEnd),
+            createdAt:           Number(chainData.createdAt),
             distributionCadence: chainData.distributionCadence,
+            distributionMode:    chainData.distributionMode, // Added
+            tokenPriceUsdc:      Number(chainData.tokenPriceUsdc) / 1_000_000, // Added (scaled)
             isActive:            chainData.status.active !== undefined,
             isPaused:            chainData.isPaused,
             mintAuthorityRevoked: chainData.mintAuthorityRevoked,
             creator:             chainData.creator.toString(),
             assetType:           formatEnum(chainData.assetType),
             status:              chainData.status,
-            roundLimitTokens:    chainData.roundLimitTokens.toNumber() / divisor,
-            currentRoundIssued:  chainData.currentRoundIssued.toNumber() / divisor,
+            roundLimitTokens:    Number(chainData.roundLimitTokens) / divisor,
+            currentRoundIssued:  Number(chainData.currentRoundIssued) / divisor,
           };
         }
       } catch (e) {
@@ -146,7 +148,7 @@ export async function PUT(
       'project_duration_months', 'start_date', 'expected_completion_date',
       'status', 'images', 'documents', 'video_url', 'mint_address',
       'mint_authority_revoked', 'is_paused', 'blockchain_signature', 'blockchain_project_id',
-      'asset_type', 'round_limit_tokens', 'current_round_issued', 'distribution_cadence',
+      'asset_type', 'round_limit_tokens', 'current_round_issued', 'distribution_cadence', 'distribution_mode',
       'token_decimals', 'accepted_stablecoin', 'treasury_wallet',
       'token_symbol', 'metadata_uri', 'lockup_end_date'
     ];
@@ -242,8 +244,11 @@ export async function DELETE(
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
+    // Use admin client to bypass RLS (admin auth already verified above)
+    const deleteAdminClient = createAdminClient();
+
     // Get existing project for audit log
-    const { data: existingProject } = await supabase
+    const { data: existingProject } = await deleteAdminClient
       .from('projects')
       .select('*')
       .eq('id', id)
@@ -260,11 +265,8 @@ export async function DELETE(
       }, { status: 400 });
     }
 
-    // Use admin client to bypass RLS (admin auth already verified above)
-    const adminSupabase = createAdminClient();
-
     // Delete project
-    const { error } = await adminSupabase
+    const { error } = await deleteAdminClient
       .from('projects')
       .delete()
       .eq('id', id);

@@ -149,6 +149,8 @@ export class ProjectRegistryService {
     distributionCadence: number;
     durationMonths: number;
     tokenDecimals: number;
+    tokenPriceUsdc: number;      // New Field
+    distributionMode: number;    // New Field
     assetType?: any;
     roundLimitTokens?: number;
   }): Promise<{ signature: string; projectId: number; mintAddress: string }> {
@@ -220,6 +222,7 @@ export class ProjectRegistryService {
         supplyCap: new BN(params.supplyCap).mul(new BN(10).pow(new BN(params.tokenDecimals))), 
         minInvestmentUsdc: new BN(params.minInvestmentUsdc).mul(new BN(1_000_000)),
         maxInvestmentUsdc: new BN(params.maxInvestmentUsdc).mul(new BN(1_000_000)),
+        tokenPriceUsdc: new BN(params.tokenPriceUsdc).mul(new BN(1_000_000)), // Scaled to 6 decimals
         lockupEndTs: new BN(params.lockupEndTs),
         subscriptionStart: new BN(params.subscriptionStart),
         subscriptionEnd: new BN(params.subscriptionEnd),
@@ -227,6 +230,7 @@ export class ProjectRegistryService {
         treasuryWallet: params.treasuryWallet,
         distributionCadence: params.distributionCadence,
         durationMonths: params.durationMonths,
+        distributionMode: params.distributionMode, // 0=Parallel, 1=Sequential
         assetType: mappedAssetType, 
         roundLimitTokens: new BN(params.roundLimitTokens || params.supplyCap).mul(new BN(10).pow(new BN(params.tokenDecimals))),
       });

@@ -54,7 +54,8 @@
         "fields": [
           { "name": "admin", "type": "publicKey" },
           { "name": "isPaused", "type": "bool" },
-          { "name": "bump", "type": "u8" }
+          { "name": "bump", "type": "u8" },
+          { "name": "padding", "type": { "array": ["u8", 64] } }
         ]
       }
     },
@@ -99,6 +100,7 @@
           { "name": "tokensIssued", "type": "u64" },
           { "name": "minInvestmentUsdc", "type": "u64" },
           { "name": "maxInvestmentUsdc", "type": "u64" },
+          { "name": "tokenPriceUsdc", "type": "u64" },
           { "name": "acceptedStablecoin", "type": "publicKey" },
           { "name": "treasuryWallet", "type": "publicKey" },
           { "name": "mint", "type": "publicKey" },
@@ -108,13 +110,15 @@
           { "name": "createdAt", "type": "i64" },
           { "name": "distributionCadence", "type": "u8" },
           { "name": "durationMonths", "type": "u8" },
+          { "name": "distributionMode", "type": "u8" },
           { "name": "status", "type": { "defined": "ExternalProjectStatus" } },
           { "name": "isPaused", "type": "bool" },
           { "name": "mintAuthorityRevoked", "type": "bool" },
           { "name": "roundLimitTokens", "type": "u64" },
           { "name": "currentRoundIssued", "type": "u64" },
           { "name": "assetType", "type": { "defined": "ExternalAssetType" } },
-          { "name": "bump", "type": "u8" }
+          { "name": "bump", "type": "u8" },
+          { "name": "padding", "type": { "array": ["u8", 42] } }
         ]
       }
     },
@@ -140,6 +144,7 @@
         "variants": [
           { "name": "Draft" },
           { "name": "Funding" },
+          { "name": "Funded" },
           { "name": "Active" },
           { "name": "Completed" },
           { "name": "Canceled" }

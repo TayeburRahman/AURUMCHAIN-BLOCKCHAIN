@@ -60,6 +60,7 @@ export async function POST(request: NextRequest) {
         round_limit_tokens:     body.round_limit_tokens || 0,
         current_round_issued:   0,
         distribution_cadence:   body.distribution_cadence || 0,
+        distribution_mode:      body.distribution_mode || 0,
         token_decimals:         body.token_decimals || 9,
         accepted_stablecoin:    body.accepted_stablecoin,
         treasury_wallet:        body.treasury_wallet,

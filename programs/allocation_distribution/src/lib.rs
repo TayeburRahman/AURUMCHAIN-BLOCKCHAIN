@@ -6,7 +6,7 @@ mod state;
 
 use crate::logic::*;
 
-declare_id!("GG9mE55B6mMJFSY8RYVjCt62THVVrMjv55pVzHsZs8nT");
+declare_id!("9RqVyvWA4ficqK351PoYh674mP1au4NmNzVM6LQcenjm");
 
 #[program]
 pub mod allocation_distribution {

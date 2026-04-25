@@ -6,7 +6,7 @@
 import { redirect } from 'next/navigation';
 import { createClient, createAdminClient } from '@/lib/supabase/server';
 import { AdminService } from '@/lib/domains/admin/service';
-import { Connection } from '@solana/web3.js';
+import { createDefaultConnection } from '@/lib/web3/config/rpc';
 import { ProjectRegistryService } from '@/lib/web3/services/projectRegistryService';
 import ProjectsManagement from '@/components/admin/ProjectsManagement';
 
@@ -42,7 +42,7 @@ export default async function AdminProjectsPage() {
 
   // 2. Fetch live on-chain status for each project
   try {
-    const connection = new Connection(process.env.NEXT_PUBLIC_SOLANA_RPC_URL || 'https://api.devnet.solana.com');
+    const connection = createDefaultConnection();
     const service = new ProjectRegistryService(connection, {}); // Read-only
 
     const onChainPromises = enrichedProjects
@@ -59,20 +59,20 @@ export default async function AdminProjectsPage() {
             onChain: {
               symbol:              chainData.symbol,
               uri:                 chainData.uri,
-              supplyCap:           chainData.supplyCap.toNumber() / divisor,
-              tokensIssued:        chainData.tokensIssued.toNumber() / divisor,
-              minInvestmentUsdc:   chainData.minInvestmentUsdc.toNumber() / 1_000_000,
-              maxInvestmentUsdc:   chainData.maxInvestmentUsdc.toNumber() / 1_000_000,
-              currentRoundIssued:  chainData.currentRoundIssued.toNumber() / divisor,
-              roundLimitTokens:    chainData.roundLimitTokens.toNumber() / divisor,
+              supplyCap:           Number(chainData.supplyCap) / divisor,
+              tokensIssued:        Number(chainData.tokensIssued) / divisor,
+              minInvestmentUsdc:   Number(chainData.minInvestmentUsdc) / 1_000_000,
+              maxInvestmentUsdc:   Number(chainData.maxInvestmentUsdc) / 1_000_000,
+              currentRoundIssued:  Number(chainData.currentRoundIssued) / divisor,
+              roundLimitTokens:    Number(chainData.roundLimitTokens) / divisor,
               isPaused:            chainData.isPaused,
               isActive:            !chainData.isPaused,
               assetType:           formatEnum(chainData.assetType),
-              status:              chainData.status,
-              acceptedStablecoin:  chainData.acceptedStablecoin.toString(),
-              lockupEndTs:         chainData.lockupEndTs.toNumber(),
-              treasuryWallet:      chainData.treasuryWallet.toString(),
-              mint:                chainData.mint.toString(),
+              status:              chainData.status || { draft: {} },
+              acceptedStablecoin:  chainData.acceptedStablecoin?.toString() || '',
+              lockupEndTs:         chainData.lockupEndTs ? Number(chainData.lockupEndTs) : 0,
+              treasuryWallet:      chainData.treasuryWallet?.toString() || '',
+              mint:                chainData.mint?.toString() || '',
             }
           };
         } catch (e) {

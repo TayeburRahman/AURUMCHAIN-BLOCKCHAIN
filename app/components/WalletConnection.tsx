@@ -9,18 +9,30 @@ const WalletMultiButton = dynamic(
   { ssr: false }
 );
 import { useWalletStatus } from '@/hooks/useWalletStatus';
+import { useWalletLink } from '@/hooks/useWalletLink';
 
 export function WalletConnection() {
   const {
     isWalletConnected,
     walletAddress,
-    isWalletLinked,
+    isWalletLinked: isProfileLinked,
     investorTier,
-    linkWallet,
+    linkWallet: linkProfile,
     unlinkWallet,
-    isLinking,
-    error,
+    isLinking: isProfileLinking,
+    error: profileError,
   } = useWalletStatus();
+
+  const { 
+    isVerified, 
+    isLinking: isHandshakeLinking, 
+    linkWallet: verifyOwnership,
+    error: handshakeError 
+  } = useWalletLink();
+
+  const isLinking = isProfileLinking || isHandshakeLinking;
+  const error = profileError || handshakeError;
+  const isWalletLinked = isProfileLinked || isVerified;
 
   return (
     <div className="space-y-6">
@@ -92,20 +104,38 @@ export function WalletConnection() {
 
             {isWalletLinked ? (
               <div className="space-y-3">
-                <div className="bg-green-500/10 border border-green-500/20 rounded-lg p-4">
+                <div className={`border rounded-lg p-4 ${isVerified ? 'bg-green-500/10 border-green-500/20' : 'bg-blue-500/10 border-blue-500/20'}`}>
                   <div className="flex items-start gap-3">
-                    <svg className="w-5 h-5 text-green-400 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    <svg className={`w-5 h-5 flex-shrink-0 mt-0.5 ${isVerified ? 'text-green-400' : 'text-blue-400'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      {isVerified ? (
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      ) : (
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      )}
                     </svg>
                     <div>
-                      <p className="text-sm font-medium text-green-400">Wallet Connected</p>
-                      <p className="text-xs text-green-300 mt-1 font-mono">{walletAddress}</p>
+                      <p className={`text-sm font-medium ${isVerified ? 'text-green-400' : 'text-blue-400'}`}>
+                        {isVerified ? 'Wallet Verified' : 'Ownership Verification Required'}
+                      </p>
+                      <p className="text-xs text-gray-400 mt-1 font-mono">{walletAddress}</p>
                       <p className="text-xs text-gray-400 mt-2">
-                        You can now make investments and receive blockchain dividends.
+                        {isVerified 
+                          ? 'Your wallet is fully verified and ready for investments.' 
+                          : 'Please complete the ownership handshake to enable all features.'}
                       </p>
                     </div>
                   </div>
                 </div>
+
+                {!isVerified && (
+                  <button
+                    onClick={verifyOwnership}
+                    disabled={isLinking}
+                    className="w-full bg-blue-500 hover:bg-blue-600 text-white font-bold py-3 px-6 rounded-lg transition-all duration-300 hover:scale-[1.02] disabled:opacity-50"
+                  >
+                    {isHandshakeLinking ? 'Verifying...' : 'Verify Ownership (Sign Handshake)'}
+                  </button>
+                )}
 
                 <button
                   onClick={unlinkWallet}
@@ -132,7 +162,7 @@ export function WalletConnection() {
                 </div>
 
                 <button
-                  onClick={linkWallet}
+                  onClick={linkProfile}
                   disabled={isLinking}
                   className="w-full bg-gradient-to-r from-gold to-gold-light text-navy font-bold py-3 px-6 rounded-lg transition-all duration-300 hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
                 >

@@ -1,6 +1,6 @@
 import { Program, BN } from '@coral-xyz/anchor';
 import { PublicKey, TransactionInstruction, SystemProgram } from '@solana/web3.js';
-import { getSubscriptionPDA, getEligibilityPDA, getComplianceControlPDA, getProjectPDA } from '../utils/pdaHelpers';
+import { getSubscriptionPDA, getEligibilityPDA, getComplianceControlPDA, getProjectPDA, getRegistryPDA, getMintAuthorityPDA } from '../utils/pdaHelpers';
 
 /**
  * InvestmentRepository
@@ -58,19 +58,40 @@ export class InvestmentRepository {
     params: {
       settlementTxHash: number[]; // [u8; 64]
       allocatedTokenAmount: BN;
+      projectId: BN;
+      mint: PublicKey;
+      investorTokenAccount: PublicKey;
+      registryControl: PublicKey;
+      registryProject: PublicKey;
+      mintAuthorityPda: PublicKey;
+      tokenProgram: PublicKey;
     }
   ): Promise<TransactionInstruction> {
     return await this.program.methods
       .finalizeSubscription(
-        Buffer.from(params.settlementTxHash),
+        params.settlementTxHash,
         params.allocatedTokenAmount
       )
       .accounts({
         subscription: getSubscriptionPDA(investor, subscriptionId, this.program.programId),
         control: getComplianceControlPDA(this.program.programId),
-        authority: this.program.provider.publicKey,
+        authority: this.program.provider.publicKey!,
+        projectRegistryProgram: this.registryProgramId,
+        registryControl: params.registryControl,
+        registryProject: params.registryProject,
+        mint: params.mint,
+        investorTokenAccount: params.investorTokenAccount,
+        mintAuthorityPda: params.mintAuthorityPda,
+        tokenProgram: params.tokenProgram,
       } as any)
       .instruction();
+  }
+
+  /**
+   * Fetches all subscriptions (Admin view).
+   */
+  async fetchAll(): Promise<any[]> {
+    return await this.program.account.investmentSubscriptionAccount.all();
   }
 
   /**

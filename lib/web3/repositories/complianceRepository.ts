@@ -69,8 +69,9 @@ export class ComplianceRepository {
       .refreshEligibility(params)
       .accounts({
         eligibility: getEligibilityPDA(wallet, this.program.programId),
-        control: getComplianceControlPDA(this.program.programId),
-        authority: this.program.provider.publicKey!,
+        wallet:      wallet,
+        control:     getComplianceControlPDA(this.program.programId),
+        authority:   this.program.provider.publicKey!,
       } as any)
       .instruction();
   }
@@ -83,8 +84,9 @@ export class ComplianceRepository {
       .revokeWallet()
       .accounts({
         eligibility: getEligibilityPDA(wallet, this.program.programId),
-        control: getComplianceControlPDA(this.program.programId),
-        authority: this.program.provider.publicKey!,
+        wallet:      wallet,
+        control:     getComplianceControlPDA(this.program.programId),
+        authority:   this.program.provider.publicKey!,
       } as any)
       .instruction();
   }
@@ -174,7 +176,9 @@ export class ComplianceRepository {
       .accounts({
         control:            getComplianceControlPDA(this.program.programId),
         senderEligibility:  getEligibilityPDA(sender, this.program.programId),
+        senderWallet:       sender,
         receiverEligibility:getEligibilityPDA(receiver, this.program.programId),
+        receiverWallet:     receiver,
         caller:             this.program.provider.publicKey!,
       } as any)
       .instruction();

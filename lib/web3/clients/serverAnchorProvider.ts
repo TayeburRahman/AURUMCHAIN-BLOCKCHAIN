@@ -1,5 +1,6 @@
 import * as anchor from "@coral-xyz/anchor";
-import { Connection, Keypair } from "@solana/web3.js";
+import { Keypair } from "@solana/web3.js";
+import { createDefaultConnection } from "../config/rpc";
 import bs58 from "bs58";
 
 /**
@@ -9,8 +10,7 @@ import bs58 from "bs58";
  * This should ONLY be used in server-side files (API routes, background workers).
  */
 export function getServerAnchorProvider(): anchor.AnchorProvider {
-  const RPC_URL = process.env.NEXT_PUBLIC_SOLANA_RPC_URL || "https://api.devnet.solana.com";
-  const connection = new Connection(RPC_URL, "confirmed");
+  const connection = createDefaultConnection();
 
   const privateKeyStr = process.env.WALLET_PRIVATE_KEY;
   if (!privateKeyStr) {

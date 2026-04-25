@@ -77,6 +77,29 @@ pub fn handle_finalize_subscription(
     let clock = Clock::get()?;
     let subscription = &mut ctx.accounts.subscription;
 
+    // ── Read Registry Project for Price Validation ───────────────────────────
+    // We manually deserialize the shadow project account to get the token price.
+    let registry_project_info = ctx.accounts.registry_project.to_account_info();
+    let registry_project_data = registry_project_info.try_borrow_data()?;
+    // Skip 8-byte discriminator
+    let project_registry_state = ProjectAccount::try_from_slice(&registry_project_data[8..])
+        .map_err(|_| ComplianceError::InvalidStatus)?; // Generic error if deserialization fails
+
+    // ── Calculate/Validate Token Amount ──────────────────────────────────────
+    // If token_price_usdc is set (>0), we ignore the passed allocated_token_amount
+    // and calculate it strictly based on the investment_amount.
+    let final_token_amount = if project_registry_state.token_price_usdc > 0 {
+        // investment_amount (USDC) * 10^6 / price_usdc
+        // Assuming investment_amount is 6 decimals and we want 6 decimals output.
+        subscription.investment_amount
+            .checked_mul(1_000_000)
+            .ok_or(ComplianceError::InvestmentTooHigh)?
+            .checked_div(project_registry_state.token_price_usdc)
+            .ok_or(ComplianceError::InvalidStatus)?
+    } else {
+        allocated_token_amount // Legacy fallback
+    };
+
     // ── Validate the registry program ID ─────────────────────────────────────
     // control.registry_program was set at compliance initialization.
     require!(
@@ -100,7 +123,7 @@ pub fn handle_finalize_subscription(
     // Serialize the single `amount: u64` argument as little-endian bytes.
     let mut ix_data = Vec::with_capacity(16);
     ix_data.extend_from_slice(&discriminator);
-    ix_data.extend_from_slice(&allocated_token_amount.to_le_bytes());
+    ix_data.extend_from_slice(&final_token_amount.to_le_bytes());
 
     let issue_tokens_ix = Instruction {
         program_id: ctx.accounts.project_registry_program.key(),
@@ -137,7 +160,7 @@ pub fn handle_finalize_subscription(
     // ── Mark subscription as settled ─────────────────────────────────────────
     subscription.status                 = SubscriptionStatus::Allocated;
     subscription.settlement_tx_hash     = settlement_tx_hash;
-    subscription.allocated_token_amount = allocated_token_amount;
+    subscription.allocated_token_amount = final_token_amount;
     subscription.settled_at             = clock.unix_timestamp;
 
     emit!(InvestmentSettled {
@@ -151,7 +174,7 @@ pub fn handle_finalize_subscription(
     emit!(TokensAllocated {
         subscription_id:   subscription.subscription_id,
         investor:          subscription.investor,
-        amount:            allocated_token_amount,
+        amount:            final_token_amount,
         timestamp:         clock.unix_timestamp,
     });
 

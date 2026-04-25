@@ -10,6 +10,7 @@ pub struct CreateProjectParams {
     pub supply_cap:             u64,
     pub min_investment_usdc:    u64,
     pub max_investment_usdc:    u64,
+    pub token_price_usdc:       u64,             // Micro-USDC (e.g. 1,000,000 = $1)
     pub accepted_stablecoin:    Pubkey,
     pub treasury_wallet:        Pubkey,
     pub lockup_end_ts:          i64,
@@ -17,6 +18,7 @@ pub struct CreateProjectParams {
     pub subscription_end:       i64,
     pub distribution_cadence:   u8,
     pub duration_months:        u8,
+    pub distribution_mode:      u8,              // 0=Parallel, 1=Sequential
     // ── Phase fields ──────────────────────────────────────────────────────────
     // asset_type drives UI presets & default round_limit behaviour.
     pub asset_type:             AssetType,
@@ -131,6 +133,7 @@ pub fn handle_create_project(
     project.supply_cap          = params.supply_cap;
     project.min_investment_usdc = params.min_investment_usdc;
     project.max_investment_usdc = params.max_investment_usdc;
+    project.token_price_usdc    = params.token_price_usdc;
     project.accepted_stablecoin = params.accepted_stablecoin;
     project.treasury_wallet     = params.treasury_wallet;
     project.lockup_end_ts       = params.lockup_end_ts;
@@ -138,6 +141,7 @@ pub fn handle_create_project(
     project.subscription_end    = params.subscription_end;
     project.distribution_cadence = params.distribution_cadence;
     project.duration_months      = params.duration_months;
+    project.distribution_mode    = params.distribution_mode;
     project.created_at             = clock.unix_timestamp;
     project.tokens_issued          = 0;
     // New projects start as Draft — admin must explicitly move to Funding.

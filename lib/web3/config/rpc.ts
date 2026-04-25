@@ -23,7 +23,9 @@ const NETWORK = 'devnet';
  */
 export const SOLANA_RPC_URL = 
   process.env.NEXT_PUBLIC_SOLANA_RPC_URL || 
-  clusterApiUrl(NETWORK);
+  'https://solana-devnet.g.alchemy.com/v2/4ZYO0JBTWn7EHda1T-bf5';
+
+export const FALLBACK_RPC_URL = 'https://api.devnet.solana.com';
 
 /**
  * Standard Connection configuration for consistency.
@@ -31,6 +33,27 @@ export const SOLANA_RPC_URL =
 export const CONNECTION_CONFIG = {
   commitment: 'confirmed' as const,
   confirmTransactionInitialTimeout: 90000, // 90s timeout for stability
+  // Automatic Fallback Middleware
+  fetchMiddleware: async (info: any, init: any, fetch: any) => {
+    try {
+      const response = await fetch(info, init);
+      // Fallback on rate limits or server errors
+      if (response && (response.status === 429 || response.status >= 500)) {
+        console.warn(`[RPC] Primary endpoint ${SOLANA_RPC_URL} failed with ${response.status}. Falling back...`);
+        const fallbackInfo = typeof info === 'string' 
+          ? info.replace(SOLANA_RPC_URL, FALLBACK_RPC_URL)
+          : info;
+        return await fetch(fallbackInfo, init);
+      }
+      return response;
+    } catch (err) {
+      console.warn(`[RPC] Primary endpoint ${SOLANA_RPC_URL} threw error. Falling back...`, err);
+      const fallbackInfo = typeof info === 'string' 
+        ? info.replace(SOLANA_RPC_URL, FALLBACK_RPC_URL)
+        : info;
+      return await fetch(fallbackInfo, init);
+    }
+  }
 };
 
 /**
