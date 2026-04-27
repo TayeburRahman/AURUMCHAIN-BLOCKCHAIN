@@ -3,110 +3,20 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import Image from "next/image";
-import { createClient } from "@/lib/supabase/client";
 import { useRouter } from "next/navigation";
 import { WalletBanner } from "@/app/components/WalletBanner";
+import { useDashboardData } from "@/hooks/useDashboardData";
 
 export default function DashboardPage() {
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<"overview" | "investments" | "transactions">("overview");
-  const [loading, setLoading] = useState(true);
-
-  // User data
-  const [userData, setUserData] = useState({
-    name: "",
-    email: "",
-    accountBalance: 0,
-    totalInvested: 0,
-    totalReturns: 0,
-    portfolioValue: 0,
-    goldTokens: 0,
-  });
-
-  // Investments and transactions
-  const [investments, setInvestments] = useState<any[]>([]);
-  const [transactions, setTransactions] = useState<any[]>([]);
+  const { user, stats, investments, transactions, loading } = useDashboardData();
 
   useEffect(() => {
-    async function loadDashboardData() {
-      try {
-        const supabase = createClient();
-        const { data: { user } } = await supabase.auth.getUser();
-
-        if (!user) {
-          router.push('/login');
-          return;
-        }
-
-        // Fetch profile
-        const { data: profile } = await supabase
-          .from('profiles')
-          .select('*')
-          .eq('id', user.id)
-          .single();
-
-        // Fetch wallet
-        const { data: wallet } = await supabase
-          .from('wallets')
-          .select('*')
-          .eq('user_id', user.id)
-          .single();
-
-        // Fetch investments with project details
-        const { data: investmentsData } = await supabase
-          .from('investments')
-          .select(`
-            *,
-            projects (
-              name,
-              slug,
-              location,
-              country,
-              status
-            )
-          `)
-          .eq('user_id', user.id)
-          .order('invested_at', { ascending: false });
-
-        // Fetch recent transactions
-        const { data: transactionsData } = await supabase
-          .from('transactions')
-          .select(`
-            *,
-            projects (
-              name
-            )
-          `)
-          .eq('user_id', user.id)
-          .order('created_at', { ascending: false })
-          .limit(5);
-
-        // Calculate totals
-        const totalInvested = investmentsData?.reduce((sum, inv) => sum + Number(inv.amount), 0) || 0;
-        const totalReturns = 0; // Will be calculated from dividends later
-        const portfolioValue = totalInvested + totalReturns;
-
-        setUserData({
-          name: `${profile?.first_name || ''} ${profile?.last_name || ''}`.trim() || 'User',
-          email: profile?.email || user.email || '',
-          accountBalance: Number(wallet?.balance || 0),
-          totalInvested,
-          totalReturns,
-          portfolioValue,
-          goldTokens: Number(wallet?.gold_tokens || 0),
-        });
-
-        setInvestments(investmentsData || []);
-        setTransactions(transactionsData || []);
-      } catch (error) {
-        console.error('Error loading dashboard data:', error);
-      } finally {
-        setLoading(false);
-      }
+    if (!loading && !user.email) {
+      router.push('/login');
     }
-
-    loadDashboardData();
-  }, [router]);
+  }, [loading, user.email, router]);
 
   // Format date
   const formatDate = (dateString: string) => {
@@ -134,7 +44,7 @@ export default function DashboardPage() {
           <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
             <div>
               <h1 className="text-3xl md:text-4xl font-bold text-white mb-2">
-                Welcome back, <span className="gradient-text">{userData.name}</span>
+                Welcome back, <span className="gradient-text">{user.name}</span>
               </h1>
               <p className="text-gray-400">Track your investments and returns</p>
             </div>
@@ -167,7 +77,7 @@ export default function DashboardPage() {
                 </svg>
                 <span className="text-xs text-gray-400 uppercase tracking-wider">Portfolio Value</span>
               </div>
-              <div className="text-2xl md:text-3xl font-bold gradient-text">${userData.portfolioValue.toLocaleString()}</div>
+              <div className="text-2xl md:text-3xl font-bold gradient-text">${stats.portfolioValue.toLocaleString()}</div>
             </div>
 
             {/* Total Invested */}
@@ -178,7 +88,7 @@ export default function DashboardPage() {
                 </svg>
                 <span className="text-xs text-gray-400 uppercase tracking-wider">Total Invested</span>
               </div>
-              <div className="text-2xl md:text-3xl font-bold text-white">${userData.totalInvested.toLocaleString()}</div>
+              <div className="text-2xl md:text-3xl font-bold text-white">${stats.totalInvested.toLocaleString()}</div>
             </div>
 
             {/* Total Returns */}
@@ -189,18 +99,18 @@ export default function DashboardPage() {
                 </svg>
                 <span className="text-xs text-gray-400 uppercase tracking-wider">Total Returns</span>
               </div>
-              <div className="text-2xl md:text-3xl font-bold text-green-400">+${userData.totalReturns.toLocaleString()}</div>
+              <div className="text-2xl md:text-3xl font-bold text-green-400">+${stats.totalReturns.toLocaleString()}</div>
             </div>
 
-            {/* Gold Tokens */}
+            {/* Total USDC Spent */}
             <div className="glass rounded-xl p-6 border border-gold/20 hover:border-gold/40 transition-all">
               <div className="flex items-center gap-2 mb-2">
-                <div className="w-5 h-5">
-                  <Image src="/logo.png" alt="Gold" width={20} height={20} />
-                </div>
-                <span className="text-xs text-gray-400 uppercase tracking-wider">Gold Tokens</span>
+                <svg className="w-5 h-5 text-gold" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <span className="text-xs text-gray-400 uppercase tracking-wider">Total USDC Spent</span>
               </div>
-              <div className="text-2xl md:text-3xl font-bold gradient-text">{userData.goldTokens.toFixed(2)} oz</div>
+              <div className="text-2xl md:text-3xl font-bold gradient-text">${stats.totalInvested.toLocaleString()}</div>
             </div>
           </div>
         </div>

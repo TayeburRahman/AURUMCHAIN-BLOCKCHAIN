@@ -1,15 +1,50 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import Link from "next/link";
-import Image from "next/image";
+import { useDashboardData } from "@/hooks/useDashboardData";
 
 export default function InvestmentsPage() {
+  const { stats, investments: dbInvestments, projects, loading } = useDashboardData();
   const [filterStatus, setFilterStatus] = useState<"all" | "active" | "funded" | "completed">("all");
   const [sortBy, setSortBy] = useState<"date" | "amount" | "returns">("date");
 
-  // Format date consistently for SSR/CSR
+  // Map database investments to UI format, enriching with project data
+  const processedInvestments = useMemo(() => {
+    return dbInvestments.map((inv: any) => {
+      const project = projects.find((p: any) => p.id === inv.project_id);
+      const onChain = project?.onChain;
+      
+      return {
+        id: inv.id,
+        projectId: inv.project_id,
+        projectName: project?.name || "Unknown Project",
+        location: project?.location || "Global",
+        investedAmount: Number(inv.amount),
+        currentValue: Number(inv.amount), // For now, 1:1 value
+        returns: 0,
+        returnPercentage: 0,
+        shares: Number(inv.tokens_purchased),
+        status: project?.status || "pending",
+        investmentDate: inv.invested_at || inv.created_at,
+        expectedCompletion: project?.expected_completion_date || "2025-12-31",
+        fundingProgress: project?.funding_goal 
+          ? Math.min(100, Math.floor((project.current_funding / project.funding_goal) * 100)) 
+          : 0,
+        mint: project?.mint_address
+      };
+    });
+  }, [dbInvestments, projects]);
+
+  const totalStats = useMemo(() => ({
+    totalInvested: stats.totalInvested,
+    currentValue: stats.portfolioValue,
+    totalReturns: stats.totalReturns,
+    activeInvestments: stats.activeProjectsCount,
+  }), [stats]);
+
   const formatDate = (dateString: string) => {
+    if (!dateString) return "N/A";
     const date = new Date(dateString);
     return date.toLocaleDateString('en-US', {
       year: 'numeric',
@@ -18,85 +53,7 @@ export default function InvestmentsPage() {
     });
   };
 
-  const investments = [
-    {
-      id: 1,
-      projectName: "Obuasi Gold Mine",
-      location: "Ghana",
-      investedAmount: 5000,
-      currentValue: 5750,
-      returns: 750,
-      returnPercentage: 15.0,
-      shares: 250,
-      status: "active",
-      investmentDate: "2024-01-15",
-      expectedCompletion: "2025-06-30",
-      fundingProgress: 85,
-      image: "/projects/ghana.jpg",
-    },
-    {
-      id: 2,
-      projectName: "Super Pit",
-      location: "Australia",
-      investedAmount: 8000,
-      currentValue: 9200,
-      returns: 1200,
-      returnPercentage: 15.0,
-      shares: 400,
-      status: "active",
-      investmentDate: "2023-11-20",
-      expectedCompletion: "2025-03-15",
-      fundingProgress: 92,
-      image: "/projects/australia.jpg",
-    },
-    {
-      id: 3,
-      projectName: "Kumtor Mine",
-      location: "Kyrgyzstan",
-      investedAmount: 3500,
-      currentValue: 3850,
-      returns: 350,
-      returnPercentage: 10.0,
-      shares: 175,
-      status: "active",
-      investmentDate: "2024-03-10",
-      expectedCompletion: "2025-09-20",
-      fundingProgress: 78,
-      image: "/projects/kyrgyzstan.jpg",
-    },
-    {
-      id: 4,
-      projectName: "Grasberg Mine",
-      location: "Papua New Guinea",
-      investedAmount: 6000,
-      currentValue: 7500,
-      returns: 1500,
-      returnPercentage: 25.0,
-      shares: 300,
-      status: "completed",
-      investmentDate: "2023-06-05",
-      expectedCompletion: "2024-12-01",
-      fundingProgress: 100,
-      image: "/projects/png.jpg",
-    },
-    {
-      id: 5,
-      projectName: "Pueblo Viejo",
-      location: "Dominican Republic",
-      investedAmount: 2500,
-      currentValue: 2500,
-      returns: 0,
-      returnPercentage: 0,
-      shares: 125,
-      status: "funded",
-      investmentDate: "2024-11-15",
-      expectedCompletion: "2026-01-30",
-      fundingProgress: 100,
-      image: "/projects/dominican.jpg",
-    },
-  ];
-
-  const filteredInvestments = investments.filter(inv => {
+  const filteredInvestments = processedInvestments.filter(inv => {
     if (filterStatus === "all") return true;
     return inv.status === filterStatus;
   });
@@ -126,12 +83,13 @@ export default function InvestmentsPage() {
     }
   };
 
-  const totalStats = {
-    totalInvested: investments.reduce((sum, inv) => sum + inv.investedAmount, 0),
-    currentValue: investments.reduce((sum, inv) => sum + inv.currentValue, 0),
-    totalReturns: investments.reduce((sum, inv) => sum + inv.returns, 0),
-    activeInvestments: investments.filter(inv => inv.status === "active").length,
-  };
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="text-white text-xl">Loading your investments...</div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -172,7 +130,7 @@ export default function InvestmentsPage() {
           </div>
           <div className="text-2xl font-bold gradient-text">+${totalStats.totalReturns.toLocaleString()}</div>
           <div className="text-sm text-green-400 mt-1">
-            +{((totalStats.totalReturns / totalStats.totalInvested) * 100).toFixed(1)}%
+            +{totalStats.totalInvested > 0 ? ((totalStats.totalReturns / totalStats.totalInvested) * 100).toFixed(1) : "0.0"}%
           </div>
         </div>
 
@@ -191,7 +149,7 @@ export default function InvestmentsPage() {
       <div className="glass rounded-xl p-6 border border-gold/20">
         <div className="flex flex-col md:flex-row gap-4 justify-between">
           {/* Status Filter */}
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             <button
               onClick={() => setFilterStatus("all")}
               className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
@@ -200,7 +158,7 @@ export default function InvestmentsPage() {
                   : "bg-navy-dark text-gray-400 hover:text-white border border-gold/20"
               }`}
             >
-              All ({investments.length})
+              All ({processedInvestments.length})
             </button>
             <button
               onClick={() => setFilterStatus("active")}
@@ -210,7 +168,7 @@ export default function InvestmentsPage() {
                   : "bg-navy-dark text-gray-400 hover:text-white border border-gold/20"
               }`}
             >
-              Active ({investments.filter(i => i.status === "active").length})
+              Active ({processedInvestments.filter(i => i.status === "active").length})
             </button>
             <button
               onClick={() => setFilterStatus("funded")}
@@ -220,7 +178,7 @@ export default function InvestmentsPage() {
                   : "bg-navy-dark text-gray-400 hover:text-white border border-gold/20"
               }`}
             >
-              Funded ({investments.filter(i => i.status === "funded").length})
+              Funded ({processedInvestments.filter(i => i.status === "funded").length})
             </button>
             <button
               onClick={() => setFilterStatus("completed")}
@@ -230,7 +188,7 @@ export default function InvestmentsPage() {
                   : "bg-navy-dark text-gray-400 hover:text-white border border-gold/20"
               }`}
             >
-              Completed ({investments.filter(i => i.status === "completed").length})
+              Completed ({processedInvestments.filter(i => i.status === "completed").length})
             </button>
           </div>
 
@@ -257,7 +215,7 @@ export default function InvestmentsPage() {
             key={investment.id}
             className="glass rounded-xl border border-gold/20 overflow-hidden hover:border-gold/40 transition-all duration-300 group"
           >
-            {/* Project Image */}
+            {/* Project Image Placeholder */}
             <div className="relative h-48 overflow-hidden">
               <div className="absolute inset-0 bg-gradient-to-t from-navy-dark to-transparent z-10"></div>
               <div className="w-full h-full bg-navy-dark flex items-center justify-center">
@@ -334,7 +292,7 @@ export default function InvestmentsPage() {
 
               {/* Action Button */}
               <Link
-                href={`/projects/${investment.id}`}
+                href={`/projects`}
                 className="block w-full py-3 bg-navy-dark hover:bg-gold/10 border border-gold/20 hover:border-gold/40 rounded-lg text-center text-sm font-medium text-white transition-all duration-300"
               >
                 View Project Details

@@ -398,10 +398,11 @@ export class ProjectRegistryRepository {
       const treasuryWallet = new PublicKey(rawData.slice(anchorOffset - 64, anchorOffset - 32));
       const acceptedStablecoin = new PublicKey(rawData.slice(anchorOffset - 96, anchorOffset - 64));
 
-      const maxInvestmentUsdc = readI64(rawData, anchorOffset - 104);
-      const minInvestmentUsdc = readI64(rawData, anchorOffset - 112);
-      const tokensIssued = readI64(rawData, anchorOffset - 120);
-      const supplyCap = readI64(rawData, anchorOffset - 128);
+      const tokenPriceUsdc = readI64(rawData, anchorOffset - 104);
+      const maxInvestmentUsdc = readI64(rawData, anchorOffset - 112);
+      const minInvestmentUsdc = readI64(rawData, anchorOffset - 120);
+      const tokensIssued = readI64(rawData, anchorOffset - 128);
+      const supplyCap = readI64(rawData, anchorOffset - 136);
 
       const distributionCadence = rawData[statusOffset];
       const status = rawData[statusOffset + 1];
@@ -433,7 +434,7 @@ export class ProjectRegistryRepository {
 
       return {
         projectId, registry, creator, name, symbol, uri,
-        supplyCap, tokensIssued, minInvestmentUsdc, maxInvestmentUsdc,
+        supplyCap, tokensIssued, minInvestmentUsdc, maxInvestmentUsdc, tokenPriceUsdc,
         acceptedStablecoin, treasuryWallet, mint,
         lockupEndTs, subscriptionStart, subscriptionEnd, createdAt,
         distributionCadence, durationMonths, isPaused, mintAuthorityRevoked,

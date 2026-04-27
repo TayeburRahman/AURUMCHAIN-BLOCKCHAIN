@@ -4,6 +4,7 @@ import { InvestmentRepository } from '../repositories/investmentRepository';
 import { getComplianceProgram, getRegistryProgram } from '../utils/programDiscoverer';
 import { confirmTransactionRobustly } from '../utils/transactionUtils';
 import { PROJECT_REGISTRY_PROGRAM_ID } from '../config/programs';
+import { TokenMath } from '@/lib/utils/tokenMath';
 
 /**
  * InvestmentService
@@ -29,7 +30,7 @@ export class InvestmentService {
     projectId: number;
     amount: number; // In base units (e.g. 100 for 100 USDC)
     paymentAsset: PublicKey;
-  }): Promise<string> {
+  }): Promise<{ signature: string; subscriptionId: string }> {
     try {
       if (!this.wallet.publicKey) throw new Error("Wallet not connected");
 
@@ -48,7 +49,7 @@ export class InvestmentService {
       const treasuryTokenAccount = getAssociatedTokenAddressSync(params.paymentAsset, projectData.treasuryWallet);
 
       const subscriptionId = new BN(Date.now());
-      const amountBN = new BN(params.amount).mul(new BN(1_000_000)); // USDC 6 decimals
+      const amountBN = TokenMath.toRawUsdc(params.amount);
 
       const instruction = await this.repository.getSubscribeInvestmentInstruction(
         this.wallet.publicKey,
@@ -84,7 +85,7 @@ export class InvestmentService {
         'confirmed'
       );
 
-      return signature;
+      return { signature, subscriptionId: subscriptionId.toString() };
     } catch (error: any) {
       throw this.handleError(error);
     }

@@ -1,97 +1,67 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import Link from "next/link";
+import { useDashboardData } from "@/hooks/useDashboardData";
 
 export default function PortfolioPage() {
+  const { stats, investments: dbInvestments, projects, loading } = useDashboardData();
   const [timeframe, setTimeframe] = useState<"1D" | "1W" | "1M" | "3M" | "1Y" | "ALL">("1M");
 
-  const portfolioData = {
-    totalValue: 28250.50,
-    totalInvested: 25000.00,
-    totalReturns: 3250.50,
-    returnPercentage: 13.0,
-    goldTokens: 45.25,
-    activeProjects: 3,
-    completedProjects: 1,
-  };
+  const portfolioStats = useMemo(() => ({
+    totalValue: stats.portfolioValue,
+    totalInvested: stats.totalInvested,
+    totalReturns: stats.totalReturns,
+    returnPercentage: stats.totalInvested > 0 ? (stats.totalReturns / stats.totalInvested) * 100 : 0,
+    goldTokens: stats.goldTokens,
+    activeProjects: stats.activeProjectsCount,
+    completedProjects: projects.filter(p => p.status === 'completed').length,
+  }), [stats, projects]);
 
-  const projectBreakdown = [
-    {
-      id: 1,
-      name: "Super Pit",
-      location: "Australia",
-      allocation: 32.6,
-      value: 9200,
-      returns: 1200,
-      returnPercentage: 15.0,
-      status: "active",
-    },
-    {
-      id: 2,
-      name: "Grasberg Mine",
-      location: "Papua New Guinea",
-      allocation: 26.5,
-      value: 7500,
-      returns: 1500,
-      returnPercentage: 25.0,
-      status: "completed",
-    },
-    {
-      id: 3,
-      name: "Obuasi Gold Mine",
-      location: "Ghana",
-      allocation: 20.4,
-      value: 5750,
-      returns: 750,
-      returnPercentage: 15.0,
-      status: "active",
-    },
-    {
-      id: 4,
-      name: "Kumtor Mine",
-      location: "Kyrgyzstan",
-      allocation: 13.6,
-      value: 3850,
-      returns: 350,
-      returnPercentage: 10.0,
-      status: "active",
-    },
-    {
-      id: 5,
-      name: "Pueblo Viejo",
-      location: "Dominican Republic",
-      allocation: 8.9,
-      value: 2500,
-      returns: 0,
-      returnPercentage: 0,
-      status: "funded",
-    },
-  ];
+  const projectBreakdown = useMemo(() => {
+    return dbInvestments.map((inv: any, index: number) => {
+      const project = projects.find((p: any) => p.id === inv.project_id);
+      const allocation = portfolioStats.totalValue > 0 
+        ? (Number(inv.amount) / portfolioStats.totalValue) * 100 
+        : 0;
+
+      return {
+        id: inv.id,
+        projectId: inv.project_id,
+        name: project?.name || "Unknown Project",
+        location: project?.location || "Global",
+        allocation: Number(allocation.toFixed(1)),
+        value: Number(inv.amount),
+        returns: 0, // Placeholder
+        returnPercentage: 0, // Placeholder
+        status: project?.status || "active",
+      };
+    }).sort((a: any, b: any) => b.value - a.value);
+  }, [dbInvestments, projects, portfolioStats.totalValue]);
 
   const performanceMetrics = [
     {
-      label: "Best Performing",
-      value: "Grasberg Mine",
-      metric: "+25.0%",
+      label: "Top Holding",
+      value: projectBreakdown[0]?.name || "None",
+      metric: projectBreakdown[0] ? `${projectBreakdown[0].allocation}% of portfolio` : "N/A",
       color: "text-green-400",
     },
     {
-      label: "Total Dividends Earned",
-      value: "$1,305",
-      metric: "This year",
+      label: "Total Projects",
+      value: `${projectBreakdown.length}`,
+      metric: "Active investments",
       color: "text-gold",
     },
     {
       label: "Average Return Rate",
-      value: "13.0%",
-      metric: "Across all projects",
+      value: `${portfolioStats.returnPercentage.toFixed(1)}%`,
+      metric: "Total ROI",
       color: "text-blue-400",
     },
     {
-      label: "Portfolio Diversity",
-      value: "5 Projects",
-      metric: "3 continents",
+      label: "Gold Balance",
+      value: `${portfolioStats.goldTokens.toFixed(2)} oz`,
+      metric: "Physical backing",
       color: "text-purple-400",
     },
   ];
@@ -108,6 +78,14 @@ export default function PortfolioPage() {
         return "text-gray-400 bg-gray-400/10";
     }
   };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="text-white text-xl">Loading portfolio analytics...</div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -126,8 +104,8 @@ export default function PortfolioPage() {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>
           </div>
-          <div className="text-2xl font-bold text-white mb-1">${portfolioData.totalValue.toLocaleString()}</div>
-          <div className="text-sm text-green-400">+${portfolioData.totalReturns.toLocaleString()} ({portfolioData.returnPercentage}%)</div>
+          <div className="text-2xl font-bold text-white mb-1">${portfolioStats.totalValue.toLocaleString()}</div>
+          <div className="text-sm text-green-400">+${portfolioStats.totalReturns.toLocaleString()} ({portfolioStats.returnPercentage.toFixed(1)}%)</div>
         </div>
 
         <div className="glass rounded-xl p-6 border border-gold/20">
@@ -137,7 +115,7 @@ export default function PortfolioPage() {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 11l5-5m0 0l5 5m-5-5v12" />
             </svg>
           </div>
-          <div className="text-2xl font-bold text-white">${portfolioData.totalInvested.toLocaleString()}</div>
+          <div className="text-2xl font-bold text-white">${portfolioStats.totalInvested.toLocaleString()}</div>
         </div>
 
         <div className="glass rounded-xl p-6 border border-gold/20">
@@ -147,7 +125,7 @@ export default function PortfolioPage() {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>
           </div>
-          <div className="text-2xl font-bold gradient-text">{portfolioData.goldTokens} GFT</div>
+          <div className="text-2xl font-bold gradient-text">{portfolioStats.goldTokens.toFixed(2)} oz</div>
         </div>
 
         <div className="glass rounded-xl p-6 border border-gold/20">
@@ -157,7 +135,7 @@ export default function PortfolioPage() {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
             </svg>
           </div>
-          <div className="text-2xl font-bold text-white">{portfolioData.activeProjects}</div>
+          <div className="text-2xl font-bold text-white">{portfolioStats.activeProjects}</div>
         </div>
       </div>
 
@@ -204,7 +182,7 @@ export default function PortfolioPage() {
         {performanceMetrics.map((metric, index) => (
           <div key={index} className="glass rounded-xl p-6 border border-gold/20">
             <div className="text-xs text-gray-400 uppercase tracking-wider mb-2">{metric.label}</div>
-            <div className={`text-2xl font-bold ${metric.color} mb-1`}>{metric.value}</div>
+            <div className={`text-2xl font-bold ${metric.color} mb-1 truncate`}>{metric.value}</div>
             <div className="text-sm text-gray-400">{metric.metric}</div>
           </div>
         ))}
@@ -220,7 +198,7 @@ export default function PortfolioPage() {
         {/* Allocation Bar */}
         <div className="mb-6">
           <div className="flex h-12 rounded-lg overflow-hidden">
-            {projectBreakdown.map((project, index) => (
+            {projectBreakdown.map((project: any, index: number) => (
               <div
                 key={project.id}
                 className="relative group cursor-pointer transition-all hover:opacity-80"
@@ -242,12 +220,17 @@ export default function PortfolioPage() {
                 </div>
               </div>
             ))}
+            {projectBreakdown.length === 0 && (
+              <div className="w-full bg-navy-dark flex items-center justify-center text-gray-500 text-sm italic">
+                No active investments
+              </div>
+            )}
           </div>
         </div>
 
         {/* Project List */}
         <div className="space-y-4">
-          {projectBreakdown.map((project, index) => (
+          {projectBreakdown.map((project: any, index: number) => (
             <div
               key={project.id}
               className="flex items-center justify-between p-4 bg-navy-dark rounded-lg border border-gold/10 hover:border-gold/30 transition-all"
@@ -299,7 +282,7 @@ export default function PortfolioPage() {
                 </div>
 
                 <Link
-                  href={`/projects/${project.id}`}
+                  href={`/projects`}
                   className="text-gold hover:text-gold-light transition-colors"
                 >
                   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -327,9 +310,9 @@ export default function PortfolioPage() {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
               </svg>
             </div>
-            <div className="text-2xl font-bold text-yellow-400 mb-2">Moderate</div>
+            <div className="text-2xl font-bold text-yellow-400 mb-2">{projectBreakdown.length > 2 ? "Moderate" : "High"}</div>
             <div className="w-full bg-navy rounded-full h-2">
-              <div className="bg-yellow-400 h-2 rounded-full" style={{ width: "60%" }}></div>
+              <div className="bg-yellow-400 h-2 rounded-full" style={{ width: projectBreakdown.length > 2 ? "60%" : "85%" }}></div>
             </div>
           </div>
 
@@ -340,9 +323,9 @@ export default function PortfolioPage() {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
             </div>
-            <div className="text-2xl font-bold text-green-400 mb-2">Good</div>
+            <div className="text-2xl font-bold text-green-400 mb-2">{projectBreakdown.length > 4 ? "Excellent" : projectBreakdown.length > 2 ? "Good" : "Low"}</div>
             <div className="w-full bg-navy rounded-full h-2">
-              <div className="bg-green-400 h-2 rounded-full" style={{ width: "75%" }}></div>
+              <div className="bg-green-400 h-2 rounded-full" style={{ width: `${Math.min(100, projectBreakdown.length * 20)}%` }}></div>
             </div>
           </div>
 
@@ -353,9 +336,9 @@ export default function PortfolioPage() {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
               </svg>
             </div>
-            <div className="text-2xl font-bold text-blue-400 mb-2">8.5/10</div>
+            <div className="text-2xl font-bold text-blue-400 mb-2">{(Math.min(10, 5 + projectBreakdown.length)).toFixed(1)}/10</div>
             <div className="w-full bg-navy rounded-full h-2">
-              <div className="bg-blue-400 h-2 rounded-full" style={{ width: "85%" }}></div>
+              <div className="bg-blue-400 h-2 rounded-full" style={{ width: `${Math.min(100, 50 + projectBreakdown.length * 10)}%` }}></div>
             </div>
           </div>
         </div>

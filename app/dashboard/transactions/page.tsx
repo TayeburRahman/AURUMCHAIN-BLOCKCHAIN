@@ -1,13 +1,15 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
+import { useDashboardData } from "@/hooks/useDashboardData";
 
 export default function TransactionsPage() {
-  const [filterType, setFilterType] = useState<"all" | "investment" | "withdrawal" | "dividend">("all");
+  const { transactions: dbTransactions, loading } = useDashboardData();
+  const [filterType, setFilterType] = useState<"all" | "investment" | "withdrawal" | "dividend" | "deposit" | "refund">("all");
   const [dateRange, setDateRange] = useState<"all" | "week" | "month" | "year">("all");
 
-  // Format date consistently for SSR/CSR
   const formatDate = (dateString: string) => {
+    if (!dateString) return "N/A";
     const date = new Date(dateString);
     return date.toLocaleDateString('en-US', {
       year: 'numeric',
@@ -17,6 +19,7 @@ export default function TransactionsPage() {
   };
 
   const formatTime = (dateString: string) => {
+    if (!dateString) return "";
     const date = new Date(dateString);
     return date.toLocaleTimeString('en-US', {
       hour: '2-digit',
@@ -25,121 +28,32 @@ export default function TransactionsPage() {
     });
   };
 
-  const transactions = [
-    {
-      id: "TXN001234",
-      type: "investment",
-      projectName: "Obuasi Gold Mine",
-      amount: 5000,
-      status: "completed",
-      date: "2024-01-15T10:30:00",
-      description: "Initial investment in Obuasi Gold Mine project",
-    },
-    {
-      id: "TXN001235",
-      type: "dividend",
-      projectName: "Super Pit",
-      amount: 320,
-      status: "completed",
-      date: "2024-01-20T14:15:00",
-      description: "Quarterly dividend payment",
-    },
-    {
-      id: "TXN001236",
-      type: "investment",
-      projectName: "Super Pit",
-      amount: 8000,
-      status: "completed",
-      date: "2023-11-20T09:45:00",
-      description: "Initial investment in Super Pit project",
-    },
-    {
-      id: "TXN001237",
-      type: "dividend",
-      projectName: "Kumtor Mine",
-      amount: 175,
-      status: "completed",
-      date: "2024-02-05T11:20:00",
-      description: "Monthly dividend payment",
-    },
-    {
-      id: "TXN001238",
-      type: "investment",
-      projectName: "Kumtor Mine",
-      amount: 3500,
-      status: "completed",
-      date: "2024-03-10T16:00:00",
-      description: "Initial investment in Kumtor Mine project",
-    },
-    {
-      id: "TXN001239",
-      type: "dividend",
-      projectName: "Grasberg Mine",
-      amount: 450,
-      status: "completed",
-      date: "2024-03-15T13:30:00",
-      description: "Quarterly dividend payment",
-    },
-    {
-      id: "TXN001240",
-      type: "investment",
-      projectName: "Grasberg Mine",
-      amount: 6000,
-      status: "completed",
-      date: "2023-06-05T10:10:00",
-      description: "Initial investment in Grasberg Mine project",
-    },
-    {
-      id: "TXN001241",
-      type: "withdrawal",
-      projectName: "Grasberg Mine",
-      amount: 7500,
-      status: "completed",
-      date: "2024-12-01T15:45:00",
-      description: "Project completion withdrawal",
-    },
-    {
-      id: "TXN001242",
-      type: "investment",
-      projectName: "Pueblo Viejo",
-      amount: 2500,
-      status: "completed",
-      date: "2024-11-15T12:00:00",
-      description: "Initial investment in Pueblo Viejo project",
-    },
-    {
-      id: "TXN001243",
-      type: "dividend",
-      projectName: "Super Pit",
-      amount: 360,
-      status: "pending",
-      date: "2024-12-20T00:00:00",
-      description: "Quarterly dividend payment (pending)",
-    },
-  ];
+  const filteredTransactions = useMemo(() => {
+    return dbTransactions.filter(tx => {
+      // Filter by type
+      if (filterType !== "all" && tx.type !== filterType) return false;
 
-  const filteredTransactions = transactions.filter(tx => {
-    // Filter by type
-    if (filterType !== "all" && tx.type !== filterType) return false;
+      // Filter by date range
+      if (dateRange !== "all") {
+        const txDate = new Date(tx.created_at || tx.initiated_at);
+        const now = new Date();
+        const diffTime = Math.abs(now.getTime() - txDate.getTime());
+        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
 
-    // Filter by date range
-    if (dateRange !== "all") {
-      const txDate = new Date(tx.date);
-      const now = new Date();
-      const diffTime = Math.abs(now.getTime() - txDate.getTime());
-      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+        if (dateRange === "week" && diffDays > 7) return false;
+        if (dateRange === "month" && diffDays > 30) return false;
+        if (dateRange === "year" && diffDays > 365) return false;
+      }
 
-      if (dateRange === "week" && diffDays > 7) return false;
-      if (dateRange === "month" && diffDays > 30) return false;
-      if (dateRange === "year" && diffDays > 365) return false;
-    }
+      return true;
+    });
+  }, [dbTransactions, filterType, dateRange]);
 
-    return true;
-  });
-
-  const sortedTransactions = [...filteredTransactions].sort(
-    (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
-  );
+  const sortedTransactions = useMemo(() => {
+    return [...filteredTransactions].sort(
+      (a, b) => new Date(b.created_at || b.initiated_at).getTime() - new Date(a.created_at || a.initiated_at).getTime()
+    );
+  }, [filteredTransactions]);
 
   const getTypeIcon = (type: string) => {
     switch (type) {
@@ -156,6 +70,7 @@ export default function TransactionsPage() {
           </svg>
         );
       case "dividend":
+      case "deposit":
         return (
           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -173,6 +88,7 @@ export default function TransactionsPage() {
       case "withdrawal":
         return "text-red-400 bg-red-400/10";
       case "dividend":
+      case "deposit":
         return "text-green-400 bg-green-400/10";
       default:
         return "text-gray-400 bg-gray-400/10";
@@ -184,26 +100,33 @@ export default function TransactionsPage() {
       case "completed":
         return "text-green-400 bg-green-400/10 border-green-400/20";
       case "pending":
+      case "processing":
         return "text-yellow-400 bg-yellow-400/10 border-yellow-400/20";
       case "failed":
+      case "cancelled":
         return "text-red-400 bg-red-400/10 border-red-400/20";
       default:
         return "text-gray-400 bg-gray-400/10 border-gray-400/20";
     }
   };
 
-  const stats = {
-    totalInvested: transactions
-      .filter(tx => tx.type === "investment" && tx.status === "completed")
-      .reduce((sum, tx) => sum + tx.amount, 0),
-    totalDividends: transactions
-      .filter(tx => tx.type === "dividend" && tx.status === "completed")
-      .reduce((sum, tx) => sum + tx.amount, 0),
-    totalWithdrawals: transactions
-      .filter(tx => tx.type === "withdrawal" && tx.status === "completed")
-      .reduce((sum, tx) => sum + tx.amount, 0),
-    pendingTransactions: transactions.filter(tx => tx.status === "pending").length,
-  };
+  const stats = useMemo(() => {
+    const completed = dbTransactions.filter(tx => tx.status === "completed");
+    return {
+      totalInvested: completed.filter(tx => tx.type === "investment").reduce((sum, tx) => sum + Number(tx.amount), 0),
+      totalDividends: completed.filter(tx => tx.type === "dividend").reduce((sum, tx) => sum + Number(tx.amount), 0),
+      totalWithdrawals: completed.filter(tx => tx.type === "withdrawal").reduce((sum, tx) => sum + Number(tx.amount), 0),
+      pendingTransactions: dbTransactions.filter(tx => tx.status === "pending" || tx.status === "processing").length,
+    };
+  }, [dbTransactions]);
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="text-white text-xl">Loading transactions...</div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -270,7 +193,7 @@ export default function TransactionsPage() {
           {/* Type Filter */}
           <div>
             <label className="text-sm text-gray-400 mb-2 block">Transaction Type</label>
-            <div className="flex gap-2">
+            <div className="flex flex-wrap gap-2">
               <button
                 onClick={() => setFilterType("all")}
                 className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
@@ -362,12 +285,29 @@ export default function TransactionsPage() {
                 <tr key={transaction.id} className="hover:bg-gold/5 transition-colors">
                   <td className="px-6 py-4">
                     <div>
-                      <div className="text-sm font-medium text-white">{transaction.id}</div>
-                      <div className="text-xs text-gray-400 mt-1">{transaction.description}</div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-medium text-white">
+                          {transaction.id.slice(0, 10)}...
+                        </span>
+                        {transaction.id.length > 30 && (
+                          <a 
+                            href={`https://solscan.io/tx/${transaction.id}?cluster=devnet`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-gold hover:text-white transition-colors"
+                            title="View on Solscan"
+                          >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                            </svg>
+                          </a>
+                        )}
+                      </div>
+                      <div className="text-xs text-gray-400 mt-1">{transaction.description || "No description"}</div>
                     </div>
                   </td>
                   <td className="px-6 py-4">
-                    <div className="text-sm text-white">{transaction.projectName}</div>
+                    <div className="text-sm text-white">{transaction.projects?.name || 'N/A'}</div>
                   </td>
                   <td className="px-6 py-4">
                     <div className={`inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-medium ${getTypeColor(transaction.type)}`}>
@@ -379,12 +319,12 @@ export default function TransactionsPage() {
                     <div className={`text-sm font-bold ${
                       transaction.type === "investment"
                         ? "text-blue-400"
-                        : transaction.type === "dividend"
+                        : (transaction.type === "dividend" || transaction.type === "deposit")
                         ? "text-green-400"
                         : "text-red-400"
                     }`}>
-                      {transaction.type === "withdrawal" || transaction.type === "dividend" ? "+" : "-"}
-                      ${transaction.amount.toLocaleString()}
+                      {(transaction.type === "withdrawal" || transaction.type === "investment") ? "-" : "+"}
+                      ${Number(transaction.amount).toLocaleString()}
                     </div>
                   </td>
                   <td className="px-6 py-4">
@@ -394,10 +334,10 @@ export default function TransactionsPage() {
                   </td>
                   <td className="px-6 py-4">
                     <div className="text-sm text-white">
-                      {formatDate(transaction.date)}
+                      {formatDate(transaction.created_at || transaction.initiated_at)}
                     </div>
                     <div className="text-xs text-gray-400">
-                      {formatTime(transaction.date)}
+                      {formatTime(transaction.created_at || transaction.initiated_at)}
                     </div>
                   </td>
                 </tr>

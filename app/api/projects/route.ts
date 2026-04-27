@@ -81,6 +81,7 @@ export async function GET() {
             treasuryWallet:      chainData.treasuryWallet?.toString() || '',
             mint:                chainData.mint?.toString() || '',
             lockupEndTs:         safeNum(chainData.lockupEndTs),
+            tokenPriceUsdc:      safeNum(chainData.tokenPriceUsdc, 6),
             subscriptionStart:   safeNum(chainData.subscriptionStart),
             subscriptionEnd:     safeNum(chainData.subscriptionEnd),
             createdAt:           safeNum(chainData.createdAt),

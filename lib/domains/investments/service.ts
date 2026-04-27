@@ -48,15 +48,33 @@ export class InvestmentsService {
         amount: input.amount,
         tokens_purchased: input.tokensPurchased,
         token_price_at_purchase: input.amount / input.tokensPurchased,
-        status: 'pending',
-        blockchain_subscription_id: input.blockchainSubscriptionId,
+        status: input.blockchainSignature ? 'completed' : 'pending',
+        transaction_hash: input.blockchainSignature,
         investor_wallet: input.investorWallet,
         invested_at: new Date().toISOString(),
+        completed_at: input.blockchainSignature ? new Date().toISOString() : null,
       })
       .select()
       .single();
 
     if (error) throw error;
+
+    const investment = data as any;
+
+    // 2. Create corresponding transaction record
+    await supabase.from('transactions').insert({
+      user_id: input.userId,
+      project_id: input.projectId,
+      investment_id: investment.id,
+      amount: input.amount,
+      type: 'investment',
+      status: input.blockchainSignature ? 'completed' : 'pending',
+      blockchain_hash: input.blockchainSignature,
+      blockchain_confirmed: !!input.blockchainSignature,
+      description: `Investment in ${input.projectId}`,
+      initiated_at: new Date().toISOString(),
+      completed_at: input.blockchainSignature ? new Date().toISOString() : null,
+    });
 
     // Audit log
     await createAuditLog({

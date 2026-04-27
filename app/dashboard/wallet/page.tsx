@@ -1,14 +1,42 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
+import { useDashboardData } from "@/hooks/useDashboardData";
+import { useConnection, useWallet } from "@solana/wallet-adapter-react";
+import { WalletService } from "@/lib/web3/services/walletService";
 
 export default function WalletPage() {
+  const { user, stats, transactions, loading, refresh } = useDashboardData();
+  const { connection } = useConnection();
+  const wallet = useWallet();
   const [activeTab, setActiveTab] = useState<"deposit" | "withdraw">("deposit");
   const [amount, setAmount] = useState("");
   const [paymentMethod, setPaymentMethod] = useState<"card" | "bank" | "crypto">("card");
+  const [isSyncing, setIsSyncing] = useState(false);
 
-  // Format date consistently for SSR/CSR
+  const walletData = useMemo(() => ({
+    balance: stats.usdBalance || 0,
+    goldTokens: stats.goldTokens,
+    pendingDeposits: transactions.filter(t => t.type === 'deposit' && t.status === 'pending').reduce((sum, t) => sum + Number(t.amount), 0),
+    pendingWithdrawals: transactions.filter(t => t.type === 'withdrawal' && t.status === 'pending').reduce((sum, t) => sum + Number(t.amount), 0),
+  }), [user, stats, transactions]);
+
+  const recentActivity = useMemo(() => {
+    return transactions
+      .filter(t => t.type === 'deposit' || t.type === 'withdrawal' || t.type === 'withdraw')
+      .slice(0, 10)
+      .map(t => ({
+        id: t.id,
+        type: t.type === 'withdraw' ? 'withdrawal' : t.type,
+        amount: Number(t.amount),
+        method: t.description || "System",
+        status: t.status,
+        date: t.created_at || t.initiated_at,
+      }));
+  }, [transactions]);
+
   const formatDate = (dateString: string) => {
+    if (!dateString) return "N/A";
     const date = new Date(dateString);
     return date.toLocaleDateString('en-US', {
       year: 'numeric',
@@ -17,52 +45,58 @@ export default function WalletPage() {
     });
   };
 
-  const walletData = {
-    balance: 15750.00,
-    goldTokens: 45.25,
-    pendingDeposits: 0,
-    pendingWithdrawals: 0,
-  };
+  const handleCryptoDeposit = async () => {
+    if (!wallet.publicKey || !connection) {
+      alert("Please connect your wallet first.");
+      return;
+    }
 
-  const recentActivity = [
-    {
-      id: 1,
-      type: "deposit",
-      amount: 5000,
-      method: "Bank Transfer",
-      status: "completed",
-      date: "2024-01-15T10:30:00",
-    },
-    {
-      id: 2,
-      type: "withdraw",
-      amount: 2000,
-      method: "Bank Transfer",
-      status: "completed",
-      date: "2024-01-10T14:20:00",
-    },
-    {
-      id: 3,
-      type: "deposit",
-      amount: 8000,
-      method: "Credit Card",
-      status: "completed",
-      date: "2023-11-20T09:45:00",
-    },
-    {
-      id: 4,
-      type: "deposit",
-      amount: 3500,
-      method: "Cryptocurrency",
-      status: "completed",
-      date: "2024-03-10T16:00:00",
-    },
-  ];
+    const depositAmount = parseFloat(amount);
+    if (isNaN(depositAmount) || depositAmount <= 0) {
+      alert("Please enter a valid amount.");
+      return;
+    }
+
+    setIsSyncing(true);
+    try {
+      const walletService = new WalletService(connection, wallet);
+      const signature = await walletService.depositUSDC(depositAmount);
+      
+      console.log("Deposit confirmed on-chain:", signature);
+
+      // Sync with Supabase
+      const res = await fetch('/api/wallet/sync', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          type: 'deposit',
+          amount: depositAmount,
+          blockchainHash: signature,
+          description: 'USDC Deposit via Solana'
+        })
+      });
+
+      if (!res.ok) throw new Error("Failed to sync with database");
+
+      alert("Deposit successful and synced with your account!");
+      setAmount("");
+      refresh(); // Refresh dashboard data
+    } catch (err: any) {
+      console.error("Deposit error:", err);
+      alert(err.message || "Failed to process deposit");
+    } finally {
+      setIsSyncing(false);
+    }
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    // Handle deposit/withdrawal logic
+    if (paymentMethod === 'crypto' && activeTab === 'deposit') {
+      handleCryptoDeposit();
+      return;
+    }
     console.log(`${activeTab}: $${amount} via ${paymentMethod}`);
+    alert("This feature (non-crypto) is currently in demonstration mode. Integration coming soon.");
   };
 
   const getActivityIcon = (type: string) => {
@@ -79,6 +113,14 @@ export default function WalletPage() {
       </svg>
     );
   };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="text-white text-xl">Loading wallet...</div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -108,8 +150,8 @@ export default function WalletPage() {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>
           </div>
-          <div className="text-2xl font-bold gradient-text">{walletData.goldTokens} GFT</div>
-          <div className="text-xs text-gray-400 mt-1">≈ ${(walletData.goldTokens * 550).toLocaleString()}</div>
+          <div className="text-2xl font-bold gradient-text">{walletData.goldTokens.toFixed(2)} oz</div>
+          <div className="text-xs text-gray-400 mt-1">Managed on Solana</div>
         </div>
 
         <div className="glass rounded-xl p-6 border border-gold/20">
@@ -120,7 +162,7 @@ export default function WalletPage() {
             </svg>
           </div>
           <div className="text-2xl font-bold text-white">${walletData.pendingDeposits.toLocaleString()}</div>
-          <div className="text-xs text-gray-400 mt-1">0 transactions</div>
+          <div className="text-xs text-gray-400 mt-1">Processing...</div>
         </div>
 
         <div className="glass rounded-xl p-6 border border-gold/20">
@@ -131,7 +173,7 @@ export default function WalletPage() {
             </svg>
           </div>
           <div className="text-2xl font-bold text-white">${walletData.pendingWithdrawals.toLocaleString()}</div>
-          <div className="text-xs text-gray-400 mt-1">0 transactions</div>
+          <div className="text-xs text-gray-400 mt-1">Queued</div>
         </div>
       </div>
 
@@ -182,13 +224,13 @@ export default function WalletPage() {
                     step="0.01"
                   />
                 </div>
-                <div className="flex gap-2 mt-2">
+                <div className="flex flex-wrap gap-2 mt-2">
                   {[100, 500, 1000, 5000].map((preset) => (
                     <button
                       key={preset}
                       type="button"
                       onClick={() => setAmount(preset.toString())}
-                      className="flex-1 py-2 bg-navy-dark hover:bg-gold/10 border border-gold/20 hover:border-gold/40 rounded-lg text-sm text-white transition-all"
+                      className="flex-1 min-w-[80px] py-2 bg-navy-dark hover:bg-gold/10 border border-gold/20 hover:border-gold/40 rounded-lg text-sm text-white transition-all"
                     >
                       ${preset}
                     </button>
@@ -274,9 +316,20 @@ export default function WalletPage() {
               {/* Submit Button */}
               <button
                 type="submit"
-                className="w-full py-4 bg-gradient-to-r from-gold to-gold-light text-navy font-bold rounded-lg hover:scale-105 transition-all duration-300 shadow-lg shadow-gold/20"
+                disabled={isSyncing || !amount}
+                className="w-full py-4 bg-gradient-to-r from-gold to-gold-light text-navy font-bold rounded-lg hover:scale-105 transition-all duration-300 shadow-lg shadow-gold/20 disabled:opacity-50"
               >
-                {activeTab === "deposit" ? "Deposit Funds" : "Withdraw Funds"}
+                {isSyncing ? (
+                  <span className="flex items-center justify-center gap-2">
+                    <svg className="animate-spin h-5 w-5 text-navy" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    Processing...
+                  </span>
+                ) : (
+                  activeTab === "deposit" ? "Deposit Funds" : "Withdraw Funds"
+                )}
               </button>
             </form>
           </div>
@@ -340,7 +393,7 @@ export default function WalletPage() {
       <div className="glass rounded-xl p-6 border border-gold/20">
         <h2 className="text-xl font-bold text-white mb-6">Recent Activity</h2>
         <div className="space-y-4">
-          {recentActivity.map((activity) => (
+          {recentActivity.map((activity: any) => (
             <div
               key={activity.id}
               className="flex items-center justify-between p-4 bg-navy-dark rounded-lg border border-gold/10 hover:border-gold/30 transition-all"
@@ -370,11 +423,20 @@ export default function WalletPage() {
                 </div>
               </div>
 
-              <span className="inline-flex px-3 py-1 rounded-full text-xs font-medium uppercase tracking-wider text-green-400 bg-green-400/10 border border-green-400/20">
+              <span className={`inline-flex px-3 py-1 rounded-full text-xs font-medium uppercase tracking-wider ${
+                activity.status === 'completed' ? 'text-green-400 bg-green-400/10 border-green-400/20' :
+                activity.status === 'pending' ? 'text-yellow-400 bg-yellow-400/10 border-yellow-400/20' :
+                'text-red-400 bg-red-400/10 border-red-400/20'
+              }`}>
                 {activity.status}
               </span>
             </div>
           ))}
+          {recentActivity.length === 0 && (
+            <div className="text-center py-8 text-gray-500 italic">
+              No recent wallet activity found
+            </div>
+          )}
         </div>
       </div>
     </div>

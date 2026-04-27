@@ -7,6 +7,7 @@ import { useWallet, useConnection } from '@solana/wallet-adapter-react';
 import { ProjectRegistryService } from '@/lib/web3/services/projectRegistryService';
 import { PublicKey } from '@solana/web3.js';
 import { BN } from '@coral-xyz/anchor';
+import { TokenMath } from '@/lib/utils/tokenMath';
 
 import { toChainStatus, toChainAssetType, fromChainStatus } from '@/lib/web3/utils/statusMappings';
 type Project = Database['public']['Tables']['projects']['Row'];
@@ -276,7 +277,14 @@ export default function ProjectsManagement({ initialProjects, userId }: Projects
 
       if (!response.ok) {
         const data = await response.json();
-        throw new Error(data.error || 'Failed to save project to off-chain DB');
+        const msg = data.error || 'Failed to save project to off-chain DB';
+        
+        if (!editingProject) {
+           setError(`BLOCKCHAIN SUCCESS (ID: ${submissionData.blockchain_project_id}), but Database failed. IMPORTANT: Please REFRESH the page and use the "Sync" button to link this project manually. Error: ${msg}`);
+        } else {
+           throw new Error(msg);
+        }
+        return;
       }
 
       const savedProject = await response.json();
@@ -521,17 +529,31 @@ export default function ProjectsManagement({ initialProjects, userId }: Projects
   };
 
   const handleSyncFromChain = async (project: EnrichedProject) => {
-    if (!project.onChain) return;
-    const chainStatusStr = fromChainStatus(project.onChain.status);
+    if (!project.blockchain_project_id) return;
     
     setStatusChanging(project.id);
     try {
+      const service = new ProjectRegistryService(connection, wallet);
+      const freshChainData = await service.fetchProject(project.blockchain_project_id);
+      
+      if (!freshChainData) throw new Error("Could not find project on-chain to sync.");
+      
+      const chainStatusStr = fromChainStatus(freshChainData.status);
+      const decimals = project.token_decimals || freshChainData.tokenDecimals || 9;
+      
       const body = { 
         status: chainStatusStr,
-        available_tokens: Math.floor(project.onChain.supplyCap - project.onChain.tokensIssued),
-        current_round_issued: Math.floor(project.onChain.currentRoundIssued || 0),
+        available_tokens: TokenMath.fromRaw(new BN(freshChainData.supplyCap).sub(new BN(freshChainData.tokensIssued)), decimals),
+        current_round_issued: TokenMath.fromRaw(freshChainData.currentRoundIssued, decimals),
+        on_chain_id: project.blockchain_project_id,
+        blockchain_project_id: project.blockchain_project_id,
+        token_decimals: decimals,
+        mint_address: freshChainData.mint?.toString(),
+        is_paused: freshChainData.isPaused,
+        token_price: TokenMath.fromRaw(freshChainData.tokenPriceUsdc, 6),
       };
-      console.log(`[Sync] Sending update for project ${project.id}:`, body);
+      
+      console.log(`[Sync] Sending FRESH update for project ${project.id}:`, body);
 
       const response = await fetch(`/api/admin/projects/${project.id}`, {
         method: 'PUT',

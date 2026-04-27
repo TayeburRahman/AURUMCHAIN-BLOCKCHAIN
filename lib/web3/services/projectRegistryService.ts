@@ -17,9 +17,13 @@ import {
   PROGRAM_ID as METAPLEX_PROGRAM_ID 
 } from '@metaplex-foundation/mpl-token-metadata';
 
+import { 
+  getMetadataPDA, 
+  getMintAuthorityPDA 
+} from '../utils/pdaHelpers';
+import { TokenMath } from '@/lib/utils/tokenMath';
 import { ProjectRegistryRepository } from '../repositories/projectRegistryRepository';
 import { getRegistryProgram } from '../utils/programDiscoverer';
-import { getMetadataPDA, getMintAuthorityPDA } from '../utils/pdaHelpers';
 import { confirmTransactionRobustly } from '../utils/transactionUtils';
 
 /**
@@ -94,7 +98,7 @@ export class ProjectRegistryService {
     try {
       const instruction = await this.repository.getInitializeControlInstruction(
         params.operationalAdmin,
-        new BN(params.operationalLimits).mul(new BN(1_000_000)) // Apply USDC decimals if it refers to amount
+        TokenMath.toRawUsdc(params.operationalLimits)
       );
       return await this.sendAndConfirm(instruction);
     } catch (error: any) {
@@ -219,10 +223,10 @@ export class ProjectRegistryService {
         name: params.name,
         symbol: params.symbol,
         uri: params.uri,
-        supplyCap: new BN(params.supplyCap).mul(new BN(10).pow(new BN(params.tokenDecimals))), 
-        minInvestmentUsdc: new BN(params.minInvestmentUsdc).mul(new BN(1_000_000)),
-        maxInvestmentUsdc: new BN(params.maxInvestmentUsdc).mul(new BN(1_000_000)),
-        tokenPriceUsdc: new BN(params.tokenPriceUsdc).mul(new BN(1_000_000)), // Scaled to 6 decimals
+        supplyCap: TokenMath.toRawTokens(params.supplyCap, params.tokenDecimals), 
+        minInvestmentUsdc: TokenMath.toRawUsdc(params.minInvestmentUsdc),
+        maxInvestmentUsdc: TokenMath.toRawUsdc(params.maxInvestmentUsdc),
+        tokenPriceUsdc: TokenMath.toRawUsdc(params.tokenPriceUsdc),
         lockupEndTs: new BN(params.lockupEndTs),
         subscriptionStart: new BN(params.subscriptionStart),
         subscriptionEnd: new BN(params.subscriptionEnd),
@@ -230,9 +234,10 @@ export class ProjectRegistryService {
         treasuryWallet: params.treasuryWallet,
         distributionCadence: params.distributionCadence,
         durationMonths: params.durationMonths,
-        distributionMode: params.distributionMode, // 0=Parallel, 1=Sequential
+        distributionMode: params.distributionMode, 
         assetType: mappedAssetType, 
-        roundLimitTokens: new BN(params.roundLimitTokens || params.supplyCap).mul(new BN(10).pow(new BN(params.tokenDecimals))),
+        roundLimitTokens: TokenMath.toRawTokens(params.roundLimitTokens || params.supplyCap, params.tokenDecimals),
+        tokenDecimals: params.tokenDecimals,
       });
 
       const setMintIx = await this.repository.getSetProjectMintInstruction(nextId, mintAddress);
@@ -351,7 +356,7 @@ export class ProjectRegistryService {
       const instruction = await this.repository.getTransferAuthorityInstruction(
         params.roleFlag,
         params.newAdmin,
-        params.newLimits ? new BN(params.newLimits).mul(new BN(1_000_000)) : null
+        params.newLimits ? TokenMath.toRawUsdc(params.newLimits) : null
       );
       return await this.sendAndConfirm(instruction);
     } catch (error: any) {
@@ -434,11 +439,7 @@ export class ProjectRegistryService {
 
       // 5. Build Issue Instruction using REAL on-chain decimals
       const decimals = await this.getMintDecimals(project.mint);
-      
-      // Precision-safe scaling (handles fractions like 100.5)
-      const [intPart, fracPart = ""] = amount.toString().split(".");
-      const paddedFrac = fracPart.padEnd(decimals, "0").slice(0, decimals);
-      const amountBN = new BN(intPart).mul(new BN(10).pow(new BN(decimals))).add(new BN(paddedFrac));
+      const amountBN = TokenMath.toRawTokens(amount, decimals);
 
       console.log(`[issueTokens] Scaling: ${amount} tokens -> ${amountBN.toString()} raw units (Decimals: ${decimals})`);
 

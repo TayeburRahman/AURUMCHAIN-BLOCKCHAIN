@@ -11,6 +11,7 @@ import {
   getMintAuthorityPDA 
 } from '../utils/pdaHelpers';
 import bs58 from 'bs58';
+import { TokenMath } from '@/lib/utils/tokenMath';
 
 /**
  * AdminBlockchainService
@@ -67,13 +68,24 @@ export class AdminBlockchainService {
         Buffer.from(params.paymentTxHash.slice(0, 64)).copy(txHashBytes);
       }
 
-      // 5. Execute transaction with ALL required accounts for CPI
-      console.log(`[AdminBlockchainService] Settling subscription ${params.subscriptionId} for project ${projectId}...`);
+      // 5. Fetch Mint Info to get Decimals (AC-BC-406 Dynamic Decimals)
+      // 3. Fetch ACTUAL decimals from the blockchain for this specific project
+      const registryService = new ProjectRegistryService(provider.connection, {});
+      const fetchedProject = await registryService.fetchProject(projectId);
+      if (!fetchedProject) throw new Error(`Project ${projectId} not found on-chain.`);
+      
+      const decimals = fetchedProject.tokenDecimals || 9;
+      const scaledAmount = TokenMath.toRawTokens(params.allocatedTokenAmount, decimals);
+
+      console.log(`[AdminWeb3] Scaling: ${params.allocatedTokenAmount} tokens -> ${scaledAmount.toString()} raw units (Decimals: ${decimals})`);
+
+      // 6. Execute transaction with ALL required accounts for CPI
+      console.log(`[AdminBlockchainService] Settling subscription ${params.subscriptionId} for project ${projectId} with scaled amount ${scaledAmount.toString()} (${decimals} decimals)...`);
       
       const tx = await complianceProgram.methods
         .finalizeSubscription(
           Array.from(txHashBytes),
-          new BN(params.allocatedTokenAmount)
+          scaledAmount
         )
         .accounts({
           subscription:           subscriptionPda,

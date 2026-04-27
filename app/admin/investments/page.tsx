@@ -2,11 +2,12 @@
 
 import { useEffect, useState, useMemo } from 'react';
 import { useConnection, useWallet } from '@solana/wallet-adapter-react';
-import { PublicKey } from '@solana/web3.js';
+import { PublicKey, Connection } from '@solana/web3.js';
 import { BN, Program, AnchorProvider } from '@coral-xyz/anchor';
 import Link from 'next/link';
 import { InvestmentRepository } from '@/lib/web3/repositories/investmentRepository';
 import { ProjectRegistryService } from '@/lib/web3/services/projectRegistryService';
+import { createDefaultConnection } from '@/lib/web3/config/rpc';
 import { getRegistryPDA, getProjectPDA, getMintAuthorityPDA, getSubscriptionPDA, getComplianceControlPDA } from '@/lib/web3/utils/pdaHelpers';
 import { getComplianceProgram } from '@/lib/web3/utils/programDiscoverer';
 import { TOKEN_PROGRAM_ID, getAssociatedTokenAddress } from '@solana/spl-token';
@@ -39,19 +40,33 @@ export default function AdminInvestmentsPage() {
 
   const fetchData = async () => {
     if (!repo || !registryService || fetching.active) return;
+    
     try {
+      const { createClient } = await import('@/lib/supabase/client');
+      const supabase = createClient();
+      
       fetching.active = true;
       setLoading(true);
-      const [allSubs, allProjects] = await Promise.all([
+      
+      const [allSubs, allProjects, { data: dbProjects }] = await Promise.all([
         repo.fetchAll(),
-        registryService.fetchAllProjects()
+        registryService.fetchAllProjects(),
+        supabase.from('projects').select('id, blockchain_project_id, name')
       ]);
 
       // Map projects by ID for quick lookup
       const projectMap: Record<string, any> = {};
       allProjects.forEach((p: any) => {
         if (p && p.account) {
-          projectMap[p.account.projectId.toString()] = p.account;
+          const blockchainId = p.account.projectId.toString();
+          // Find matching DB record to get the UUID
+          const dbMatch = dbProjects?.find(db => db.blockchain_project_id?.toString() === blockchainId);
+          
+          projectMap[blockchainId] = {
+            ...p.account,
+            id: dbMatch?.id, // THE CRITICAL LINK
+            dbName: dbMatch?.name
+          };
         }
       });
 
@@ -78,12 +93,108 @@ export default function AdminInvestmentsPage() {
   const handleFinalize = async (sub: any) => {
     if (!repo || !wallet.publicKey || !connection) return;
     
-    const txHashInput = window.prompt("Enter Settlement Transaction Hash (64 bytes hex or string):");
+    const projectId = sub.account.projectId;
+    const amountUsdc = Number(sub.account.investmentAmount.toString()) / 1_000_000;
+    const investorAddr = sub.account.investor.toBase58();
+
+    // 1. AUTOMATION: Try to find the matching investment in Supabase FIRST
+    let autoTxHash = null;
+    let autoTokenAmount = null;
+    
+    try {
+      const { createClient } = await import('@/lib/supabase/client');
+      const supabase = createClient();
+      const pidStr = projectId.toString();
+      const projectRecord = projects[pidStr];
+      
+      if (projectRecord) {
+        let { data: dbInv } = await supabase
+          .from('investments')
+          .select('transaction_hash, tokens_purchased')
+          .eq('offering_id', sub.account.subscriptionId.toString())
+          .maybeSingle(); // Avoid 406 error if not found
+        
+        if (!dbInv && projectRecord.id) {
+          const { data: fallbackInv } = await supabase
+            .from('investments')
+            .select('transaction_hash, tokens_purchased')
+            .eq('amount', amountUsdc)
+            .eq('project_id', projectRecord.id)
+            .order('created_at', { ascending: false })
+            .limit(1)
+            .maybeSingle();
+          dbInv = fallbackInv;
+        }
+        
+        if (dbInv) {
+          if (dbInv.transaction_hash && dbInv.transaction_hash.length > 20) {
+            autoTxHash = dbInv.transaction_hash;
+          }
+          if (dbInv.tokens_purchased) {
+            autoTokenAmount = dbInv.tokens_purchased.toString();
+          }
+        }
+      }
+    } catch (e) {
+      console.warn("[Admin] Supabase match failed, trying blockchain scan...");
+    }
+
+    // 2. BLOCKCHAIN SCANNER: If no hash found in DB, scan the chain for the USDC transfer
+    if (!autoTxHash) {
+      try {
+        console.log(`[Admin] Precise scanning for payment from ${investorAddr} to treasury...`);
+        const investorPK = new PublicKey(investorAddr);
+        const pidStr = projectId.toString();
+        const projectRecord = projects[pidStr];
+        const treasuryAddr = projectRecord.treasuryWallet?.toBase58();
+        
+        if (treasuryAddr) {
+          // Precise scanning with global resilient connection
+          console.log(`[Admin] Precise scanning for payment from ${investorAddr} to treasury...`);
+          const sigs = await connection.getSignaturesForAddress(investorPK, { limit: 20 });
+          
+          for (const sigInfo of sigs) {
+            const tx = await connection.getParsedTransaction(sigInfo.signature, {
+              maxSupportedTransactionVersion: 0,
+            });
+            
+            if (!tx) continue;
+
+            const message = tx.transaction.message;
+            const accounts = (message as any).accountKeys.map((k: any) => k.pubkey?.toBase58() || k.toBase58());
+            
+            if (accounts.includes(treasuryAddr)) {
+              console.log(`[Admin] Found matching transaction signature: ${sigInfo.signature}`);
+              autoTxHash = sigInfo.signature;
+              break; 
+            }
+          }
+        }
+      } catch (e) {
+        console.error("[Admin] Blockchain scan failed:", e);
+      }
+    }
+
+    const txHashInput = autoTxHash || window.prompt("Enter Settlement Transaction Hash (64 bytes hex or string):");
     if (!txHashInput) return;
 
-    // Default to the invested USDC amount formatted as human readable
-    const defaultAmount = (Number(sub.account.investmentAmount.toString()) / 1_000_000).toString();
-    const tokenAmountInput = window.prompt("Enter Token Amount to Issue (e.g. 1200.5):", defaultAmount);
+    // Default to the invested USDC amount formatted as human readable if no tokens found
+    let defaultAmount = (amountUsdc).toString();
+    
+    // 3. AUTO-CALCULATE TOKEN AMOUNT: If not in DB, calculate based on on-chain price
+    if (!autoTokenAmount) {
+      const pidStr = projectId.toString();
+      const projectRecord = projects[pidStr];
+      if (projectRecord?.tokenPriceUsdc) {
+        const price = Number(projectRecord.tokenPriceUsdc.toString()) / 1_000_000;
+        if (price > 0) {
+          autoTokenAmount = (amountUsdc / price).toString();
+          console.log(`[Admin] Auto-calculated token amount: ${autoTokenAmount} (Price: ${price})`);
+        }
+      }
+    }
+
+    const tokenAmountInput = autoTokenAmount || window.prompt("Enter Token Amount to Issue (e.g. 1200.5):", defaultAmount);
     if (!tokenAmountInput) return;
 
     try {

@@ -17,7 +17,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { projectId, offeringId, amount, tokensPurchased } = body;
+    const { projectId, offeringId, amount, tokensPurchased, blockchainSignature, blockchainSubscriptionId, investorWallet } = body;
 
     if (!projectId || !amount || !tokensPurchased) {
       return NextResponse.json(
@@ -33,6 +33,9 @@ export async function POST(request: NextRequest) {
       offeringId,
       amount: parseFloat(amount),
       tokensPurchased: parseFloat(tokensPurchased),
+      blockchainSignature,
+      blockchainSubscriptionId,
+      investorWallet,
     });
 
     return NextResponse.json({

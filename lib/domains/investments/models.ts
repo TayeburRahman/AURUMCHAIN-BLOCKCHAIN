@@ -78,6 +78,7 @@ export const createInvestmentSchema = z.object({
   amount: moneySchema,
   tokensPurchased: tokenAmountSchema,
   blockchainSubscriptionId: z.string().optional(),
+  blockchainSignature: z.string().optional(),
   investorWallet: z.string().optional(),
 });
 

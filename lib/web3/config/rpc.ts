@@ -22,10 +22,11 @@ const NETWORK = 'devnet';
  * Prioritizes .env, then falls back to public devnet.
  */
 export const SOLANA_RPC_URL = 
+  'https://solana-devnet.g.alchemy.com/v2/4ZYO0JBTWn7EHda1T-bf5';
+
+export const FALLBACK_RPC_URL = 
   process.env.NEXT_PUBLIC_SOLANA_RPC_URL || 
   'https://api.devnet.solana.com';
-
-export const FALLBACK_RPC_URL = 'https://solana-devnet.g.alchemy.com/v2/4ZYO0JBTWn7EHda1T-bf5';
 
 /**
  * Standard Connection configuration for consistency.
@@ -36,21 +37,31 @@ export const CONNECTION_CONFIG = {
   // Automatic Fallback Middleware
   fetchMiddleware: async (info: any, init: any, fetch: any) => {
     try {
+      let currentUrl = typeof info === 'string' ? info : info.url;
+      let body = init?.body ? JSON.parse(init.body) : null;
+
+      // BYPASS: Alchemy Free tier doesn't support getProgramAccounts.
+      // Force these calls to use the public Devnet.
+      if (body?.method === 'getProgramAccounts' && currentUrl.includes('alchemy')) {
+        const bypassUrl = FALLBACK_RPC_URL;
+        console.log(`[RPC] Routing getProgramAccounts to public Devnet (Alchemy restriction)...`);
+        return await fetch(bypassUrl, init);
+      }
+
       const response = await fetch(info, init);
+      
       // Fallback on rate limits (429), server errors (500+), or Alchemy restrictions (400)
       if (response && (response.status === 429 || response.status >= 500 || response.status === 400)) {
-        console.warn(`[RPC] Primary endpoint failed with ${response.status}. Attempting fallback to ${FALLBACK_RPC_URL}...`);
-        
-        // Construct the fallback request
         const fallbackUrl = typeof info === 'string' 
           ? info.replace(SOLANA_RPC_URL, FALLBACK_RPC_URL)
           : FALLBACK_RPC_URL;
           
+        console.warn(`[RPC] Request failed (${response.status}). Retrying with ${fallbackUrl}...`);
         return await fetch(fallbackUrl, init);
       }
       return response;
     } catch (err) {
-      console.warn(`[RPC] Primary endpoint threw error. Falling back...`, err);
+      console.warn(`[RPC] Request threw error. Falling back...`, err);
       return await fetch(FALLBACK_RPC_URL, init);
     }
   }

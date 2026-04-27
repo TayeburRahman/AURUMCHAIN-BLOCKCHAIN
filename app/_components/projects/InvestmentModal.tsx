@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useConnection, useWallet } from '@solana/wallet-adapter-react';
 import { PublicKey } from '@solana/web3.js';
 import { InvestmentService } from '@/lib/web3/services/investmentService';
@@ -19,6 +19,7 @@ interface InvestmentModalProps {
     onChain?: {
       minInvestmentUsdc: number;
       maxInvestmentUsdc: number;
+      tokenPriceUsdc?: number; // Added
       acceptedStablecoin: string;
       supplyCap: number;
     } | null;
@@ -29,11 +30,23 @@ export function InvestmentModal({ isOpen, onClose, project }: InvestmentModalPro
   const { connection } = useConnection();
   const { publicKey, sendTransaction } = useWallet();
   
-  const [amount, setAmount] = useState('');
+  const [amount, setAmount] = useState(''); // This is now total USDC
+  const [tokenQuantity, setTokenQuantity] = useState(''); // This is number of tokens
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
   const [txSig, setTxSig] = useState<string | null>(null);
+  
+  // Reset state when modal is opened
+  useEffect(() => {
+    if (isOpen) {
+      setSuccess(false);
+      setTxSig(null);
+      setAmount('');
+      setTokenQuantity('');
+      setError(null);
+    }
+  }, [isOpen]);
 
   const investmentService = useMemo(() => {
     if (!connection) return null;
@@ -45,11 +58,40 @@ export function InvestmentModal({ isOpen, onClose, project }: InvestmentModalPro
     return new InvestmentService(connection, mockWallet);
   }, [connection, publicKey, sendTransaction]);
 
-  if (!isOpen) return null;
+  const onChain = project.onChain;
+  
+  // ── Price Calculation ──
+  const tokenPrice = useMemo(() => {
+    // 1. Prefer on-chain price (it's already humanized in /api/projects)
+    if (onChain?.tokenPriceUsdc && onChain.tokenPriceUsdc > 0) return onChain.tokenPriceUsdc;
+    // 2. Fallback to DB price
+    if (project.token_price && project.token_price > 0) return project.token_price;
+    // 3. Last resort calculation (Legacy)
+    if (onChain && onChain.supplyCap > 0 && onChain.maxInvestmentUsdc > 0) {
+      return onChain.maxInvestmentUsdc / onChain.supplyCap;
+    }
+    return 1; // Absolute fallback
+  }, [onChain, project.token_price]);
 
   const investmentAmount = parseFloat(amount) || 0;
-  const onChain = project.onChain;
-  // API already provides these in human units
+  
+  // Update tokens when USDC amount changes
+  const handleUsdcChange = (val: string) => {
+    setAmount(val);
+    const numericVal = parseFloat(val) || 0;
+    setTokenQuantity((numericVal / tokenPrice).toFixed(4));
+  };
+
+  // Update USDC when token quantity changes
+  const handleTokenChange = (val: string) => {
+    setTokenQuantity(val);
+    const numericVal = parseFloat(val) || 0;
+    setAmount((numericVal * tokenPrice).toFixed(2));
+  };
+
+  if (!isOpen) return null;
+
+  const tokensToReceive = investmentAmount / tokenPrice;
   const minInvestment = onChain ? onChain.minInvestmentUsdc : 100;
   const maxInvestment = onChain ? onChain.maxInvestmentUsdc : 10000;
 
@@ -79,7 +121,7 @@ export function InvestmentModal({ isOpen, onClose, project }: InvestmentModalPro
 
       console.log(`[InvestmentModal] Initiating on-chain subscription for project ${project.blockchain_project_id}...`);
       
-      const signature = await investmentService.subscribe({
+      const { signature, subscriptionId } = await investmentService.subscribe({
         projectId: project.blockchain_project_id,
         amount: investmentAmount,
         paymentAsset: new PublicKey(onChain?.acceptedStablecoin || 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v'), // Default USDC
@@ -88,12 +130,7 @@ export function InvestmentModal({ isOpen, onClose, project }: InvestmentModalPro
       console.log(`[InvestmentModal] Success! Tx: ${signature}`);
       setTxSig(signature);
 
-      // Calculate tokens purchased: Amount / Price
-      const tokensPurchased = project.token_price && project.token_price > 0 
-        ? investmentAmount / project.token_price 
-        : (onChain && onChain.supplyCap > 0 && onChain.maxInvestmentUsdc > 0 
-            ? investmentAmount / (onChain.maxInvestmentUsdc / onChain.supplyCap)
-            : 0);
+      const tokensPurchased = tokensToReceive;
 
       // Sync with backend
       await fetch('/api/investments/create', {
@@ -104,6 +141,7 @@ export function InvestmentModal({ isOpen, onClose, project }: InvestmentModalPro
           amount: investmentAmount,
           tokensPurchased: tokensPurchased,
           blockchainSignature: signature,
+          blockchainSubscriptionId: subscriptionId,
           investorWallet: publicKey.toBase58(),
         }),
       });
@@ -173,25 +211,58 @@ export function InvestmentModal({ isOpen, onClose, project }: InvestmentModalPro
               <h2 className="text-3xl font-bold text-white mb-1">Invest in {project.name}</h2>
               <p className="text-gray-400 text-sm mb-8">{project.location}, {project.country}</p>
 
-              <div className="mb-8">
-                <label className="block text-gray-400 text-xs font-bold uppercase tracking-widest mb-3">Investment Amount (USDC)</label>
+              <div className="space-y-6 mb-8">
+                {/* Tokens Input */}
                 <div className="relative group">
-                  <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gold font-bold">$</span>
+                  <label className="block text-gray-400 text-xs font-bold uppercase tracking-widest mb-3 text-gold">How many tokens?</label>
+                  <input
+                    type="number"
+                    value={tokenQuantity}
+                    onChange={(e) => handleTokenChange(e.target.value)}
+                    className="w-full bg-navy/50 border-2 border-gold/20 rounded-xl py-4 px-6 text-white text-xl font-bold focus:border-gold focus:outline-none transition-all group-hover:border-gold/40"
+                    placeholder="0.00"
+                    required
+                  />
+                  <div className="absolute right-4 top-[70%] -translate-y-1/2 text-gray-500 font-bold text-xs">TOKENS</div>
+                </div>
+
+                <div className="flex items-center justify-center">
+                  <div className="h-[1px] w-full bg-gold/20"></div>
+                  <div className="px-4 text-gold/40">
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4" />
+                    </svg>
+                  </div>
+                  <div className="h-[1px] w-full bg-gold/20"></div>
+                </div>
+
+                {/* USDC Input */}
+                <div className="relative group">
+                  <label className="block text-gray-400 text-xs font-bold uppercase tracking-widest mb-3">Total Cost (USDC)</label>
+                  <span className="absolute left-4 top-[70%] -translate-y-1/2 text-gold font-bold">$</span>
                   <input
                     type="number"
                     value={amount}
-                    onChange={(e) => setAmount(e.target.value)}
+                    onChange={(e) => handleUsdcChange(e.target.value)}
                     className="w-full bg-navy/50 border-2 border-gold/20 rounded-xl py-4 px-10 text-white text-xl font-bold focus:border-gold focus:outline-none transition-all group-hover:border-gold/40"
-                    placeholder="0"
+                    placeholder="0.00"
                     min={minInvestment}
                     required
                   />
-                  <div className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-500 font-bold text-xs">USDC</div>
+                  <div className="absolute right-4 top-[70%] -translate-y-1/2 text-gray-500 font-bold text-xs">USDC</div>
                 </div>
-                <div className="flex justify-between mt-2">
-                  <p className="text-[10px] text-gray-500">Min: ${minInvestment.toLocaleString()}</p>
-                  <p className="text-[10px] text-gray-500">Max: ${maxInvestment.toLocaleString()}</p>
-                </div>
+                
+                {/* Math Recap */}
+                {investmentAmount > 0 && (
+                  <div className="p-4 rounded-xl bg-gold/5 border border-gold/20 animate-fade-in flex justify-between items-center text-xs">
+                    <div className="text-gray-400">
+                      Calculation: <span className="text-white font-mono">{tokenQuantity || '0'}</span> tokens × <span className="text-white font-mono">${tokenPrice.toFixed(2)}</span>
+                    </div>
+                    <div className="text-gold font-bold">
+                      = ${investmentAmount.toFixed(2)}
+                    </div>
+                  </div>
+                )}
               </div>
 
               {error && (

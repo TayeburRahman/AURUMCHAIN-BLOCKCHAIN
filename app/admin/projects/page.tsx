@@ -71,6 +71,7 @@ export default async function AdminProjectsPage() {
               status:              chainData.status || { draft: {} },
               acceptedStablecoin:  chainData.acceptedStablecoin?.toString() || '',
               lockupEndTs:         chainData.lockupEndTs ? Number(chainData.lockupEndTs) : 0,
+              tokenPriceUsdc:      chainData.tokenPriceUsdc ? Number(chainData.tokenPriceUsdc) / 1_000_000 : 0,
               treasuryWallet:      chainData.treasuryWallet?.toString() || '',
               mint:                chainData.mint?.toString() || '',
             }
