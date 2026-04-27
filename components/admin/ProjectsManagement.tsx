@@ -1320,7 +1320,7 @@ export default function ProjectsManagement({ initialProjects, userId }: Projects
                         
                         return (
                           <>
-                            {issued.toLocaleString(undefined, { maximumFractionDigits: (project as any).token_decimals || 6 })} / {total.toLocaleString(undefined, { maximumFractionDigits: (project as any).token_decimals || 6 })}
+                            {issued.toLocaleString(undefined, { maximumFractionDigits: (project as any).token_decimals ?? 9 })} / {total.toLocaleString(undefined, { maximumFractionDigits: (project as any).token_decimals ?? 9 })}
                           </>
                         );
                       })()}

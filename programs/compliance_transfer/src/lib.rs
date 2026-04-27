@@ -145,4 +145,7 @@ pub enum ComplianceError {
 
     #[msg("Provided project_registry_program does not match on-chain control.registry_program")]
     InvalidRegistryProgram,
+
+    #[msg("Investment subscription period is either not yet open or has already closed")]
+    OutsideSubscriptionWindow,
 }

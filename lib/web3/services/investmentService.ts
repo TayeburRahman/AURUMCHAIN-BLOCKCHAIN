@@ -33,6 +33,20 @@ export class InvestmentService {
     try {
       if (!this.wallet.publicKey) throw new Error("Wallet not connected");
 
+      // 1. Fetch Project Data to get Treasury Wallet
+      const registryProgram = getRegistryProgram(this.connection, this.wallet);
+      const projectIdBN = new BN(params.projectId);
+      const [projectPda] = PublicKey.findProgramAddressSync(
+        [Buffer.from('project'), projectIdBN.toArrayLike(Buffer, 'le', 8)],
+        registryProgram.programId
+      );
+      const projectData: any = await registryProgram.account.projectAccount.fetch(projectPda);
+
+      // 2. Derive Token Accounts
+      const { getAssociatedTokenAddressSync, TOKEN_PROGRAM_ID } = await import('@solana/spl-token');
+      const investorTokenAccount = getAssociatedTokenAddressSync(params.paymentAsset, this.wallet.publicKey);
+      const treasuryTokenAccount = getAssociatedTokenAddressSync(params.paymentAsset, projectData.treasuryWallet);
+
       const subscriptionId = new BN(Date.now());
       const amountBN = new BN(params.amount).mul(new BN(1_000_000)); // USDC 6 decimals
 
@@ -43,6 +57,9 @@ export class InvestmentService {
           projectId: params.projectId,
           amount: amountBN,
           paymentAsset: params.paymentAsset,
+          investorTokenAccount,
+          treasuryTokenAccount,
+          tokenProgram: TOKEN_PROGRAM_ID,
         }
       );
 

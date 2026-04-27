@@ -129,7 +129,7 @@ export class ProjectRegistryService {
   /**
    * ATOMIC PROJECT CREATION:
    * 1. Creates SPL Mint account
-   * 2. Initializes Mint (6 decimals)
+   * 2. Initializes Mint (Dynamic decimals)
    * 3. Registers Metaplex Metadata
    * 4. Initializes Project in Registry
    * 5. Links Mint to Project
@@ -209,10 +209,10 @@ export class ProjectRegistryService {
         }
       );
 
-      // Map string assetType to Anchor enum format (AC-BC-101)
+      // Map assetType (handles both raw string and already-mapped object)
       const mappedAssetType = 
-        (params.assetType === 'mining' || params.assetType === 'industrial') ? { mining: {} } :
-        (params.assetType === 'real-estate' || params.assetType === 'real_estate') ? { realEstate: {} } :
+        (params.assetType === 'mining' || params.assetType === 'industrial' || params.assetType?.mining) ? { mining: {} } :
+        (params.assetType === 'real-estate' || params.assetType === 'real_estate' || params.assetType?.realEstate) ? { realEstate: {} } :
         { other: {} }; // Fallback to 'other' for safety
 
       const createProjectIx = await this.repository.getCreateProjectInstruction(nextId, {
@@ -464,7 +464,9 @@ export class ProjectRegistryService {
   async resetRound(projectId: number, newRoundLimit?: number): Promise<string> {
     try {
       const project = await this.repository.fetchProjectAccount(projectId);
-      const decimals = project?.tokenDecimals || 9;
+      if (!project) throw new Error("Project not found");
+      
+      const decimals = await this.getMintDecimals(project.mint);
 
       const limitBN = newRoundLimit 
         ? new BN(newRoundLimit).mul(new BN(10).pow(new BN(decimals))) 

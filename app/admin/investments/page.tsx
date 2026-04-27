@@ -35,9 +35,12 @@ export default function AdminInvestmentsPage() {
     };
   }, [connection, wallet]);
 
+  const fetching = useMemo(() => ({ active: false }), []);
+
   const fetchData = async () => {
-    if (!repo || !registryService) return;
+    if (!repo || !registryService || fetching.active) return;
     try {
+      fetching.active = true;
       setLoading(true);
       const [allSubs, allProjects] = await Promise.all([
         repo.fetchAll(),
@@ -47,16 +50,24 @@ export default function AdminInvestmentsPage() {
       // Map projects by ID for quick lookup
       const projectMap: Record<string, any> = {};
       allProjects.forEach((p: any) => {
-        projectMap[p.account.projectId.toString()] = p.account;
+        if (p && p.account) {
+          projectMap[p.account.projectId.toString()] = p.account;
+        }
       });
 
       setSubscriptions(allSubs);
       setProjects(projectMap);
+      console.log("✅ Projects Mapped IDs:", Object.keys(projectMap));
     } catch (err: any) {
-      console.error("Fetch Error:", err);
-      setStatus({ type: 'error', msg: "Failed to load on-chain subscriptions." });
+      if (err.message?.includes('429')) {
+        console.warn("RPC Rate limited (429). Throttling...");
+      } else {
+        console.error("Fetch Error:", err);
+        setStatus({ type: 'error', msg: "Failed to load on-chain subscriptions." });
+      }
     } finally {
       setLoading(false);
+      fetching.active = false;
     }
   };
 
@@ -80,16 +91,24 @@ export default function AdminInvestmentsPage() {
       setStatus({ type: 'info', msg: "Preparing finalization transaction..." });
 
       const projectId = sub.account.projectId;
-      const projectData = projects[projectId.toString()];
-      if (!projectData) throw new Error("Project data not found in registry.");
+      const pidStr = projectId.toString();
+      
+      console.log("🔍 Finalizing Project ID:", pidStr);
+      console.log("📂 Current Project Keys in State:", Object.keys(projects));
+
+      const projectData = projects[pidStr];
+      if (!projectData) {
+        console.error("❌ Project Lookup Failed for ID:", pidStr);
+        throw new Error(`Project data not found in registry for ID: ${pidStr}`);
+      }
 
       if (!projectData.mint || projectData.mint.toBase58() === PublicKey.default.toBase58()) {
         throw new Error("This project has no SPL Token Mint linked yet. Please create a mint first.");
       }
 
-      // Get real decimals from the mint
+      // Get real decimals from the mint, fallback to Supabase value, then 9
       const mintInfo = await connection.getParsedAccountInfo(projectData.mint);
-      const decimals = (mintInfo.value?.data as any)?.parsed?.info?.decimals || 6;
+      const decimals = (mintInfo.value?.data as any)?.parsed?.info?.decimals ?? projectData.token_decimals ?? 9;
 
       // Scale up the human input to BN base units
       const amountFloat = parseFloat(tokenAmountInput);
@@ -116,7 +135,17 @@ export default function AdminInvestmentsPage() {
         tokenProgram: TOKEN_PROGRAM_ID.toBase58()
       });
 
-      const tx = await repo['program'].methods
+      const { createAssociatedTokenAccountIdempotentInstruction, ASSOCIATED_TOKEN_PROGRAM_ID } = await import('@solana/spl-token');
+      const createAtaIx = createAssociatedTokenAccountIdempotentInstruction(
+        wallet.publicKey,
+        investorTokenAccount,
+        sub.account.investor,
+        projectData.mint,
+        TOKEN_PROGRAM_ID,
+        ASSOCIATED_TOKEN_PROGRAM_ID
+      );
+
+      const finalizeIx = await repo['program'].methods
         .finalizeSubscription(Array.from(txHashBytes), amountBN)
         .accounts({
           subscription: getSubscriptionPDA(sub.account.investor, sub.account.subscriptionId, repo['program'].programId),
@@ -130,7 +159,15 @@ export default function AdminInvestmentsPage() {
           mintAuthorityPda: getMintAuthorityPDA(projectId, registryId),
           tokenProgram: TOKEN_PROGRAM_ID
         } as any)
-        .rpc();
+        .instruction();
+
+      const { Transaction } = await import('@solana/web3.js');
+      const transaction = new Transaction().add(createAtaIx, finalizeIx);
+      const { blockhash } = await connection.getLatestBlockhash();
+      transaction.recentBlockhash = blockhash;
+      transaction.feePayer = wallet.publicKey;
+
+      const tx = await wallet.sendTransaction(transaction, connection);
 
       setStatus({ type: 'success', msg: `Investment Finalized! ${tokenAmountInput} tokens issued. Sig: ${tx.slice(0, 10)}...` });
       fetchData();
@@ -188,16 +225,9 @@ export default function AdminInvestmentsPage() {
         ) : (
           <div className="grid gap-6">
             {subscriptions.map((sub) => {
-              const projectData = projects[sub.account.projectId.toString()];
+              const pidStr = sub.account.projectId.toString();
+              const projectData = projects[pidStr];
               const isPending = sub.account.status.pending !== undefined;
-              
-              if (sub.account.projectId.toString() === "111") {
-                console.log("Rendering Project 111:", {
-                  name: projectData?.name,
-                  mint: projectData?.mint?.toBase58(),
-                  id: sub.account.projectId.toString()
-                });
-              }
               
               return (
                 <div key={sub.publicKey.toBase58()} className={`glass rounded-2xl border transition-all overflow-hidden ${isPending ? 'border-gold/30' : 'border-white/5 opacity-60'}`}>
@@ -209,7 +239,7 @@ export default function AdminInvestmentsPage() {
                       <div>
                         <div className="flex items-center gap-3 mb-1">
                           <div className="text-xl font-black text-white group-hover:text-amber-400 transition-colors">
-                            {projectData?.name || `Project #${sub.account.projectId.toString()}`}
+                            {projectData ? projectData.name : `Project #${pidStr}`}
                           </div>
                           <span className={`text-[10px] font-black px-2 py-0.5 rounded-md uppercase tracking-widest ${isPending ? 'bg-gold/20 text-gold' : 'bg-green-500/20 text-green-400'}`}>
                             {isPending ? 'Pending Verification' : 'Allocated'}

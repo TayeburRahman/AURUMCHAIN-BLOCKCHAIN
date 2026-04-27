@@ -36,38 +36,16 @@ export async function GET() {
     if (error) throw error;
     if (!projects || projects.length === 0) return NextResponse.json([]);
 
-    // 2. Fetch on-chain project accounts individually (bypasses Alchemy's getProgramAccounts restriction)
+    // 2. Fetch all on-chain project accounts in a single BATCH call (much faster, saves RPC limits)
     const connection = createDefaultConnection();
     const service = new ProjectRegistryService(connection, undefined); // Read-only mode
     
-    const chainFetchPromises = projects
-      .filter((p: any) => p.blockchain_project_id !== null && p.blockchain_project_id !== undefined && !isNaN(Number(p.blockchain_project_id)))
-      .map(async (p: any) => {
-        try {
-          const id = Number(p.blockchain_project_id);
-          
-          // Add a timeout to prevent hanging the whole API if one project fetch is slow
-          const timeout = new Promise((_, reject) => 
-            setTimeout(() => reject(new Error('Timeout')), 5000)
-          );
-          
-          const account = await Promise.race([
-            service.fetchProject(id),
-            timeout
-          ]);
-          
-          return { id, account };
-        } catch (e: any) {
-          console.error(`[GET /api/projects] On-chain fetch failed or timed out for project ${p.blockchain_project_id}:`, e.message || e);
-          return { id: Number(p.blockchain_project_id), account: null };
-        }
-      });
-
-    const chainResults = await Promise.all(chainFetchPromises);
+    const allOnChainProjects = await service.fetchAllProjects();
     const chainMap = new Map();
-    chainResults.forEach((res: any) => {
-      if (res.account) {
-        chainMap.set(res.id, res.account);
+    
+    allOnChainProjects.forEach((p: any) => {
+      if (p && p.account) {
+        chainMap.set(Number(p.account.projectId.toString()), p.account);
       }
     });
 

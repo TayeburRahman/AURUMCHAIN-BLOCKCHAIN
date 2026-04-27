@@ -8,8 +8,6 @@ mod subscribe_investment;
 mod finalize_subscription;
 mod toggle_lockup_bypass;
 
-// Standard Program 1 Pattern: 
-// Private module declarations + Glob re-exports
 pub use initialize_compliance::*;
 pub use record_verified_wallet::*;
 pub use refresh_eligibility::*;

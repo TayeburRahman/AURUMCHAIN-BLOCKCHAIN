@@ -99,6 +99,9 @@
         { "name": "projectAccount", "isMut": false, "isSigner": false },
         { "name": "projectRegistryProgram", "isMut": false, "isSigner": false },
         { "name": "control", "isMut": false, "isSigner": false },
+        { "name": "investorTokenAccount", "isMut": true, "isSigner": false },
+        { "name": "treasuryTokenAccount", "isMut": true, "isSigner": false },
+        { "name": "tokenProgram", "isMut": false, "isSigner": false },
         { "name": "systemProgram", "isMut": false, "isSigner": false }
       ],
       "args": [
@@ -346,15 +349,6 @@
       ]
     },
     {
-      "name": "TokensAllocated",
-      "fields": [
-        { "name": "subscriptionId", "type": "u64", "index": false },
-        { "name": "investor", "type": "publicKey", "index": false },
-        { "name": "amount", "type": "u64", "index": false },
-        { "name": "timestamp", "type": "i64", "index": false }
-      ]
-    },
-    {
       "name": "WalletVerified",
       "fields": [
         { "name": "wallet", "type": "publicKey", "index": false },
@@ -493,6 +487,11 @@
       "code": 6018,
       "name": "InvalidRegistryProgram",
       "msg": "Provided project_registry_program does not match on-chain control.registry_program"
+    },
+    {
+      "code": 6019,
+      "name": "OutsideSubscriptionWindow",
+      "msg": "Investment subscription period is either not yet open or has already closed"
     }
   ]
 }

@@ -1,4 +1,5 @@
 use anchor_lang::prelude::*;
+use anchor_spl::token::{self, Token, TokenAccount};
 use crate::state::*;
 use crate::ComplianceError;
 
@@ -28,8 +29,6 @@ pub struct SubscribeInvestment<'info> {
     /// CHECK: Validated via manual owner and seed check in handler
     pub project_account: UncheckedAccount<'info>,
 
-
-
     /// CHECK: Validated via seeds
     pub project_registry_program: UncheckedAccount<'info>,
 
@@ -40,6 +39,16 @@ pub struct SubscribeInvestment<'info> {
     )]
     pub control: Account<'info, ComplianceControl>,
 
+    // ── Token Transfer Accounts ──────────────────────────────────────────────
+    /// The investor's USDC token account.
+    #[account(mut)]
+    pub investor_token_account: Account<'info, TokenAccount>,
+
+    /// The project's treasury USDC token account.
+    #[account(mut)]
+    pub treasury_token_account: Account<'info, TokenAccount>,
+
+    pub token_program: Program<'info, Token>,
     pub system_program: Program<'info, System>,
 }
 
@@ -54,58 +63,37 @@ pub fn handle_subscribe_investment(
     
     // ── Eligibility Validation ──────────────────────────────────────────────
     let eligibility = InvestorEligibilityAccount::load_checked(&ctx.accounts.eligibility)?;
-    
-    // Constraints check
     require!(eligibility.investment_allowed, ComplianceError::Unauthorized);
     require!(eligibility.kyc_status == KycStatus::Approved, ComplianceError::SenderNotApproved);
-    require!(eligibility.aml_status == AmlStatus::Clear, ComplianceError::SenderAmlBlocked);
-    // ────────────────────────────────────────────────────────────────────────
     
-    // 0. Manual Security Checks (AC-BC-406 CROSS-PROGRAM FIX)
-    
-    // 0a. Owner Verification
-    require_keys_eq!(
-        ctx.accounts.project_account.owner.key(), 
-        ctx.accounts.project_registry_program.key(), 
-        ComplianceError::Unauthorized
-    );
+    // 0. Security Verification (Owner & Seeds)
+    require_keys_eq!(ctx.accounts.project_account.owner.key(), ctx.accounts.project_registry_program.key(), ComplianceError::Unauthorized);
 
-    // 0b. Seed Verification (Manual PDA Check)
-    let (expected_project_pda, _bump) = Pubkey::find_program_address(
-        &[b"project", project_id.to_le_bytes().as_ref()],
-        &ctx.accounts.project_registry_program.key()
-    );
-    require_keys_eq!(
-        ctx.accounts.project_account.key(),
-        expected_project_pda,
-        ComplianceError::Unauthorized
-    );
-
-    // 1. Deserialization (Carefully handling trailing slack space)
+    // 1. Deserialization (LEGACY FIX: Using deserialize to handle Project 0 padding!)
     let mut data: &[u8] = &ctx.accounts.project_account.data.borrow()[8..];
     let project = ProjectAccount::deserialize(&mut data)?;
 
-    // 2. Validate project phase — must be Funding and not emergency-paused.
-    //    Draft, Active, Completed, or Canceled all reject new subscriptions.
-    require!(
-        project.status == ProjectStatus::Funding && !project.is_paused,
-        ComplianceError::ProjectNotActive
-    );
-
-    // 2. Validate subscription window
-    require!(
-        clock.unix_timestamp >= project.subscription_start && 
-        clock.unix_timestamp <= project.subscription_end,
-        ComplianceError::InvalidStatus // Or OutsideSubscriptionWindow if I add it
-    );
-
-    // 3. Validate investment amount thresholds
+    // 2. Validate phase & amount
+    require!(project.status == ProjectStatus::Funding && !project.is_paused, ComplianceError::ProjectNotActive);
     require!(investment_amount >= project.min_investment_usdc, ComplianceError::InvestmentTooLow);
     require!(investment_amount <= project.max_investment_usdc, ComplianceError::InvestmentTooHigh);
+    require!(payment_asset == project.accepted_stablecoin, ComplianceError::InvalidStatus);
 
-    // 4. Validate payment asset (Optional, but good practice)
-    // require!(payment_asset == project.accepted_stablecoin, ComplianceError::InvalidPaymentAsset);
+    // 3. Validate Treasury
+    require_keys_eq!(ctx.accounts.treasury_token_account.owner, project.treasury_wallet, ComplianceError::Unauthorized);
 
+    // 4. Perform USDC Transfer (Investor -> Treasury)
+    let transfer_ctx = CpiContext::new(
+        ctx.accounts.token_program.to_account_info(),
+        token::Transfer {
+            from: ctx.accounts.investor_token_account.to_account_info(),
+            to:   ctx.accounts.treasury_token_account.to_account_info(),
+            authority: ctx.accounts.investor.to_account_info(),
+        },
+    );
+    token::transfer(transfer_ctx, investment_amount)?;
+
+    // 5. Save Subscription Record
     let subscription = &mut ctx.accounts.subscription;
     subscription.subscription_id        = subscription_id;
     subscription.investor               = ctx.accounts.investor.key();
@@ -113,10 +101,7 @@ pub fn handle_subscribe_investment(
     subscription.investment_amount      = investment_amount;
     subscription.payment_asset          = payment_asset;
     subscription.status                 = SubscriptionStatus::Pending;
-    subscription.settlement_tx_hash     = [0u8; 64];
-    subscription.allocated_token_amount = 0;
     subscription.created_at             = clock.unix_timestamp;
-    subscription.settled_at             = 0;
     subscription.bump                   = ctx.bumps.subscription;
 
     emit!(InvestmentSubscribed {

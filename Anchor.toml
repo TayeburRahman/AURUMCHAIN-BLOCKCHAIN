@@ -1,7 +1,7 @@
 [programs.devnet]
 project_registry = "Dkrnk6B8MuiieXQzqhicbsPtGp7TY4HMZRNDJJFhu4R7"
-compliance_transfer = "CHWFf4LBaq3VECZ6hiH4YZWNrqezkDteiDq1VbYLFtTs"
-allocation_distribution = "GG9mE55B6mMJFSY8RYVjCt62THVVrMjv55pVzHsZs8nT"
+compliance_transfer = "5u14TuRE7ozsKketfqF4R7XPvi7bof9RA455VcKME3Vy"
+allocation_distribution = "9RqVyvWA4ficqK351PoYh674mP1au4NmNzVM6LQcenjm"
 
 [provider]
 cluster = "devnet"

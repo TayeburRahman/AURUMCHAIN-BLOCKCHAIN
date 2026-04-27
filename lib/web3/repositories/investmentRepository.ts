@@ -26,6 +26,9 @@ export class InvestmentRepository {
       projectId: number;
       amount: BN;
       paymentAsset: PublicKey;
+      investorTokenAccount: PublicKey;
+      treasuryTokenAccount: PublicKey;
+      tokenProgram: PublicKey;
     }
   ): Promise<TransactionInstruction> {
     const projectIdBN = new BN(params.projectId);
@@ -44,6 +47,9 @@ export class InvestmentRepository {
         projectAccount: getProjectPDA(projectIdBN, this.registryProgramId),
         projectRegistryProgram: this.registryProgramId,
         control: getComplianceControlPDA(this.program.programId),
+        investorTokenAccount: params.investorTokenAccount,
+        treasuryTokenAccount: params.treasuryTokenAccount,
+        tokenProgram: params.tokenProgram,
         systemProgram: SystemProgram.programId,
       } as any)
       .instruction();

@@ -23,9 +23,9 @@ const NETWORK = 'devnet';
  */
 export const SOLANA_RPC_URL = 
   process.env.NEXT_PUBLIC_SOLANA_RPC_URL || 
-  'https://solana-devnet.g.alchemy.com/v2/4ZYO0JBTWn7EHda1T-bf5';
+  'https://api.devnet.solana.com';
 
-export const FALLBACK_RPC_URL = 'https://api.devnet.solana.com';
+export const FALLBACK_RPC_URL = 'https://solana-devnet.g.alchemy.com/v2/4ZYO0JBTWn7EHda1T-bf5';
 
 /**
  * Standard Connection configuration for consistency.
@@ -37,21 +37,21 @@ export const CONNECTION_CONFIG = {
   fetchMiddleware: async (info: any, init: any, fetch: any) => {
     try {
       const response = await fetch(info, init);
-      // Fallback on rate limits or server errors
-      if (response && (response.status === 429 || response.status >= 500)) {
-        console.warn(`[RPC] Primary endpoint ${SOLANA_RPC_URL} failed with ${response.status}. Falling back...`);
-        const fallbackInfo = typeof info === 'string' 
+      // Fallback on rate limits (429), server errors (500+), or Alchemy restrictions (400)
+      if (response && (response.status === 429 || response.status >= 500 || response.status === 400)) {
+        console.warn(`[RPC] Primary endpoint failed with ${response.status}. Attempting fallback to ${FALLBACK_RPC_URL}...`);
+        
+        // Construct the fallback request
+        const fallbackUrl = typeof info === 'string' 
           ? info.replace(SOLANA_RPC_URL, FALLBACK_RPC_URL)
-          : info;
-        return await fetch(fallbackInfo, init);
+          : FALLBACK_RPC_URL;
+          
+        return await fetch(fallbackUrl, init);
       }
       return response;
     } catch (err) {
-      console.warn(`[RPC] Primary endpoint ${SOLANA_RPC_URL} threw error. Falling back...`, err);
-      const fallbackInfo = typeof info === 'string' 
-        ? info.replace(SOLANA_RPC_URL, FALLBACK_RPC_URL)
-        : info;
-      return await fetch(fallbackInfo, init);
+      console.warn(`[RPC] Primary endpoint threw error. Falling back...`, err);
+      return await fetch(FALLBACK_RPC_URL, init);
     }
   }
 };

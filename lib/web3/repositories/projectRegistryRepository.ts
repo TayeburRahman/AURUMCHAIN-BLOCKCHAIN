@@ -289,26 +289,24 @@ export class ProjectRegistryRepository {
   }
 
   async fetchAllProjects(): Promise<any[]> {
-    const accounts = await this.program.account.projectAccount.all();
-    const standard = accounts
-      .map((a) => ({
-        ...(a.account as any),
-        publicKey: a.publicKey,
-        isLegacy: false,
-      }));
-
+    console.log(`[Repository] Fetching all projects from: ${this.program.programId.toBase58()}`);
+    const standard = await this.program.account.projectAccount.all();
+    
     // Fallback: check for uninitialized/legacy accounts that Anchor missed or mis-decoded
     const allPdas = await this.program.provider.connection.getProgramAccounts(this.program.programId);
     const legacy = allPdas
-      .filter((a) => !standard.some(s => s.publicKey.equals(a.pubkey)) && a.account.data.length >= 8)
+      .filter((a) => !standard.some(s => s.publicKey.equals(a.pubkey)) && a.account.data.length >= 300)
       .map((a) => {
         try {
            const decoded = this.decodeProjectManual(a.account.data, a.pubkey);
-           return { ...decoded, publicKey: a.pubkey, isLegacy: true };
-        } catch (e) { return null; }
+           return decoded ? { publicKey: a.pubkey, account: decoded } : null;
+        } catch (e) {
+           return null;
+        }
       })
-      .filter((a) => a !== null);
+      .filter(p => p !== null);
 
+    console.log(`[Repository] Standard: ${standard.length}, Legacy: ${legacy.length}`);
     return [...standard, ...legacy];
   }
 
@@ -352,8 +350,8 @@ export class ProjectRegistryRepository {
           // Validation: 
           // 1. t2 (Start) and t3 (End) must be valid timestamps
           // 2. t3 must be >= t2
-          const isValid = (t: bigint) => t > 1500000000n && t < 2500000000n;
-          const isZeroOrValid = (t: bigint) => t === 0n || isValid(t);
+          const isValid = (t: bigint) => t > BigInt(1500000000) && t < BigInt(2500000000);
+          const isZeroOrValid = (t: bigint) => t === BigInt(0) || isValid(t);
 
           if (isValid(t2) && isValid(t3) && t3 >= t2 && isZeroOrValid(t1)) {
             anchorOffset = i;
