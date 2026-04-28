@@ -84,6 +84,7 @@ CREATE TABLE public.projects (
 -- ============================================
 
 CREATE TYPE investment_status AS ENUM ('pending', 'completed', 'cancelled', 'refunded');
+CREATE TYPE investment_status_v2 AS ENUM ('pending', 'approved', 'rejected');
 
 CREATE TABLE public.investments (
   id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
@@ -94,12 +95,15 @@ CREATE TABLE public.investments (
   tokens_purchased DECIMAL(15, 8) NOT NULL CHECK (tokens_purchased > 0),
   token_price_at_purchase DECIMAL(15, 2) NOT NULL,
 
-  status investment_status DEFAULT 'pending' NOT NULL,
+  status_legacy investment_status DEFAULT 'pending' NOT NULL,
+  status investment_status_v2 DEFAULT 'pending' NOT NULL,
 
   transaction_hash TEXT, -- Blockchain transaction hash
 
   invested_at TIMESTAMPTZ DEFAULT NOW(),
   completed_at TIMESTAMPTZ,
+  approved_at TIMESTAMPTZ,
+  rejected_at TIMESTAMPTZ,
 
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()

@@ -19,13 +19,13 @@ async function checkProject() {
     const idl = JSON.parse(fs.readFileSync('./programs/project_registry/src/idl.json', 'utf8'));
     const program = new Program(idl, programId, provider);
 
-    const projectId = new BN(7);
+    const projectId = new BN(9);
     const [projectPda] = PublicKey.findProgramAddressSync(
         [Buffer.from("project"), projectId.toArrayLike(Buffer, "le", 8)],
         programId
     );
 
-    console.log("Fetching Project 7 PDA:", projectPda.toBase58());
+    console.log("Fetching Project 9 PDA:", projectPda.toBase58());
 
     try {
         const account: any = await program.account.projectAccount.fetch(projectPda);

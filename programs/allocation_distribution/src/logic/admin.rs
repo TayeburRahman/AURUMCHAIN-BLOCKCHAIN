@@ -21,6 +21,15 @@ pub fn handle_create_epoch(
     let counter = &mut ctx.accounts.counter;
     let epoch   = &mut ctx.accounts.epoch;
 
+    // 0. Security Verification (Owner & Seeds)
+    require_keys_eq!(ctx.accounts.project_account.owner.key(), ctx.accounts.project_registry_program.key(), DistributionError::Unauthorized);
+    let (expected_pda, _bump) = Pubkey::find_program_address(
+        &[b"project", project_id.to_le_bytes().as_ref()],
+        &ctx.accounts.project_registry_program.key()
+    );
+    require_keys_eq!(ctx.accounts.project_account.key(), expected_pda, DistributionError::Unauthorized);
+
+
     epoch.project_id             = project_id;
     epoch.epoch_id               = counter.count;
     epoch.profit_per_token       = profit_per_token;
@@ -92,10 +101,11 @@ pub struct CreateEpoch<'info> {
     )]
     pub epoch: Account<'info, DistributionEpoch>,
 
-    #[account(
-        constraint = project_account.project_id == project_id @ DistributionError::Unauthorized
-    )]
-    pub project_account: Account<'info, ShadowProjectAccount>,
+    /// CHECK: Manual owner and seed validation in handler
+    pub project_account: UncheckedAccount<'info>,
+
+    /// CHECK: Validated via seeds
+    pub project_registry_program: UncheckedAccount<'info>,
 
     #[account(
         seeds = [b"distribution_control"],

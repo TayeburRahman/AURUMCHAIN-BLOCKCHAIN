@@ -223,13 +223,16 @@ export type Database = {
       investments: {
         Row: {
           amount: number
+          approved_at: string | null
           completed_at: string | null
           created_at: string | null
           id: string
           invested_at: string | null
           offering_id: string | null
           project_id: string
-          status: Database["public"]["Enums"]["investment_status"]
+          rejected_at: string | null
+          status: Database["public"]["Enums"]["investment_status_v2"]
+          status_legacy: Database["public"]["Enums"]["investment_status"]
           token_price_at_purchase: number
           tokens_purchased: number
           transaction_hash: string | null
@@ -238,13 +241,16 @@ export type Database = {
         }
         Insert: {
           amount: number
+          approved_at?: string | null
           completed_at?: string | null
           created_at?: string | null
           id?: string
           invested_at?: string | null
           offering_id?: string | null
           project_id: string
-          status?: Database["public"]["Enums"]["investment_status"]
+          rejected_at?: string | null
+          status?: Database["public"]["Enums"]["investment_status_v2"]
+          status_legacy?: Database["public"]["Enums"]["investment_status"]
           token_price_at_purchase: number
           tokens_purchased: number
           transaction_hash?: string | null
@@ -253,13 +259,16 @@ export type Database = {
         }
         Update: {
           amount?: number
+          approved_at?: string | null
           completed_at?: string | null
           created_at?: string | null
           id?: string
           invested_at?: string | null
           offering_id?: string | null
           project_id?: string
-          status?: Database["public"]["Enums"]["investment_status"]
+          rejected_at?: string | null
+          status?: Database["public"]["Enums"]["investment_status_v2"]
+          status_legacy?: Database["public"]["Enums"]["investment_status"]
           token_price_at_purchase?: number
           tokens_purchased?: number
           transaction_hash?: string | null
@@ -1240,6 +1249,7 @@ export type Database = {
         | "proof_of_address"
         | "selfie"
       investment_status: "pending" | "completed" | "cancelled" | "refunded"
+      investment_status_v2: "pending" | "approved" | "rejected"
       kyc_status: "pending" | "under_review" | "approved" | "rejected"
       notification_type:
         | "investment"
@@ -1410,6 +1420,7 @@ export const Constants = {
         "selfie",
       ],
       investment_status: ["pending", "completed", "cancelled", "refunded"],
+      investment_status_v2: ["pending", "approved", "rejected"],
       kyc_status: ["pending", "under_review", "approved", "rejected"],
       notification_type: [
         "investment",

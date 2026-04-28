@@ -7,9 +7,24 @@ pub fn handle_execute_payout(ctx: Context<ExecutePayout>) -> Result<()> {
     let epoch                  = &mut ctx.accounts.epoch;
     let payout_record          = &mut ctx.accounts.payout_record;
     let investor_token_account = &ctx.accounts.investor_token_account;
-    let project                = &ctx.accounts.project_account;
 
-    // 0. Status & Guard Check
+    // 0. Security Verification (Owner & Seeds)
+    require_keys_eq!(ctx.accounts.project_account.owner.key(), ctx.accounts.project_registry_program.key(), DistributionError::Unauthorized);
+    let (expected_pda, _bump) = Pubkey::find_program_address(
+        &[b"project", epoch.project_id.to_le_bytes().as_ref()],
+        &ctx.accounts.project_registry_program.key()
+    );
+    require_keys_eq!(ctx.accounts.project_account.key(), expected_pda, DistributionError::Unauthorized);
+
+    // 0.1 Deserialization (Legacy padding bypass)
+    let mut data: &[u8] = &ctx.accounts.project_account.data.borrow()[8..];
+    let project = ShadowProjectAccount::deserialize(&mut data)?;
+
+    // 0.2 Post-deserialization checks (Moved from macro constraints)
+    require_keys_eq!(investor_token_account.mint, project.mint, DistributionError::InvalidTokenAccount);
+    require_keys_eq!(ctx.accounts.treasury_vault.owner, project.treasury_wallet, DistributionError::InvalidTreasury);
+
+    // 0.3 Status & Guard Check
     require!(
         project.status == ExternalProjectStatus::Active,
         DistributionError::Unauthorized
@@ -92,21 +107,21 @@ pub struct ExecutePayout<'info> {
     )]
     pub payout_record: Account<'info, PayoutRecord>,
 
-    pub project_account: Account<'info, ShadowProjectAccount>,
+    /// CHECK: Manual owner and seed validation in handler
+    pub project_account: UncheckedAccount<'info>,
+
+    /// CHECK: Validated via seeds
+    pub project_registry_program: UncheckedAccount<'info>,
 
     #[account(
-        constraint = investor_token_account.owner == investor.key(),
-        constraint = investor_token_account.mint == project_account.mint @ DistributionError::InvalidTokenAccount
+        constraint = investor_token_account.owner == investor.key() @ DistributionError::InvalidTokenAccount
     )]
     pub investor_token_account: Account<'info, TokenAccount>,
 
     #[account(mut)]
     pub investor_payment_account: Account<'info, TokenAccount>,
 
-    #[account(
-        mut,
-        constraint = treasury_vault.owner == project_account.treasury_wallet @ DistributionError::InvalidTreasury
-    )]
+    #[account(mut)]
     pub treasury_vault: Account<'info, TokenAccount>,
 
     #[account(

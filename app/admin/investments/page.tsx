@@ -17,9 +17,10 @@ export default function AdminInvestmentsPage() {
   const wallet = useWallet();
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState<string | null>(null);
-  const [subscriptions, setSubscriptions] = useState<any[]>([]);
+  const [unifiedInvestments, setUnifiedInvestments] = useState<any[]>([]);
   const [projects, setProjects] = useState<Record<string, any>>({});
   const [status, setStatus] = useState<{ type: 'success' | 'error' | 'info', msg: string } | null>(null);
+  const [activeTab, setActiveTab] = useState<'pending' | 'approved' | 'rejected'>('pending');
 
   // Derive repo/services
   const { repo, registryService } = useMemo(() => {
@@ -48,10 +49,11 @@ export default function AdminInvestmentsPage() {
       fetching.active = true;
       setLoading(true);
       
-      const [allSubs, allProjects, { data: dbProjects }] = await Promise.all([
+      const [allSubs, allProjects, { data: dbProjects }, { data: dbInvestments }] = await Promise.all([
         repo.fetchAll(),
         registryService.fetchAllProjects(),
-        supabase.from('projects').select('id, blockchain_project_id, name')
+        supabase.from('projects').select('id, blockchain_project_id, name, images, token_symbol, token_price'),
+        supabase.from('investments').select('*, projects!inner(id, blockchain_project_id, name, images, token_symbol, token_price), profiles!inner(id, crypto_wallet_address)').order('created_at', { ascending: false })
       ]);
 
       // Map projects by ID for quick lookup
@@ -64,21 +66,86 @@ export default function AdminInvestmentsPage() {
           
           projectMap[blockchainId] = {
             ...p.account,
-            id: dbMatch?.id, // THE CRITICAL LINK
-            dbName: dbMatch?.name
+            id: dbMatch?.id,
+            dbName: dbMatch?.name,
+            images: dbMatch?.images,
+            tokenSymbol: dbMatch?.token_symbol
           };
         }
       });
 
-      setSubscriptions(allSubs);
+      // Unify DB investments with On-Chain Subscriptions
+      const unified: any[] = [];
+      const usedSubIds = new Set();
+
+      (dbInvestments || []).forEach((dbInv: any) => {
+        const onChainSub = allSubs.find((s: any) => 
+          s.account.subscriptionId.toString() === dbInv.offering_id || 
+          (s.account.projectId.toString() === dbInv.projects?.blockchain_project_id && 
+           Number(s.account.investmentAmount.toString()) / 1_000_000 === Number(dbInv.amount))
+        );
+        
+        if (onChainSub) usedSubIds.add(onChainSub.publicKey.toBase58());
+        
+        unified.push({
+          id: dbInv.id,
+          dbStatus: dbInv.status,
+          amountUsdc: Number(dbInv.amount),
+          tokensExpected: Number(dbInv.tokens_purchased),
+          txHash: dbInv.transaction_hash,
+          date: dbInv.created_at,
+          projectId: dbInv.project_id,
+          projectName: dbInv.projects?.name,
+          logo: dbInv.projects?.images?.[0] || null,
+          tokenSymbol: dbInv.projects?.token_symbol || 'TOKEN',
+          investorWallet: dbInv.profiles?.crypto_wallet_address || (onChainSub ? onChainSub.account.investor.toBase58() : 'Unknown Wallet'),
+          onChainSub: onChainSub || null
+        });
+      });
+
+      // Add any on-chain subs that are NOT in DB yet (fallback)
+      allSubs.forEach((sub: any) => {
+        if (!usedSubIds.has(sub.publicKey.toBase58())) {
+          const pidStr = sub.account.projectId.toString();
+          const projectData = projectMap[pidStr];
+          const amount = Number(sub.account.investmentAmount.toString()) / 1_000_000;
+          let tokensExp = 0;
+          
+          // Try to estimate tokens expected if price is known
+          if (projectData && projectData.tokenPriceUsdc) {
+            const price = Number(projectData.tokenPriceUsdc.toString()) / 1_000_000;
+            if (price > 0) tokensExp = amount / price;
+          }
+
+          // Check if the on-chain subscription is pending or already allocated
+          const isOnChainPending = sub.account.status.pending !== undefined;
+
+          unified.push({
+            id: sub.publicKey.toBase58(),
+            dbStatus: isOnChainPending ? 'pending' : 'approved',
+            amountUsdc: amount,
+            tokensExpected: tokensExp,
+            txHash: null,
+            date: new Date().toISOString(),
+            projectId: pidStr,
+            projectName: projectData?.dbName || projectData?.name || `Project #${pidStr}`,
+            logo: projectData?.images?.[0] || null,
+            tokenSymbol: projectData?.tokenSymbol || 'TOKEN',
+            investorWallet: sub.account.investor.toBase58(),
+            onChainSub: sub
+          });
+        }
+      });
+
+      setUnifiedInvestments(unified);
       setProjects(projectMap);
-      console.log("✅ Projects Mapped IDs:", Object.keys(projectMap));
+      console.log("✅ Unified Investments:", unified);
     } catch (err: any) {
       if (err.message?.includes('429')) {
         console.warn("RPC Rate limited (429). Throttling...");
       } else {
         console.error("Fetch Error:", err);
-        setStatus({ type: 'error', msg: "Failed to load on-chain subscriptions." });
+        setStatus({ type: 'error', msg: "Failed to load investments." });
       }
     } finally {
       setLoading(false);
@@ -321,45 +388,88 @@ export default function AdminInvestmentsPage() {
           </div>
         )}
 
+        {/* Tabs Navigation */}
+        <div className="flex gap-4 mb-8 border-b border-white/10 pb-4">
+          <button 
+            onClick={() => setActiveTab('pending')}
+            className={`px-6 py-2 rounded-lg font-bold text-sm uppercase tracking-wider transition-all ${
+              activeTab === 'pending' ? 'bg-gold text-navy' : 'text-gray-400 hover:text-white'
+            }`}
+          >
+            Pending ({unifiedInvestments.filter(i => i.dbStatus === 'pending').length})
+          </button>
+          <button 
+            onClick={() => setActiveTab('approved')}
+            className={`px-6 py-2 rounded-lg font-bold text-sm uppercase tracking-wider transition-all ${
+              activeTab === 'approved' ? 'bg-green-500 text-white' : 'text-gray-400 hover:text-white'
+            }`}
+          >
+            Approved ({unifiedInvestments.filter(i => i.dbStatus === 'approved').length})
+          </button>
+          <button 
+            onClick={() => setActiveTab('rejected')}
+            className={`px-6 py-2 rounded-lg font-bold text-sm uppercase tracking-wider transition-all ${
+              activeTab === 'rejected' ? 'bg-red-500 text-white' : 'text-gray-400 hover:text-white'
+            }`}
+          >
+            Rejected ({unifiedInvestments.filter(i => i.dbStatus === 'rejected').length})
+          </button>
+        </div>
+
         {loading ? (
           <div className="grid gap-4">
             {[1, 2, 3].map(i => (
               <div key={i} className="h-24 glass animate-pulse rounded-2xl"></div>
             ))}
           </div>
-        ) : subscriptions.length === 0 ? (
+        ) : unifiedInvestments.filter(inv => inv.dbStatus === activeTab).length === 0 ? (
           <div className="glass rounded-3xl p-20 text-center border border-white/5">
             <div className="text-6xl mb-6 opacity-20">💰</div>
-            <h3 className="text-2xl font-bold text-white mb-2">No Subscriptions Found</h3>
-            <p className="text-gray-400">Wait for investors to commit funds to your projects.</p>
+            <h3 className="text-2xl font-bold text-white mb-2">No {activeTab} Investments Found</h3>
+            <p className="text-gray-400">There are no investment requests matching this status.</p>
           </div>
         ) : (
           <div className="grid gap-6">
-            {subscriptions.map((sub) => {
-              const pidStr = sub.account.projectId.toString();
-              const projectData = projects[pidStr];
-              const isPending = sub.account.status.pending !== undefined;
+            {unifiedInvestments
+              .filter(inv => inv.dbStatus === activeTab)
+              .sort((a, b) => {
+                // Pending -> FIFO (oldest first)
+                if (activeTab === 'pending') {
+                  return new Date(a.date).getTime() - new Date(b.date).getTime();
+                }
+                // Approved / Rejected -> Newest first
+                return new Date(b.date).getTime() - new Date(a.date).getTime();
+              })
+              .map((inv) => {
+              const sub = inv.onChainSub;
+              const isPending = inv.dbStatus === 'pending';
+              const isApproved = inv.dbStatus === 'approved';
+              const isRejected = inv.dbStatus === 'rejected';
               
               return (
-                <div key={sub.publicKey.toBase58()} className={`glass rounded-2xl border transition-all overflow-hidden ${isPending ? 'border-gold/30' : 'border-white/5 opacity-60'}`}>
+                <div key={inv.id} className={`glass rounded-2xl border transition-all overflow-hidden ${isPending ? 'border-gold/30' : isApproved ? 'border-green-500/30' : 'border-red-500/30 opacity-60'}`}>
                   <div className="p-6 flex flex-col md:flex-row md:items-center justify-between gap-6">
                     <div className="flex gap-6 items-center">
-                      <div className={`w-12 h-12 rounded-full flex items-center justify-center text-xl ${isPending ? 'bg-gold/20 text-gold' : 'bg-green-500/20 text-green-400'}`}>
-                        {isPending ? "⏳" : "✅"}
+                      <div className={`w-12 h-12 rounded-full flex items-center justify-center text-xl overflow-hidden ${isPending ? 'bg-gold/20 text-gold' : isApproved ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'}`}>
+                        {inv.logo ? <img src={inv.logo} alt="Logo" className="w-full h-full object-cover" /> : (isPending ? "⏳" : isApproved ? "✅" : "❌")}
                       </div>
                       <div>
                         <div className="flex items-center gap-3 mb-1">
                           <div className="text-xl font-black text-white group-hover:text-amber-400 transition-colors">
-                            {projectData ? projectData.name : `Project #${pidStr}`}
+                            {inv.projectName} <span className="text-sm font-medium text-gray-500">({inv.tokenSymbol})</span>
                           </div>
-                          <span className={`text-[10px] font-black px-2 py-0.5 rounded-md uppercase tracking-widest ${isPending ? 'bg-gold/20 text-gold' : 'bg-green-500/20 text-green-400'}`}>
-                            {isPending ? 'Pending Verification' : 'Allocated'}
+                          <span className={`text-[10px] font-black px-2 py-0.5 rounded-md uppercase tracking-widest ${isPending ? 'bg-gold/20 text-gold' : isApproved ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'}`}>
+                            {inv.dbStatus}
                           </span>
                         </div>
                         <div className="flex flex-col text-[10px] text-gray-500 font-medium">
-                          <span>Investor: {sub.account.investor.toBase58().slice(0, 8)}...</span>
-                          <span>ID: {sub.account.subscriptionId.toString()}</span>
-                          <span className="text-amber-600/60 mt-1">Mint: {projectData?.mint?.toBase58().slice(0, 8)}...</span>
+                          <span>Investor Wallet: {inv.investorWallet}</span>
+                          <span>Expected Tokens: {inv.tokensExpected.toLocaleString()} {inv.tokenSymbol}</span>
+                          {inv.txHash && (
+                            <span className="text-amber-600/60 mt-1">
+                              Tx: <a href={`https://solscan.io/tx/${inv.txHash}?cluster=devnet`} target="_blank" className="hover:text-amber-400 underline">{inv.txHash}</a>
+                            </span>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -367,12 +477,12 @@ export default function AdminInvestmentsPage() {
                     <div className="flex items-center gap-12">
                       <div className="text-right">
                         <div className="text-2xl font-black text-white">
-                          {(Number(sub.account.investmentAmount.toString()) / 1_000_000).toLocaleString()} USDC
+                          {inv.amountUsdc.toLocaleString()} USDC
                         </div>
-                        <div className="text-[10px] text-gray-500 font-bold uppercase tracking-widest">Investment Committed</div>
+                        <div className="text-[10px] text-gray-500 font-bold uppercase tracking-widest">{new Date(inv.date).toLocaleDateString()}</div>
                       </div>
 
-                      {isPending && (
+                      {isPending && sub && (
                         <button
                           onClick={() => handleFinalize(sub)}
                           disabled={submitting !== null}

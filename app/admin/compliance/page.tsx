@@ -7,6 +7,7 @@ import { redirect } from 'next/navigation';
 import { createClient, createAdminClient } from '@/lib/supabase/server';
 import { AdminService } from '@/lib/domains/admin/service';
 import { ComplianceReviewList } from '@/components/admin/ComplianceReviewList';
+import { ApprovedInvestorsList } from '@/components/admin/ApprovedInvestorsList';
 
 export const revalidate = 0; // Force dynamic fetching for admin dashboard
 
@@ -57,8 +58,8 @@ export default async function AdminCompliancePage() {
     }
   })) || [];
 
-  // Get recent approvals
-  const { data: recentApprovals } = await adminSupabase
+  // Get recent approvals from DB (fallback/legacy)
+  const { data: dbRecentApprovals } = await adminSupabase
     .from('kyc_profiles')
     .select(`
       *,
@@ -72,6 +73,43 @@ export default async function AdminCompliancePage() {
     .eq('status', 'approved')
     .order('approved_at', { ascending: false })
     .limit(10);
+
+  // Fetch true on-chain approvals
+  let onChainApprovals: any[] = [];
+  try {
+    const { createDefaultConnection } = await import('@/lib/web3/config/rpc');
+    const { getComplianceProgram } = await import('@/lib/web3/clients/anchorClients');
+    const connection = createDefaultConnection();
+    const program = getComplianceProgram(connection);
+    
+    // Fetch all InvestorEligibilityAccounts
+    const accounts = await program.account.investorEligibilityAccount.all();
+    
+    onChainApprovals = accounts
+      .filter((acc: any) => acc.account.kycStatus?.approved !== undefined || acc.account.kycStatus === 1) // filter approved
+      .map((acc: any) => ({
+        id: acc.publicKey.toBase58(),
+        user: {
+          first_name: 'Wallet:',
+          last_name: `${acc.account.wallet.toBase58().substring(0, 4)}...${acc.account.wallet.toBase58().slice(-4)}`,
+          email: 'On-Chain Verified'
+        },
+        metadata: {
+          wallet_address: acc.account.wallet.toBase58()
+        },
+        approved_at: new Date(Number(acc.account.approvalTimestamp) * 1000).toISOString(),
+        status: 'approved',
+        lockupBypass: acc.account.lockupBypass
+      }));
+      
+    // Sort on-chain approvals by newest first
+    onChainApprovals.sort((a, b) => new Date(b.approved_at).getTime() - new Date(a.approved_at).getTime());
+  } catch (err) {
+    console.error("[AdminCompliancePage] Failed to fetch on-chain approvals:", err);
+  }
+
+  // Merge on-chain with DB, prioritizing on-chain
+  const recentApprovals = onChainApprovals.length > 0 ? onChainApprovals : (dbRecentApprovals || []);
 
   return (
     <div className="min-h-screen bg-navy pt-24 px-6 pb-20">
@@ -123,29 +161,8 @@ export default async function AdminCompliancePage() {
 
         {/* Recent Approvals */}
         <div>
-          <h2 className="text-2xl font-bold text-white mb-4">Recent Approvals</h2>
-
-          {!recentApprovals || recentApprovals.length === 0 ? (
-            <div className="glass rounded-xl p-8 border border-gold/20 text-center">
-              <p className="text-gray-400">No recent approvals</p>
-            </div>
-          ) : (
-            <div className="grid md:grid-cols-2 gap-4">
-              {recentApprovals.map((kyc: any) => (
-                <div key={kyc.id} className="glass rounded-xl p-4 border border-green-500/30">
-                  <div className="flex items-center gap-3 mb-2">
-                    <div className="w-2 h-2 rounded-full bg-green-400"></div>
-                    <h3 className="text-white font-medium">
-                      {kyc.user?.first_name} {kyc.user?.last_name}
-                    </h3>
-                  </div>
-                  <p className="text-gray-400 text-sm">
-                    Approved {new Date(kyc.approved_at).toLocaleDateString()}
-                  </p>
-                </div>
-              ))}
-            </div>
-          )}
+          <h2 className="text-2xl font-bold text-white mb-4">On-Chain Verified Investors</h2>
+          <ApprovedInvestorsList investors={recentApprovals} />
         </div>
       </div>
     </div>
