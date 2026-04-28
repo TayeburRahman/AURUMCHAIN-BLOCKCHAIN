@@ -49,6 +49,7 @@ export class ProjectRegistryRepository {
       tokenPriceUsdc: BN;        // New Field
       distributionMode: number;  // New Field
       roundLimitTokens: BN;
+      tokenDecimals?: number;
     }
   ): Promise<TransactionInstruction> {
     const idBN = new BN(projectId);
@@ -71,6 +72,7 @@ export class ProjectRegistryRepository {
         distributionMode: params.distributionMode, // Added
         assetType: params.assetType,
         roundLimitTokens: params.roundLimitTokens,
+        tokenDecimals: params.tokenDecimals || 6,
       })
       .accounts({
         project: getProjectPDA(idBN, this.program.programId),
@@ -424,7 +426,7 @@ export class ProjectRegistryRepository {
       const currentRoundIssued = readI64(rawData, roundOffset + 8);
       const assetType = rawData[roundOffset + 16] || 0;
       const bump = rawData[roundOffset + 17] || 0;
-      const durationMonths = rawData[roundOffset + 18] || 12;
+      const tokenDecimals = rawData[roundOffset + 18] || 6;
 
       const statusVariants = ["draft", "funding", "active", "completed", "canceled"];
       const assetTypeVariants = ["realEstate", "mining", "other"];
@@ -437,8 +439,8 @@ export class ProjectRegistryRepository {
         supplyCap, tokensIssued, minInvestmentUsdc, maxInvestmentUsdc, tokenPriceUsdc,
         acceptedStablecoin, treasuryWallet, mint,
         lockupEndTs, subscriptionStart, subscriptionEnd, createdAt,
-        distributionCadence, durationMonths, isPaused, mintAuthorityRevoked,
-        roundLimitTokens, currentRoundIssued, bump,
+        distributionCadence, durationMonths: 12, isPaused, mintAuthorityRevoked, // Note: manual durationMonths fallback
+        roundLimitTokens, currentRoundIssued, bump, tokenDecimals,
         status: { [statusKey]: {} },
         assetType: { [assetTypeKey]: {} }
       };

@@ -60,8 +60,12 @@ pub fn handle_finalize_subscription(
             .unwrap_or_else(|_| ProjectAccount::default());
 
         final_token_amount = if project_state.token_price_usdc > 0 {
+            // Self-heal: If token_decimals is 0, assume it's a legacy project with 6 decimals
+            let decimals = if project_state.token_decimals > 0 { project_state.token_decimals } else { 6 };
+            let scaling_factor = 10_u64.pow(decimals as u32);
+
             subscription.investment_amount
-                .checked_mul(1_000_000)
+                .checked_mul(scaling_factor)
                 .ok_or(ComplianceError::InvestmentTooHigh)?
                 .checked_div(project_state.token_price_usdc)
                 .ok_or(ComplianceError::InvalidStatus)?

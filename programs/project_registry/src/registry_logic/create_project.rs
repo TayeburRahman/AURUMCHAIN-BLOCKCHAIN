@@ -24,6 +24,7 @@ pub struct CreateProjectParams {
     pub asset_type:             AssetType,
     // Max tokens mintable in the first round (0 = full supply_cap, i.e. Real Estate default).
     pub round_limit_tokens:     u64,
+    pub token_decimals:         u8,
 }
 
 #[derive(Accounts)]
@@ -154,6 +155,7 @@ pub fn handle_create_project(
     project.round_limit_tokens     = params.round_limit_tokens;
     project.current_round_issued   = 0;
     project.bump                   = ctx.bumps.project;
+    project.token_decimals         = params.token_decimals;
 
     emit!(ProjectCreated {
         project_id,

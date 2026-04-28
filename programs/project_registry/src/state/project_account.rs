@@ -80,12 +80,13 @@ pub struct ProjectAccount {
     pub current_round_issued:   u64,
     pub asset_type:             AssetType,
     pub bump:                   u8,
+    pub token_decimals:         u8,
 
     /// ── FUTURE EXPANSION PADDING ─────────────────────────────────────────────
     /// Any new fields (e.g., Buyback Price, Marketplace Fees) MUST be added here
     /// by reducing this padding. This ensures cross-program byte-alignment
     /// remains 100% consistent across redeployments.
-    pub padding:                [u8; 42], 
+    pub padding:                [u8; 41], 
 }
 
 impl ProjectAccount {
@@ -152,6 +153,7 @@ impl ProjectAccount {
         + 8         // current_round_issued
         + 1         // asset_type (AssetType variant)
         + 1         // bump
-        + 42;       // alignment padding (Total 600 bytes)
+        + 1         // token_decimals
+        + 41;       // alignment padding (Total 600 bytes)
 }
 

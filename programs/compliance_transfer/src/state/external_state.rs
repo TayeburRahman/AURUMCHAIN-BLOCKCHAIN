@@ -61,10 +61,11 @@ pub struct ProjectAccount {
     pub current_round_issued:   u64,
     pub asset_type:             AssetType,
     pub bump:                   u8,
+    pub token_decimals:         u8,
 
     /// ── FUTURE EXPANSION PADDING ─────────────────────────────────────────────
     /// DO NOT REORDER. Add new fields here and reduce padding to match.
-    pub padding:                [u8; 42],
+    pub padding:                [u8; 41],
 }
 
 impl ProjectAccount {
@@ -100,7 +101,8 @@ impl ProjectAccount {
         + 8         // current_round_issued
         + 1         // asset_type (AssetType variant)
         + 1         // bump
-        + 42;       // alignment padding (Total 600 bytes)
+        + 1         // token_decimals
+        + 41;       // alignment padding (Total 600 bytes)
 }
 
 // Manual Default implementation to handle [u8; 42]
@@ -135,7 +137,8 @@ impl Default for ProjectAccount {
             current_round_issued:   0,
             asset_type:             AssetType::default(),
             bump:                   0,
-            padding:                [0u8; 42],
+            token_decimals:         0,
+            padding:                [0u8; 41],
         }
     }
 }

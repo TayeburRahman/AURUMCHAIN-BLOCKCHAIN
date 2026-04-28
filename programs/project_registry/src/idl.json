@@ -192,7 +192,8 @@
           { "name": "currentRoundIssued", "type": "u64" },
           { "name": "assetType", "type": { "defined": "AssetType" } },
           { "name": "bump", "type": "u8" },
-          { "name": "padding", "type": { "array": ["u8", 42] } }
+          { "name": "tokenDecimals", "type": "u8" },
+          { "name": "padding", "type": { "array": ["u8", 41] } }
         ]
       }
     }
@@ -219,7 +220,8 @@
           { "name": "durationMonths", "type": "u8" },
           { "name": "distributionMode", "type": "u8" },
           { "name": "assetType", "type": { "defined": "AssetType" } },
-          { "name": "roundLimitTokens", "type": "u64" }
+          { "name": "roundLimitTokens", "type": "u64" },
+          { "name": "tokenDecimals", "type": "u8" }
         ]
       }
     },

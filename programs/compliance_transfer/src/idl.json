@@ -246,7 +246,8 @@
           { "name": "currentRoundIssued", "type": "u64" },
           { "name": "assetType", "type": { "defined": "AssetType" } },
           { "name": "bump", "type": "u8" },
-          { "name": "padding", "type": { "array": ["u8", 42] } }
+          { "name": "tokenDecimals", "type": "u8" },
+          { "name": "padding", "type": { "array": ["u8", 41] } }
         ]
       }
     },

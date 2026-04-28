@@ -54,8 +54,9 @@ pub struct ShadowProjectAccount {
     pub current_round_issued:   u64,
     pub asset_type:             ExternalAssetType,
     pub bump:                   u8,
+    pub token_decimals:         u8,
 
     /// ── FUTURE EXPANSION PADDING ─────────────────────────────────────────────
     /// To add a new feature: insert field above and subtract its size from here.
-    pub padding:                [u8; 42],
+    pub padding:                [u8; 41],
 }
