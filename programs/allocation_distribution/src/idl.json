@@ -25,7 +25,8 @@
       ],
       "args": [
         { "name": "projectId", "type": "u64" },
-        { "name": "profitPerToken", "type": "u64" }
+        { "name": "profitPerToken", "type": "u64" },
+        { "name": "tokenDecimals", "type": "u8" }
       ]
     },
     {
@@ -72,7 +73,8 @@
           { "name": "recordDate", "type": "i64" },
           { "name": "totalPayoutsExecuted", "type": "u64" },
           { "name": "isCompleted", "type": "bool" },
-          { "name": "bump", "type": "u8" }
+          { "name": "bump", "type": "u8" },
+          { "name": "tokenDecimals", "type": "u8" }
         ]
       }
     },

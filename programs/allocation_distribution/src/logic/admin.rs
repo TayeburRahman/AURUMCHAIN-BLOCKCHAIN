@@ -17,6 +17,7 @@ pub fn handle_create_epoch(
     ctx:              Context<CreateEpoch>,
     project_id:       u64,
     profit_per_token: u64,
+    token_decimals:   u8,
 ) -> Result<()> {
     let counter = &mut ctx.accounts.counter;
     let epoch   = &mut ctx.accounts.epoch;
@@ -37,6 +38,7 @@ pub fn handle_create_epoch(
     epoch.total_payouts_executed = 0;
     epoch.is_completed           = false;
     epoch.bump                   = ctx.bumps.epoch;
+    epoch.token_decimals         = token_decimals;
 
     counter.count = counter.count.checked_add(1).ok_or(DistributionError::Overflow)?;
 

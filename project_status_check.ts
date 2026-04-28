@@ -19,7 +19,7 @@ async function checkProject() {
     const idl = JSON.parse(fs.readFileSync('./programs/project_registry/src/idl.json', 'utf8'));
     const program = new Program(idl, programId, provider);
 
-    const projectId = new BN(9);
+    const projectId = new BN(8);
     const [projectPda] = PublicKey.findProgramAddressSync(
         [Buffer.from("project"), projectId.toArrayLike(Buffer, "le", 8)],
         programId

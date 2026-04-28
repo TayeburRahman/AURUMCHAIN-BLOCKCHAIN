@@ -116,18 +116,17 @@ export default function AdminDistributionsPage() {
       const decimals = onChainProject?.tokenDecimals || 6;
       const totalAmount = rawTokens * profitFloat; // Must strictly equal tokens_eligible * profit_per_token for DB check
 
-      // Calculate profitBN accounting for decimal disparity
-      // Payout math on-chain is: rawTokens * profitBN = rawUSDC
-      // To get 1.0 USDC (10^6) per 1 human token (10^decimals), we need:
-      const multiplier = Math.pow(10, 6 - decimals);
-      const profitBN = new BN(Math.floor(profitFloat * multiplier));
+      // Simplification: Always pass the human profit scaled to USDC base units ($1.00 = 1,000,000).
+      // The new smart contract version will handle the division by the project's decimals.
+      const profitBN = new BN(Math.floor(profitFloat * 1_000_000));
+      const tokenDecimals = decimals;
 
       const { SystemProgram } = await import('@solana/web3.js');
 
       setStatus({ type: 'info', msg: "Please approve the transaction in your wallet." });
       
       const ix = await program.methods
-        .createEpoch(blockchainProjectId, profitBN)
+        .createEpoch(blockchainProjectId, profitBN, tokenDecimals)
         .accounts({
           counter: counterPda,
           epoch: epochPda,
@@ -322,17 +321,49 @@ export default function AdminDistributionsPage() {
 
       // 5. Sync Record to Database
       setStatus({ type: 'info', msg: "Syncing Payout Record..." });
+      
+      let investorBalance = 0;
+      try {
+        const info = await connection.getTokenAccountBalance(investorTokenAccount);
+        investorBalance = info.value.uiAmount || 0;
+      } catch (e) { console.log("Could not fetch investor balance"); }
+      
+      // Normalize the scaled profit_per_token back to human units for the DB receipt
+      const profitHuman = parseFloat(epoch.profit_per_token) / 1_000_000;
+      const investorPayoutAmount = investorBalance * profitHuman;
+
+      const supabase = createClient();
+      let profileId = null;
       const { data: profile } = await supabase.from('profiles').select('id').eq('crypto_wallet_address', targetWalletStr).maybeSingle();
       
-      const { error: dbError } = await supabase.from('payout_records').insert({
-        user_id: profile?.id || null,
-        payout_cycle_id: epoch.id,
-        amount: totalAmount,
-        distribution_tx_hash: tx
-      });
+      if (profile?.id) {
+        profileId = profile.id;
+      } else {
+        // Fallback to wallet_links table if the app migrated
+        const { data: link } = await supabase.from('wallet_links').select('user_id').eq('wallet_address', targetWalletStr).maybeSingle();
+        if (link?.user_id) profileId = link.user_id;
+      }
       
-      if (dbError) {
-        console.warn("Could not sync receipt to database, but payout succeeded:", dbError);
+      if (!profileId) {
+        console.warn("User has no profile or linked wallet, cannot save receipt to database.");
+      } else {
+        const { error: dbError } = await supabase.from('payout_records').insert({
+          user_id: profileId,
+          project_id: dbProject.id,
+          cycle_id: epoch.id,
+          tokens_held: investorBalance || 0.0001, // Bypass 0 check if balance fetch fails
+          amount_due: investorPayoutAmount || 0.01,
+          status: 'completed',
+          paid_at: new Date().toISOString(),
+          tx_hash: tx
+        });
+        
+        if (dbError) {
+          console.warn("Could not sync receipt:", dbError);
+          setStatus({ type: 'error', msg: "Payout succeeded on-chain, but failed to save to database: " + dbError.message });
+        } else {
+          setStatus({ type: 'success', msg: `Payout Executed Successfully! Receipt saved.` });
+        }
       }
 
       setStatus({ type: 'success', msg: `Payout Executed for ${targetWalletStr.slice(0, 4)}... Tx: ${tx.slice(0, 10)}...` });

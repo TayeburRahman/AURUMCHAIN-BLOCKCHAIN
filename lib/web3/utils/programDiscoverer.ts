@@ -1,3 +1,3 @@
-import { getRegistryProgram, getComplianceProgram } from '../clients/anchorClients';
-export { getRegistryProgram, getComplianceProgram };
+import { getRegistryProgram, getComplianceProgram, getDistributionProgram } from '../clients/anchorClients';
+export { getRegistryProgram, getComplianceProgram, getDistributionProgram };
 

@@ -5,6 +5,12 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import Image from "next/image";
 import { createClient } from "@/lib/supabase/client";
+import dynamic from 'next/dynamic';
+
+const WalletMultiButton = dynamic(
+  () => import('@solana/wallet-adapter-react-ui').then((mod) => mod.WalletMultiButton),
+  { ssr: false }
+);
 
 export default function DashboardLayout({
   children,
@@ -273,6 +279,19 @@ export default function DashboardLayout({
             </div>
 
             <div className="flex items-center gap-4">
+              {/* Wallet Button */}
+              <div className="hidden sm:block">
+                <WalletMultiButton style={{
+                  backgroundColor: 'rgba(212, 175, 55, 0.1)',
+                  border: '1px solid rgba(212, 175, 55, 0.3)',
+                  color: '#D4AF37',
+                  borderRadius: '0.5rem',
+                  height: '40px',
+                  padding: '0 16px',
+                  fontWeight: '600'
+                }} />
+              </div>
+
               {/* Notifications */}
               <button className="relative p-2 text-gray-400 hover:text-gold transition-colors rounded-lg hover:bg-gold/10">
                 <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">

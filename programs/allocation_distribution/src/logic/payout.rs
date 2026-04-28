@@ -40,11 +40,13 @@ pub fn handle_execute_payout(ctx: Context<ExecutePayout>) -> Result<()> {
         );
     }
 
-    // 1. Calculate amount
+    // 1. Calculate amount: (Balance * ProfitPerToken) / 10^ProjectDecimals
     let balance = investor_token_account.amount;
-    let amount  = balance
-        .checked_mul(epoch.profit_per_token)
-        .ok_or(DistributionError::Overflow)?;
+    let amount  = (balance as u128)
+        .checked_mul(epoch.profit_per_token as u128)
+        .ok_or(DistributionError::Overflow)?
+        .checked_div(10u128.pow(epoch.token_decimals as u32))
+        .ok_or(DistributionError::Overflow)? as u64;
 
     require!(amount > 0, DistributionError::InsufficientBalance);
 

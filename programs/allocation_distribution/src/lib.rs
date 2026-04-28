@@ -23,8 +23,9 @@ pub mod allocation_distribution {
         ctx:              Context<CreateEpoch>,
         project_id:       u64,
         profit_per_token: u64,
+        token_decimals:   u8,
     ) -> Result<()> {
-        handle_create_epoch(ctx, project_id, profit_per_token)
+        handle_create_epoch(ctx, project_id, profit_per_token, token_decimals)
     }
 
     pub fn execute_payout(ctx: Context<ExecutePayout>) -> Result<()> {

@@ -4,8 +4,9 @@ import { Program, AnchorProvider, Idl } from '@coral-xyz/anchor';
 // Directly import JSON IDLs
 import projectRegistryIdl from '../idl/project_registry.json';
 import complianceTransferIdl from '../idl/compliance_transfer.json';
+import distributionIdl from '../idl/allocation_distribution.json';
 
-import { PROJECT_REGISTRY_PROGRAM_ID, COMPLIANCE_PROGRAM_ID } from '../config/programs';
+import { PROJECT_REGISTRY_PROGRAM_ID, COMPLIANCE_PROGRAM_ID, ALLOCATION_DISTRIBUTION_PROGRAM_ID } from '../config/programs';
 
 /**
  * Anchor Client Factories
@@ -42,4 +43,12 @@ export const getRegistryProgram = (connection: Connection, wallet?: any) => {
 export const getComplianceProgram = (connection: Connection, wallet?: any) => {
   const provider = getProvider(connection, wallet);
   return new Program(complianceTransferIdl as Idl, COMPLIANCE_PROGRAM_ID, provider);
+};
+
+/**
+ * Returns a typed instance of the Allocation & Distribution program.
+ */
+export const getDistributionProgram = (connection: Connection, wallet?: any) => {
+  const provider = getProvider(connection, wallet);
+  return new Program(distributionIdl as Idl, ALLOCATION_DISTRIBUTION_PROGRAM_ID, provider);
 };

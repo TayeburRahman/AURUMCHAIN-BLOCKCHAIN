@@ -4,15 +4,16 @@ use anchor_lang::prelude::*;
 pub struct DistributionEpoch {
     pub project_id:             u64,
     pub epoch_id:               u64,
-    pub profit_per_token:       u64, // The manual rate set by admin
+    pub profit_per_token:       u64,
     pub record_date:            i64,
     pub total_payouts_executed: u64,
     pub is_completed:           bool,
     pub bump:                   u8,
+    pub token_decimals:         u8,
 }
 
 impl DistributionEpoch {
-    pub const SIZE: usize = 8 + 8 + 8 + 8 + 8 + 8 + 1 + 1;
+    pub const SIZE: usize = 8 + 8 + 8 + 8 + 8 + 8 + 1 + 1 + 1;
 }
 
 #[account]
