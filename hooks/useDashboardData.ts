@@ -165,7 +165,8 @@ export function useDashboardData() {
               status: Object.keys(acc.status)[0].toLowerCase(),
               invested_at: new Date(acc.createdAt.toNumber() * 1000).toISOString(),
               projects: project || { name: `Project #${blockchainId}` },
-              is_on_chain: true
+              is_on_chain: true,
+              lockup_end: project?.lockup_end_date || project?.expected_completion_date || null
             };
             
             // DEDUPLICATION: Only add if this subId isn't already in the list
@@ -174,6 +175,7 @@ export function useDashboardData() {
               
               allTransactions.push({
                 id: invData.id,
+                subId: invData.subId,
                 type: 'investment',
                 amount: invData.amount,
                 status: invData.status,
@@ -251,6 +253,10 @@ export function useDashboardData() {
 
               if (matchingTx) {
                 matchingTx.id = sigInfo.signature;
+                const matchingInv = allInvestments.find(inv => inv.subId === matchingTx.subId);
+                if (matchingInv) {
+                  matchingInv.id = sigInfo.signature;
+                }
                 usedSigs.add(sigInfo.signature);
                 console.log(`[useDashboardData] Linked sig ${sigInfo.signature.slice(0,8)}... to ${matchingTx.description} (Preferred: Minting Hash)`);
               }

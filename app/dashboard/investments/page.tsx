@@ -9,29 +9,58 @@ export default function InvestmentsPage() {
   const [filterStatus, setFilterStatus] = useState<"all" | "active" | "funded" | "completed">("all");
   const [sortBy, setSortBy] = useState<"date" | "amount" | "returns">("date");
 
-  // Map database investments to UI format, enriching with project data
+  // Map database investments to UI format, grouping by project
   const processedInvestments = useMemo(() => {
-    return dbInvestments.map((inv: any) => {
-      const project = projects.find((p: any) => p.id === inv.project_id);
-      const onChain = project?.onChain;
+    const grouped = dbInvestments.reduce((acc: any, inv: any) => {
+      const pId = inv.project_id;
+      if (!acc[pId]) {
+        acc[pId] = {
+          project_id: pId,
+          investments: [],
+          totalAmount: 0,
+          totalTokens: 0,
+          latestDate: inv.invested_at || inv.created_at,
+          latestLockup: inv.lockup_end || null
+        };
+      }
+      acc[pId].investments.push(inv);
+      acc[pId].totalAmount += Number(inv.amount || 0);
+      acc[pId].totalTokens += Number(inv.tokens_purchased || 0);
+      
+      const invDate = new Date(inv.invested_at || inv.created_at);
+      const latestDate = new Date(acc[pId].latestDate);
+      if (invDate > latestDate) {
+        acc[pId].latestDate = inv.invested_at || inv.created_at;
+      }
+      
+      return acc;
+    }, {});
+
+    return Object.values(grouped).map((group: any) => {
+      const project = projects.find((p: any) => p.id === group.project_id);
+      const onChain = project?.onChain || {};
+      
+      const txHashes = group.investments.map((i: any) => i.id).filter(Boolean);
       
       return {
-        id: inv.id,
-        projectId: inv.project_id,
-        projectName: project?.name || "Unknown Project",
+        id: group.project_id, // unique per project
+        projectId: group.project_id,
+        projectName: project?.name || `Project #${group.project_id}`,
         location: project?.location || "Global",
-        investedAmount: Number(inv.amount),
-        currentValue: Number(inv.amount), // For now, 1:1 value
+        investedAmount: group.totalAmount,
+        currentValue: group.totalAmount, // For now, 1:1 value
         returns: 0,
         returnPercentage: 0,
-        shares: Number(inv.tokens_purchased),
+        shares: group.totalTokens,
         status: project?.status || "pending",
-        investmentDate: inv.invested_at || inv.created_at,
+        investmentDate: group.latestDate,
         expectedCompletion: project?.expected_completion_date || "2025-12-31",
+        lockupEnd: group.latestLockup || project?.lockup_end || null,
         fundingProgress: project?.funding_goal 
           ? Math.min(100, Math.floor((project.current_funding / project.funding_goal) * 100)) 
           : 0,
-        mint: project?.mint_address
+        mint: project?.mint_address || onChain.mint,
+        txHashes: txHashes
       };
     });
   }, [dbInvestments, projects]);
@@ -245,22 +274,43 @@ export default function InvestmentsPage() {
               {/* Stats Grid */}
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <div className="text-xs text-gray-400 mb-1">Invested Amount</div>
+                  <div className="text-xs text-gray-400 mb-1">Total USDC Invested</div>
                   <div className="text-lg font-bold text-white">${investment.investedAmount.toLocaleString()}</div>
                 </div>
                 <div>
-                  <div className="text-xs text-gray-400 mb-1">Current Value</div>
-                  <div className="text-lg font-bold text-white">${investment.currentValue.toLocaleString()}</div>
+                  <div className="text-xs text-gray-400 mb-1">Total Tokens Purchased</div>
+                  <div className="text-lg font-bold text-white">{investment.shares.toLocaleString()} Tokens</div>
                 </div>
                 <div>
-                  <div className="text-xs text-gray-400 mb-1">Returns</div>
-                  <div className="text-lg font-bold gradient-text">+${investment.returns.toLocaleString()}</div>
-                </div>
-                <div>
-                  <div className="text-xs text-gray-400 mb-1">Return %</div>
-                  <div className={`text-lg font-bold ${investment.returnPercentage > 0 ? 'text-green-400' : 'text-gray-400'}`}>
-                    {investment.returnPercentage > 0 ? '+' : ''}{investment.returnPercentage}%
+                  <div className="text-xs text-gray-400 mb-1">Token Mint Address</div>
+                  <div className="text-sm font-mono text-gold truncate" title={investment.mint || "N/A"}>
+                    {investment.mint ? `${investment.mint.slice(0, 6)}...${investment.mint.slice(-4)}` : "N/A"}
                   </div>
+                </div>
+                <div>
+                  <div className="text-xs text-gray-400 mb-1">Lockup End Date</div>
+                  <div className="text-sm text-white">
+                    {investment.lockupEnd ? formatDate(investment.lockupEnd) : "N/A"}
+                  </div>
+                </div>
+              </div>
+
+              {/* Transactions */}
+              <div className="pt-2">
+                <div className="text-xs text-gray-400 mb-2">Project Transactions</div>
+                <div className="flex flex-col gap-1 max-h-24 overflow-y-auto pr-2 custom-scrollbar">
+                  {investment.txHashes.map((hash: string, idx: number) => (
+                    <div key={idx} className="text-xs font-mono bg-navy-dark px-2 py-1.5 rounded flex justify-between items-center border border-white/5">
+                      <span className="text-gray-300 truncate mr-2" title={hash}>
+                        {hash.length > 20 ? `${hash.slice(0, 8)}...${hash.slice(-8)}` : hash}
+                      </span>
+                      <a href={`https://solscan.io/tx/${hash}?cluster=devnet`} target="_blank" rel="noopener noreferrer" className="text-gold hover:text-gold-light">
+                        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                        </svg>
+                      </a>
+                    </div>
+                  ))}
                 </div>
               </div>
 

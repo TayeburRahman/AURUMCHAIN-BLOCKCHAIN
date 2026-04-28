@@ -7,7 +7,7 @@ import bs58 from 'bs58';
 
 dotenv.config();
 
-async function checkProject8() {
+async function checkProject() {
     const connection = new Connection("https://api.devnet.solana.com", "confirmed");
     const secretKeyString = process.env.WALLET_PRIVATE_KEY || "";
     const secretKey = bs58.decode(secretKeyString);
@@ -19,13 +19,13 @@ async function checkProject8() {
     const idl = JSON.parse(fs.readFileSync('./programs/project_registry/src/idl.json', 'utf8'));
     const program = new Program(idl, programId, provider);
 
-    const projectId = new BN(8);
+    const projectId = new BN(7);
     const [projectPda] = PublicKey.findProgramAddressSync(
         [Buffer.from("project"), projectId.toArrayLike(Buffer, "le", 8)],
         programId
     );
 
-    console.log("Fetching Project 8 PDA:", projectPda.toBase58());
+    console.log("Fetching Project 7 PDA:", projectPda.toBase58());
 
     try {
         const account: any = await program.account.projectAccount.fetch(projectPda);
@@ -79,4 +79,4 @@ async function checkProject8() {
     }
 }
 
-checkProject8();
+checkProject();
