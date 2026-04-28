@@ -7,6 +7,7 @@ import { BN, Program, AnchorProvider } from '@coral-xyz/anchor';
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/client';
 import idl from '@/lib/web3/idl/allocation_distribution.json';
+import PayoutExecutionModal from './PayoutExecutionModal';
 
 const ALLOCATION_PROGRAM_ID = new PublicKey(process.env.NEXT_PUBLIC_ALLOCATION_PROGRAM_ID || "9RqVyvWA4ficqK351PoYh674mP1au4NmNzVM6LQcenjm");
 
@@ -19,6 +20,7 @@ export default function AdminDistributionsPage() {
   const [epochs, setEpochs] = useState<any[]>([]);
   const [status, setStatus] = useState<{ type: 'success' | 'error' | 'info', msg: string } | null>(null);
   const [executingPayout, setExecutingPayout] = useState<string | null>(null);
+  const [selectedEpochForPayout, setSelectedEpochForPayout] = useState<any | null>(null);
   
   // Create Epoch Form State
   const [selectedProject, setSelectedProject] = useState('');
@@ -210,169 +212,7 @@ export default function AdminDistributionsPage() {
   };
 
   const handleExecutePayout = async (epoch: any) => {
-    if (!program || !wallet.publicKey) return;
-    try {
-      setExecutingPayout(epoch.id);
-      setStatus({ type: 'info', msg: "Preparing Payout Execution..." });
-
-      const targetWalletStr = window.prompt("Enter the Investor's Wallet Address to send this payout to:");
-      if (!targetWalletStr) { setExecutingPayout(null); return; }
-      const investorPublicKey = new PublicKey(targetWalletStr);
-
-      const dbProject = projects.find(p => p.id === epoch.project_id);
-      const blockchainProjectId = new BN(dbProject.blockchain_project_id);
-
-      // 1. Fetch on-chain project to get Mint and Treasury
-      const { ProjectRegistryService } = await import('@/lib/web3/services/projectRegistryService');
-      const registryService = new ProjectRegistryService(connection, wallet as any);
-      const onChainProject = await registryService.fetchProject(blockchainProjectId.toNumber());
-      if (!onChainProject) throw new Error("Could not find project on blockchain");
-
-      const mint = onChainProject.mint;
-      const treasuryWallet = onChainProject.treasuryWallet;
-
-      // 2. Get Associated Token Accounts
-      const { getAssociatedTokenAddress, TOKEN_PROGRAM_ID, ASSOCIATED_TOKEN_PROGRAM_ID, createAssociatedTokenAccountIdempotentInstruction } = await import('@solana/spl-token');
-      const investorTokenAccount = await getAssociatedTokenAddress(mint, investorPublicKey);
-      
-      // USDC ATA for investor (Assuming USDC is the accepted_stablecoin)
-      const usdcMint = onChainProject.acceptedStablecoin;
-      const investorPaymentAccount = await getAssociatedTokenAddress(usdcMint, investorPublicKey);
-      const treasuryVault = await getAssociatedTokenAddress(usdcMint, treasuryWallet, true);
-
-      // Idempotent creation of investor's USDC account (in case they've never held USDC)
-      const createAtaIx = createAssociatedTokenAccountIdempotentInstruction(
-        wallet.publicKey, // Admin pays for creation if needed
-        investorPaymentAccount,
-        investorPublicKey,
-        usdcMint,
-        TOKEN_PROGRAM_ID,
-        ASSOCIATED_TOKEN_PROGRAM_ID
-      );
-
-      // 3. Derive PDAs
-      const registryProgramId = new PublicKey(process.env.NEXT_PUBLIC_PROJECT_REGISTRY_PROGRAM_ID || "Dkrnk6B8MuiieXQzqhicbsPtGp7TY4HMZRNDJJFhu4R7");
-      const [projectAccountPda] = PublicKey.findProgramAddressSync(
-        [Buffer.from("project"), blockchainProjectId.toArrayLike(Buffer, "le", 8)],
-        registryProgramId
-      );
-
-      const [epochPda] = PublicKey.findProgramAddressSync(
-        [Buffer.from("epoch"), blockchainProjectId.toArrayLike(Buffer, "le", 8), new BN(epoch.epoch_id).toArrayLike(Buffer, "le", 8)],
-        program.programId
-      );
-
-      const [payoutRecordPda] = PublicKey.findProgramAddressSync(
-        [Buffer.from("payout"), epochPda.toBuffer(), investorPublicKey.toBuffer()],
-        program.programId
-      );
-
-      const [controlPda] = PublicKey.findProgramAddressSync(
-        [Buffer.from("distribution_control")],
-        program.programId
-      );
-
-      const { SystemProgram, Transaction, ComputeBudgetProgram } = await import('@solana/web3.js');
-
-      // 4. Build Transaction
-      const ix = await program.methods
-        .executePayout()
-        .accounts({
-          epoch: epochPda,
-          payoutRecord: payoutRecordPda,
-          projectAccount: projectAccountPda,
-          projectRegistryProgram: registryProgramId,
-          investorTokenAccount: investorTokenAccount,
-          investorPaymentAccount: investorPaymentAccount,
-          treasuryVault: treasuryVault,
-          control: controlPda,
-          admin: wallet.publicKey,
-          investor: investorPublicKey,
-          payer: wallet.publicKey,
-          tokenProgram: TOKEN_PROGRAM_ID,
-          systemProgram: SystemProgram.programId,
-        } as any)
-        .instruction();
-
-      const modifyComputeUnits = ComputeBudgetProgram.setComputeUnitLimit({ units: 400_000 });
-      const addPriorityFee = ComputeBudgetProgram.setComputeUnitPrice({ microLamports: 50_000 });
-
-      const transaction = new Transaction().add(modifyComputeUnits).add(addPriorityFee).add(createAtaIx).add(ix);
-      const { blockhash } = await connection.getLatestBlockhash('finalized');
-      transaction.recentBlockhash = blockhash;
-      transaction.feePayer = wallet.publicKey;
-
-      setStatus({ type: 'info', msg: "Please approve the Execute Payout transaction." });
-      const tx = await wallet.sendTransaction(transaction, connection, { skipPreflight: true });
-
-      setStatus({ type: 'info', msg: "Executing Payout on-chain..." });
-      
-      let confirmed = false;
-      for (let i = 0; i < 15; i++) {
-        await new Promise(r => setTimeout(r, 2000));
-        const status = await connection.getSignatureStatus(tx);
-        if (status.value?.confirmationStatus === 'confirmed' || status.value?.confirmationStatus === 'finalized') {
-          if (status.value.err) {
-            throw new Error("Transaction failed on-chain: " + JSON.stringify(status.value.err));
-          }
-          confirmed = true; break;
-        }
-      }
-
-      // 5. Sync Record to Database
-      setStatus({ type: 'info', msg: "Syncing Payout Record..." });
-      
-      let investorBalance = 0;
-      try {
-        const info = await connection.getTokenAccountBalance(investorTokenAccount);
-        investorBalance = info.value.uiAmount || 0;
-      } catch (e) { console.log("Could not fetch investor balance"); }
-      
-      // Normalize the scaled profit_per_token back to human units for the DB receipt
-      const profitHuman = parseFloat(epoch.profit_per_token) / 1_000_000;
-      const investorPayoutAmount = investorBalance * profitHuman;
-
-      const supabase = createClient();
-      let profileId = null;
-      const { data: profile } = await supabase.from('profiles').select('id').eq('crypto_wallet_address', targetWalletStr).maybeSingle();
-      
-      if (profile?.id) {
-        profileId = profile.id;
-      } else {
-        // Fallback to wallet_links table if the app migrated
-        const { data: link } = await supabase.from('wallet_links').select('user_id').eq('wallet_address', targetWalletStr).maybeSingle();
-        if (link?.user_id) profileId = link.user_id;
-      }
-      
-      if (!profileId) {
-        console.warn("User has no profile or linked wallet, cannot save receipt to database.");
-      } else {
-        const { error: dbError } = await supabase.from('payout_records').insert({
-          user_id: profileId,
-          project_id: dbProject.id,
-          cycle_id: epoch.id,
-          tokens_held: investorBalance || 0.0001, // Bypass 0 check if balance fetch fails
-          amount_due: investorPayoutAmount || 0.01,
-          status: 'completed',
-          paid_at: new Date().toISOString(),
-          tx_hash: tx
-        });
-        
-        if (dbError) {
-          console.warn("Could not sync receipt:", dbError);
-          setStatus({ type: 'error', msg: "Payout succeeded on-chain, but failed to save to database: " + dbError.message });
-        } else {
-          setStatus({ type: 'success', msg: `Payout Executed Successfully! Receipt saved.` });
-        }
-      }
-
-      setStatus({ type: 'success', msg: `Payout Executed for ${targetWalletStr.slice(0, 4)}... Tx: ${tx.slice(0, 10)}...` });
-    } catch (err: any) {
-      console.error("Execute Payout Error:", err);
-      setStatus({ type: 'error', msg: err.message || "Failed to execute payout." });
-    } finally {
-      setExecutingPayout(null);
-    }
+    setSelectedEpochForPayout(epoch);
   };
 
   return (
@@ -511,6 +351,16 @@ export default function AdminDistributionsPage() {
           </div>
 
         </div>
+
+        {selectedEpochForPayout && (
+          <PayoutExecutionModal 
+            epoch={selectedEpochForPayout}
+            projects={projects}
+            program={program}
+            onClose={() => setSelectedEpochForPayout(null)}
+            onSuccess={fetchData}
+          />
+        )}
       </div>
 
       <style jsx>{`
