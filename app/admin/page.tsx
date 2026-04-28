@@ -113,7 +113,7 @@ export default async function AdminPage() {
             title="Payouts & Dividends"
             icon="💵"
             description="Manage dividend distribution"
-            href="/admin/payouts"
+            href="/admin/distributions"
             items={[
               'Create Payout Cycle',
               'Scheduled Payouts',
