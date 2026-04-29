@@ -2,7 +2,7 @@ import { PublicKey } from '@solana/web3.js';
 import { BN } from '@coral-xyz/anchor';
 import { getServerAnchorProvider } from '../clients/serverAnchorProvider';
 import { getComplianceProgram, getRegistryProgram } from '../clients/anchorClients';
-import { getAssociatedTokenAddressSync, TOKEN_PROGRAM_ID } from '@solana/spl-token';
+import { getAssociatedTokenAddressSync, TOKEN_PROGRAM_ID, ASSOCIATED_TOKEN_PROGRAM_ID, createAssociatedTokenAccountIdempotentInstruction } from '@solana/spl-token';
 import { 
   getSubscriptionPDA, 
   getComplianceControlPDA, 
@@ -12,6 +12,9 @@ import {
 } from '../utils/pdaHelpers';
 import bs58 from 'bs58';
 import { TokenMath } from '@/lib/utils/tokenMath';
+import { ProjectRegistryService } from './projectRegistryService';
+import { Transaction, ComputeBudgetProgram } from '@solana/web3.js';
+import { confirmTransactionRobustly } from '../utils/transactionUtils';
 
 /**
  * AdminBlockchainService
@@ -79,10 +82,10 @@ export class AdminBlockchainService {
 
       console.log(`[AdminWeb3] Scaling: ${params.allocatedTokenAmount} tokens -> ${scaledAmount.toString()} raw units (Decimals: ${decimals})`);
 
-      // 6. Execute transaction with ALL required accounts for CPI
+      // 6. Build transaction with ATA initialization + finalize
       console.log(`[AdminBlockchainService] Settling subscription ${params.subscriptionId} for project ${projectId} with scaled amount ${scaledAmount.toString()} (${decimals} decimals)...`);
       
-      const tx = await complianceProgram.methods
+      const finalizeIx = await complianceProgram.methods
         .finalizeSubscription(
           Array.from(txHashBytes),
           scaledAmount
@@ -99,7 +102,32 @@ export class AdminBlockchainService {
           mintAuthorityPda:       getMintAuthorityPDA(projectId, registryProgram.programId),
           tokenProgram:           TOKEN_PROGRAM_ID,
         } as any)
-        .rpc();
+        .instruction();
+
+      // Ensure investor project token ATA exists (AC-BC-406 Fix)
+      const createAtaIx = createAssociatedTokenAccountIdempotentInstruction(
+        provider.wallet.publicKey,
+        investorTokenAccount,
+        investorPubkey,
+        mint,
+        TOKEN_PROGRAM_ID,
+        ASSOCIATED_TOKEN_PROGRAM_ID
+      );
+
+      const transaction = new Transaction()
+        .add(ComputeBudgetProgram.setComputeUnitLimit({ units: 400_000 }))
+        .add(createAtaIx)
+        .add(finalizeIx);
+
+      // Manual send and robust confirm to bypass signatureSubscribe (AC-BC-406 Fix)
+      const { blockhash, lastValidBlockHeight } = await provider.connection.getLatestBlockhash();
+      transaction.recentBlockhash = blockhash;
+      transaction.feePayer = provider.wallet.publicKey;
+      
+      const signed = await provider.wallet.signTransaction(transaction);
+      const tx = await provider.connection.sendRawTransaction(signed.serialize());
+      
+      await confirmTransactionRobustly(provider.connection, tx, lastValidBlockHeight);
 
       return tx;
     } catch (error) {
@@ -150,6 +178,65 @@ export class AdminBlockchainService {
       return signature;
     } catch (error) {
       console.error("[AdminBlockchainService] updateProjectStatus failed:", error);
+      throw error;
+    }
+  }
+
+  /**
+   * Records a verified wallet on-chain.
+   */
+  static async verifyInvestor(params: {
+    wallet: string;
+    kycStatus: string;
+    investmentAllowed: boolean;
+    transferAllowed: boolean;
+    expiryDays: number;
+  }): Promise<string> {
+    try {
+      const provider = getServerAnchorProvider();
+      const program = getComplianceProgram(provider.connection, provider.wallet);
+      
+      const walletPubkey = new PublicKey(params.wallet);
+      
+      // Calculate PDA
+      const [eligibilityPda] = PublicKey.findProgramAddressSync(
+        [Buffer.from("eligibility"), walletPubkey.toBuffer()],
+        program.programId
+      );
+
+      const controlPda = getComplianceControlPDA(program.programId);
+
+      // Prepare params
+      const kycStatusMap: any = {
+        'approved': { approved: {} },
+        'pending': { pending: {} },
+        'rejected': { rejected: {} },
+        'expired': { expired: {} }
+      };
+
+      const expiryTimestamp = new BN(Math.floor(Date.now() / 1000) + (params.expiryDays * 24 * 60 * 60));
+
+      const tx = await program.methods
+        .recordVerifiedWallet({
+          kycStatus: kycStatusMap[params.kycStatus.toLowerCase()] || { pending: {} },
+          amlStatus: { clear: {} },
+          identityHash: Array(32).fill(1), // Non-zero dummy hash for manual verification
+          investmentAllowed: params.investmentAllowed,
+          transferAllowed: params.transferAllowed,
+          expiryTimestamp: expiryTimestamp
+        })
+        .accounts({
+          eligibility: eligibilityPda,
+          wallet: walletPubkey,
+          control: controlPda,
+          authority: provider.wallet.publicKey,
+          systemProgram: new PublicKey('11111111111111111111111111111111'),
+        } as any)
+        .rpc();
+
+      return tx;
+    } catch (error) {
+      console.error("[AdminBlockchainService] verifyInvestor failed:", error);
       throw error;
     }
   }

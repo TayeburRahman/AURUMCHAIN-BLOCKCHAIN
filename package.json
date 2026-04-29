@@ -15,7 +15,8 @@
     "patch-idl:compliance": "npx tsx scripts/patch-idl.ts compliance_transfer",
     "patch-idl:registry": "npx tsx scripts/patch-idl.ts project_registry",
     "patch-idl:distribution": "npx tsx scripts/patch-idl.ts allocation_distribution",
-    "sync-idl": "copy programs\\project_registry\\src\\idl.json lib\\web3\\idl\\project_registry.json && copy programs\\compliance_transfer\\src\\idl.json lib\\web3\\idl\\compliance_transfer.json && copy programs\\allocation_distribution\\src\\idl.json lib\\web3\\idl\\allocation_distribution.json && echo IDLs synced successfully."
+    "sync-idl": "copy programs\\project_registry\\src\\idl.json lib\\web3\\idl\\project_registry.json && copy programs\\compliance_transfer\\src\\idl.json lib\\web3\\idl\\compliance_transfer.json && copy programs\\allocation_distribution\\src\\idl.json lib\\web3\\idl\\allocation_distribution.json && echo IDLs synced successfully.",
+    "verify-user": "npx tsx scripts/manual-verify.ts"
   },
   "keywords": [],
   "author": "",
