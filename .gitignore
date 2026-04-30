@@ -42,16 +42,23 @@ yarn-error.log*
 *.swp
 *.swo
 *~
+.swc/
+uploads/
+target/
+test-ledger/
+
 
 # Supabase (local development only)
 .supabase
 
-# Project management / planning docs (do not commit)
-milestone2_blockchain_tasks.txt
-
 # Scratch and test scripts
 /scratch/
+milestone2_blockchain_tasks.txt
+check-db-project.ts
+project_status_check.ts
+proxy.ts
 scripts/*.ts
+
 scripts/*.js
 !scripts/backfill_onchain_projects.ts
 
@@ -70,3 +77,14 @@ __tests__/
 !composer.json
 !/.vercel/*.json
 !/programs/**/idl.json
+
+# Internal Documentation (Drafts/Plans)
+docs/future_dev_plan.txt
+docs/pdf_content.txt
+docs/security_overhaul.md
+docs/AURUMCHAIN_SYNCHRONIZATION_AUDIT.md
+docs/PHASED_TOKEN_PLAN.md
+docs/INVESTOR_LOCKUP_PLAN.md
+docs/payout.md
+docs/changes.md
+
