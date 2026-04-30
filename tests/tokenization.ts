@@ -4,6 +4,10 @@ import * as anchor from "@coral-xyz/anchor";
 import bs58 from "bs58";
 import assert from "assert";
 import { getBlockchainServices } from '../lib/domains/shared/blockchain-interfaces';
+import { Program, BN } from "@coral-xyz/anchor";
+import path from "path";
+import fs from "fs";
+import { PROJECT_REGISTRY_PROGRAM_ID } from '../lib/web3/config/programs';
 
 /**
  * Tokenization Service Verification Test
@@ -38,12 +42,58 @@ describe("Solana Tokenization Service Verification", () => {
   it("Should fully execute the tokenization lifecycle", async () => {
     console.log(`\n🚀 Starting verification for ${keypair.publicKey.toBase58()}...`);
     
+    // 0. Initialize Registry Program to create a test project
+    const provider = new anchor.AnchorProvider(connection, wallet, { commitment: "confirmed" });
+    const registryIdlPath = path.resolve(process.cwd(), "programs/project_registry/src/idl.json");
+    const registryIdl = JSON.parse(fs.readFileSync(registryIdlPath, "utf8"));
+    const registryProgram = new Program(registryIdl, PROJECT_REGISTRY_PROGRAM_ID, provider);
+
+    const [registryPda] = PublicKey.findProgramAddressSync([Buffer.from("control")], registryProgram.programId);
+    const registryConfig: any = await registryProgram.account.controlAccount.fetch(registryPda);
+    const nextId = registryConfig.projectCount;
+    const projectId = nextId.toNumber();
+
+    const [projectPda] = PublicKey.findProgramAddressSync(
+        [Buffer.from("project"), nextId.toArrayLike(Buffer, "le", 8)],
+        registryProgram.programId
+    );
+
+    const [mintAuthPda] = PublicKey.findProgramAddressSync(
+        [Buffer.from("mint_authority"), nextId.toArrayLike(Buffer, "le", 8)],
+        registryProgram.programId
+    );
+
+    console.log(`🏗️  Creating Bare Project ID: ${projectId}...`);
+    await registryProgram.methods.createProject({
+        name: "Tokenization Test",
+        symbol: "TKN",
+        uri: "https://test.com",
+        supplyCap: new BN(1000000),
+        minInvestmentUsdc: new BN(1000),
+        maxInvestmentUsdc: new BN(1000000),
+        tokenPriceUsdc: new BN(1000000),
+        acceptedStablecoin: PublicKey.default,
+        treasuryWallet: keypair.publicKey,
+        lockupEndTs: new BN(0),
+        subscriptionStart: new BN(Math.floor(Date.now() / 1000) - 3600), // 1 hour ago
+        subscriptionEnd: new BN(Math.floor(Date.now() / 1000) + 3600),   // 1 hour future
+        distributionCadence: 0,
+        durationMonths: 12,
+        distributionMode: 0,
+        assetType: { realEstate: {} },
+        roundLimitTokens: new BN(1000000),
+        tokenDecimals: 6,
+    }).accounts({
+        project: projectPda,
+        control: registryPda,
+        mintAuthorityPda: mintAuthPda,
+        admin: keypair.publicKey,
+        systemProgram: anchor.web3.SystemProgram.programId,
+    } as any).rpc();
+
     // 1. Mock Deployment (Creation of Mint)
-    // We use a high random project ID to avoid collisions with existing on-chain data
-    const randomProjectId = Math.floor(Math.random() * 1000000) + 1000;
-    
     const deployInput = {
-      projectId: randomProjectId.toString(),
+      projectId: projectId.toString(),
       offeringId: "verification_offering",
       tokenSymbol: "VERIFY",
       tokenName: "Verification Token",
@@ -51,7 +101,7 @@ describe("Solana Tokenization Service Verification", () => {
       chainId: 103, // Devnet
     };
 
-    console.log(`📝 Deploying token for mock project #${randomProjectId}...`);
+    console.log(`📝 Deploying token for mock project #${projectId}...`);
     
     try {
       // NOTE: This will fail if the Project Account hasn't been created on-chain yet.
@@ -74,14 +124,21 @@ describe("Solana Tokenization Service Verification", () => {
       );
       console.log(`✅ Tokens Minted: ${signature}`);
 
-      // 3. Verify Balance
-      const balance = await tokenizationService.getBalance(
-        result.contractAddress,
-        recipient.toBase58(),
-        103
-      );
+      // 3. Verify Balance (With polling to handle Devnet latency)
+      console.log(`📊 Verifying balance...`);
+      let balance = BigInt(0);
+      for (let i = 0; i < 5; i++) {
+        balance = await tokenizationService.getBalance(
+          result.contractAddress,
+          recipient.toBase58(),
+          103
+        );
+        if (balance > BigInt(0)) break;
+        console.log("   ⏳ Balance still 0, retrying in 2s...");
+        await new Promise(r => setTimeout(r, 2000));
+      }
       
-      console.log(`📊 Verified Balance: ${balance.toString()} units`);
+      console.log(`📊 Final Verified Balance: ${balance.toString()} units`);
       assert.strictEqual(balance, mintAmount, "Minted amount should match fetched balance");
 
     } catch (err: any) {

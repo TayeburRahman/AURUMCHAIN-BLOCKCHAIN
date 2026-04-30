@@ -11,7 +11,7 @@ import {
   getOrCreateAssociatedTokenAccount, 
   mintTo, 
   getMint,
-  getTokenAccountBalance
+  getAssociatedTokenAddressSync
 } from '@solana/spl-token';
 import { BN } from '@coral-xyz/anchor';
 import { 
@@ -117,6 +117,7 @@ export class SolanaTokenizationService implements ITokenizationService {
         mintPubkey,
         recipientPubkey
       );
+      console.log(`[TokenizationService] Minting to ATA: ${ata.address.toBase58()}`);
 
       // 2. Mint tokens
       const signature = await mintTo(
@@ -127,6 +128,8 @@ export class SolanaTokenizationService implements ITokenizationService {
         this.wallet.publicKey,
         amount
       );
+
+      await this.connection.confirmTransaction(signature, 'confirmed');
 
       return signature as string;
     } catch (error) {
@@ -147,14 +150,11 @@ export class SolanaTokenizationService implements ITokenizationService {
       const mintPubkey = new PublicKey(contractAddress);
       const holderPubkey = new PublicKey(holderAddress);
 
-      const [ata] = PublicKey.findProgramAddressSync(
-        [
-          holderPubkey.toBuffer(),
-          new PublicKey('TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA').toBuffer(),
-          mintPubkey.toBuffer(),
-        ],
-        new PublicKey('ATokenGPvbdQxr7ia29oyXgx2YYCYH9ju0BVJ3HL1ca')
+      const ata = getAssociatedTokenAddressSync(
+        mintPubkey,
+        holderPubkey
       );
+      console.log(`[TokenizationService] Checking balance for ATA: ${ata.toBase58()}`);
 
       const balance = await this.connection.getTokenAccountBalance(ata);
       return BigInt(balance.value.amount);

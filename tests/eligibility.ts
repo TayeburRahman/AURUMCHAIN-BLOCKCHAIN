@@ -78,16 +78,14 @@ describe("compliance_final_verification", () => {
    * Helper to send a transaction with extreme throttling and blockhash reuse
    */
   async function sendUnique(methodBuilder: any) {
-    // 1. Mandatory Cooldown (Anti-429)
-    await sleep(2000); 
+    // 1. Mandatory Cooldown (Anti-429) - Increased for robustness
+    await sleep(3500); 
 
-    // 2. Fetch blockhash only if needed, with retry logic
-    if (!sharedBlockhash) {
-      const fresh = await getBlockhashResilient();
-      sharedBlockhash = fresh.blockhash;
-      blockhashHeight = fresh.lastValidBlockHeight;
-      console.log(`   🔗 RPC: Blockhash Secured: ${sharedBlockhash.slice(0, 8)}...`);
-    }
+    // 2. Fetch fresh blockhash for every transaction to prevent expiration
+    const fresh = await getBlockhashResilient();
+    sharedBlockhash = fresh.blockhash;
+    blockhashHeight = fresh.lastValidBlockHeight;
+    console.log(`   🔗 RPC: Blockhash Secured: ${sharedBlockhash.slice(0, 8)}...`);
 
     const tx = await methodBuilder.transaction();
     tx.recentBlockhash = sharedBlockhash;
@@ -253,7 +251,9 @@ describe("compliance_final_verification", () => {
         .accounts({
           control: controlPda,
           senderEligibility: senderPda,
+          senderWallet: sender.publicKey,
           receiverEligibility: receiverPda,
+          receiverWallet: receiver.publicKey,
           caller: authority.publicKey,
         })
         .view();
@@ -289,7 +289,9 @@ describe("compliance_final_verification", () => {
         .accounts({
           control: controlPda,
           senderEligibility: senderPda,
+          senderWallet: sender.publicKey,
           receiverEligibility: receiverPda,
+          receiverWallet: receiver.publicKey,
           caller: authority.publicKey,
         })
         .view();
@@ -327,7 +329,9 @@ describe("compliance_final_verification", () => {
         .accounts({
           control: controlPda,
           senderEligibility: senderPda,
+          senderWallet: sender.publicKey,
           receiverEligibility: receiverPda,
+          receiverWallet: receiver.publicKey,
           caller: authority.publicKey,
         })
         .view();
@@ -373,7 +377,9 @@ describe("compliance_final_verification", () => {
           .accounts({
             control: controlPda,
             senderEligibility: senderPda,
+            senderWallet: sender.publicKey,
             receiverEligibility: receiverPda,
+            receiverWallet: receiver.publicKey,
             caller: mallory.publicKey,
           })
           .signers([mallory]);
