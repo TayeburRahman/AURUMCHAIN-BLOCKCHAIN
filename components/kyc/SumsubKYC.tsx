@@ -55,16 +55,18 @@ export default function SumsubKYC({ accessToken, externalUserId, onSuccess, onEr
     )
     .withConf({
       lang: 'en',
-      // theme: 'dark', // You can customize this
     })
-    .on('sns:submitted', (payload: any) => {
-      console.log('Verification submitted:', payload);
-    })
-    .on('sns:completed', (payload: any) => {
-      console.log('Verification completed:', payload);
+    .on('idCheck.onApplicantSubmitted', (payload: any) => {
+      console.log('Applicant submitted:', payload);
       if (onSuccess) onSuccess();
     })
-    .on('sns:error', (error: any) => {
+    .on('idCheck.onApplicantStatusChanged', (payload: any) => {
+      console.log('Applicant status changed:', payload);
+      if (payload?.reviewResult?.reviewAnswer === 'GREEN') {
+        if (onSuccess) onSuccess();
+      }
+    })
+    .on('idCheck.onError', (error: any) => {
       console.error('Verification error:', error);
       if (onError) onError(error);
     })

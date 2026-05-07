@@ -112,7 +112,20 @@ export default function KYCPage() {
           <SumsubKYC 
             accessToken={accessToken} 
             externalUserId={user.id}
-            onSuccess={() => setKycStatus('verified')}
+            onSuccess={async () => {
+              try {
+                // Update the database to mark user as verified
+                await fetch('/api/kyc/complete', { method: 'POST' });
+                setKycStatus('verified');
+                
+                // Optional: Automatically redirect after a short delay
+                setTimeout(() => {
+                  router.push('/dashboard');
+                }, 2000);
+              } catch (err) {
+                console.error('Failed to update KYC status in DB', err);
+              }
+            }}
           />
         ) : (
           <div className="text-center text-gray-500">
