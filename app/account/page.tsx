@@ -1,35 +1,129 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Image from "next/image";
+import { useRouter } from "next/navigation";
+import { createClient } from "@/lib/supabase/client";
 
 export default function AccountPage() {
+  const router = useRouter();
   const [activeTab, setActiveTab] = useState<"login" | "signup">("login");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [loginData, setLoginData] = useState({ email: "", password: "" });
   const [signupData, setSignupData] = useState({
-    name: "",
+    firstName: "",
+    lastName: "",
     email: "",
     password: "",
     confirmPassword: "",
     acceptTerms: false,
   });
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    alert("Login functionality will be implemented with backend integration");
+    setLoading(true);
+    setError(null);
+
+    try {
+      const supabase = createClient();
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email: loginData.email,
+        password: loginData.password,
+      });
+
+      if (error) throw error;
+
+      if (data.user) {
+        // Log login event
+        try {
+          await fetch('/api/auth/log-login', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ provider: 'email' }),
+          });
+        } catch (logError) {
+          console.error('Failed to log login event:', logError);
+        }
+
+        router.push("/dashboard");
+        router.refresh();
+      }
+    } catch (err: any) {
+      setError(err.message || "Failed to sign in. Please try again.");
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const handleSignup = (e: React.FormEvent) => {
+  const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault();
+    setLoading(true);
+    setError(null);
+
     if (signupData.password !== signupData.confirmPassword) {
-      alert("Passwords do not match!");
+      setError("Passwords do not match!");
+      setLoading(false);
       return;
     }
+
     if (!signupData.acceptTerms) {
-      alert("Please accept the terms and conditions");
+      setError("Please accept the terms and conditions");
+      setLoading(false);
       return;
     }
-    alert("Signup functionality will be implemented with backend integration");
+
+    try {
+      const supabase = createClient();
+      const { data, error } = await supabase.auth.signUp({
+        email: signupData.email,
+        password: signupData.password,
+        options: {
+          data: {
+            first_name: signupData.firstName,
+            last_name: signupData.lastName,
+          },
+        },
+      });
+
+      if (error) throw error;
+
+      if (data.user) {
+        // Log signup event
+        try {
+          await fetch('/api/auth/log-signup', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ provider: 'email' }),
+          });
+        } catch (logError) {
+          console.error('Failed to log signup event:', logError);
+        }
+
+        router.push("/dashboard");
+        router.refresh();
+      }
+    } catch (err: any) {
+      setError(err.message || "Failed to create account. Please try again.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleGoogleAuth = async () => {
+    try {
+      const supabase = createClient();
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: "google",
+        options: {
+          redirectTo: `${window.location.origin}/auth/callback`,
+        },
+      });
+
+      if (error) throw error;
+    } catch (err: any) {
+      setError(err.message || "Failed to authenticate with Google.");
+    }
   };
 
   return (
@@ -96,6 +190,18 @@ export default function AccountPage() {
             </button>
           </div>
 
+          {/* Error Message */}
+          {error && (
+            <div className="bg-red-500/10 border border-red-500/20 rounded-lg p-4 mb-6">
+              <div className="flex gap-3">
+                <svg className="w-5 h-5 text-red-400 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <p className="text-sm text-red-200">{error}</p>
+              </div>
+            </div>
+          )}
+
           {/* Login Form */}
           {activeTab === "login" && (
             <form onSubmit={handleLogin} className="space-y-6">
@@ -141,9 +247,20 @@ export default function AccountPage() {
 
               <button
                 type="submit"
-                className="w-full bg-gold hover:bg-gold-light text-navy font-bold py-4 px-6 rounded-lg transition-all transform hover:scale-105"
+                disabled={loading}
+                className="w-full bg-gold hover:bg-gold-light text-navy font-bold py-4 px-6 rounded-lg transition-all transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
               >
-                Login
+                {loading ? (
+                  <span className="flex items-center justify-center gap-2">
+                    <svg className="animate-spin h-5 w-5" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    Logging in...
+                  </span>
+                ) : (
+                  "Login"
+                )}
               </button>
 
               <div className="text-center">
@@ -164,19 +281,35 @@ export default function AccountPage() {
           {/* Signup Form */}
           {activeTab === "signup" && (
             <form onSubmit={handleSignup} className="space-y-6">
-              <div>
-                <label htmlFor="signup-name" className="block text-gray-300 mb-2 text-sm font-medium">
-                  Full Name
-                </label>
-                <input
-                  type="text"
-                  id="signup-name"
-                  value={signupData.name}
-                  onChange={(e) => setSignupData({ ...signupData, name: e.target.value })}
-                  className="w-full bg-navy border border-gold/30 rounded-lg px-4 py-3 text-white focus:border-gold focus:outline-none transition-all"
-                  placeholder="John Doe"
-                  required
-                />
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label htmlFor="signup-firstname" className="block text-gray-300 mb-2 text-sm font-medium">
+                    First Name
+                  </label>
+                  <input
+                    type="text"
+                    id="signup-firstname"
+                    value={signupData.firstName}
+                    onChange={(e) => setSignupData({ ...signupData, firstName: e.target.value })}
+                    className="w-full bg-navy border border-gold/30 rounded-lg px-4 py-3 text-white focus:border-gold focus:outline-none transition-all"
+                    placeholder="John"
+                    required
+                  />
+                </div>
+                <div>
+                  <label htmlFor="signup-lastname" className="block text-gray-300 mb-2 text-sm font-medium">
+                    Last Name
+                  </label>
+                  <input
+                    type="text"
+                    id="signup-lastname"
+                    value={signupData.lastName}
+                    onChange={(e) => setSignupData({ ...signupData, lastName: e.target.value })}
+                    className="w-full bg-navy border border-gold/30 rounded-lg px-4 py-3 text-white focus:border-gold focus:outline-none transition-all"
+                    placeholder="Doe"
+                    required
+                  />
+                </div>
               </div>
 
               <div>
@@ -248,9 +381,20 @@ export default function AccountPage() {
 
               <button
                 type="submit"
-                className="w-full bg-gold hover:bg-gold-light text-navy font-bold py-4 px-6 rounded-lg transition-all transform hover:scale-105"
+                disabled={loading}
+                className="w-full bg-gold hover:bg-gold-light text-navy font-bold py-4 px-6 rounded-lg transition-all transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
               >
-                Create Account
+                {loading ? (
+                  <span className="flex items-center justify-center gap-2">
+                    <svg className="animate-spin h-5 w-5" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    Creating account...
+                  </span>
+                ) : (
+                  "Create Account"
+                )}
               </button>
 
               <div className="text-center">
@@ -280,7 +424,10 @@ export default function AccountPage() {
             </div>
 
             <div className="mt-6 grid grid-cols-2 gap-4">
-              <button className="flex items-center justify-center gap-3 bg-navy border border-gold/30 hover:border-gold text-white py-3 px-4 rounded-lg transition-all">
+              <button 
+                onClick={handleGoogleAuth}
+                className="flex items-center justify-center gap-3 bg-navy border border-gold/30 hover:border-gold text-white py-3 px-4 rounded-lg transition-all"
+              >
                 <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
                   <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
                   <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
@@ -290,7 +437,10 @@ export default function AccountPage() {
                 <span className="text-sm font-medium">Google</span>
               </button>
 
-              <button className="flex items-center justify-center gap-3 bg-navy border border-gold/30 hover:border-gold text-white py-3 px-4 rounded-lg transition-all">
+              <button 
+                onClick={() => {}} // GitHub can be added later if needed
+                className="flex items-center justify-center gap-3 bg-navy border border-gold/30 hover:border-gold text-white py-3 px-4 rounded-lg transition-all opacity-50 cursor-not-allowed"
+              >
                 <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
                   <path d="M12 2C6.477 2 2 6.477 2 12c0 4.42 2.865 8.17 6.839 9.49.5.092.682-.217.682-.482 0-.237-.008-.866-.013-1.7-2.782.603-3.369-1.34-3.369-1.34-.454-1.156-1.11-1.463-1.11-1.463-.908-.62.069-.608.069-.608 1.003.07 1.531 1.03 1.531 1.03.892 1.529 2.341 1.087 2.91.831.092-.646.35-1.086.636-1.336-2.22-.253-4.555-1.11-4.555-4.943 0-1.091.39-1.984 1.029-2.683-.103-.253-.446-1.27.098-2.647 0 0 .84-.269 2.75 1.025A9.578 9.578 0 0112 6.836c.85.004 1.705.114 2.504.336 1.909-1.294 2.747-1.025 2.747-1.025.546 1.377.203 2.394.1 2.647.64.699 1.028 1.592 1.028 2.683 0 3.842-2.339 4.687-4.566 4.935.359.309.678.919.678 1.852 0 1.336-.012 2.415-.012 2.743 0 .267.18.578.688.48C19.138 20.167 22 16.418 22 12c0-5.523-4.477-10-10-10z" />
                 </svg>

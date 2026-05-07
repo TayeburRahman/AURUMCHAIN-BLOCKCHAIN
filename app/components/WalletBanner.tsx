@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from 'react';
+import Link from 'next/link';
 import { useWalletStatus } from '@/hooks/useWalletStatus';
 // EVM Import Commented Out
 // import { ConnectButton } from '@rainbow-me/rainbowkit';
@@ -12,7 +13,7 @@ const WalletMultiButton = dynamic(
 );
 
 export function WalletBanner() {
-  const { isWalletConnected, isWalletLinked, linkWallet, isLinking, error, investorTier } = useWalletStatus();
+  const { isWalletConnected, isWalletLinked, isKycVerified, linkWallet, isLinking, error, investorTier } = useWalletStatus();
   const [dismissed, setDismissed] = useState(false);
 
   // Don't show if wallet is already linked or user dismissed
@@ -80,22 +81,15 @@ export function WalletBanner() {
 
             {/* Actions */}
             <div className="flex flex-wrap gap-3">
-              {!isWalletConnected ? (
+              {!isKycVerified ? (
+                <Link
+                  href="/kyc"
+                  className="bg-red-500 hover:bg-red-600 text-white font-bold px-8 py-3 rounded-lg transition-all duration-300 hover:scale-105 shadow-lg shadow-red-500/20"
+                >
+                  Verify Identity (KYC) Required
+                </Link>
+              ) : !isWalletConnected ? (
                 <>
-                  {/* EVM Button Commented Out */}
-                  {/*
-                  <ConnectButton.Custom>
-                    {({ openConnectModal }) => (
-                      <button
-                        onClick={openConnectModal}
-                        className="bg-gradient-to-r from-gold to-gold-light text-navy font-bold px-6 py-3 rounded-lg transition-all duration-300 hover:scale-105 shadow-lg shadow-gold/20"
-                      >
-                        Connect Wallet
-                      </button>
-                    )}
-                  </ConnectButton.Custom>
-                  */}
-
                   {/* Solana Button */}
                   <WalletMultiButton 
                     className="!h-[50px] !px-6 !bg-gradient-to-r !from-gold !to-[#b5952f] !text-navy !font-bold !rounded-lg hover:!scale-105 !transition-transform !shadow-lg !shadow-gold/20 flex flex-shrink-0 items-center justify-center w-auto whitespace-nowrap min-w-[160px]"

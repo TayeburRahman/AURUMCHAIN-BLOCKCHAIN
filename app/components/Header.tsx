@@ -16,6 +16,7 @@ export default function Header() {
   const [scrolled, setScrolled] = useState(false);
   const [user, setUser] = useState<any>(null);
   const [userName, setUserName] = useState<string>("");
+  const [isKycVerified, setIsKycVerified] = useState<boolean>(false);
   const { isVerified, initialLoading, isLinking, linkWallet, error: walletError } = useWalletLink();
   const { connected, publicKey } = useWalletConnection();
 
@@ -35,12 +36,13 @@ export default function Header() {
         setUser(user);
         const { data: profile } = await supabase
           .from('profiles')
-          .select('first_name, last_name')
+          .select('first_name, last_name, kyc_verified')
           .eq('id', user.id)
           .single();
 
         if (profile) {
           setUserName(`${profile.first_name || ''} ${profile.last_name || ''}`.trim() || 'User');
+          setIsKycVerified(profile.kyc_verified || false);
         } else {
           setUserName('User');
         }
@@ -146,11 +148,42 @@ export default function Header() {
           <div className="flex items-center gap-4">
             {/* Desktop Unified Identity */}
             <div className="hidden lg:flex items-center gap-3">
-              <WalletStatusBadge />
-              <WalletButton profileName={user ? userName : undefined} />
+              {user ? (
+                <div className="flex items-center gap-4">
+                  {!isKycVerified ? (
+                    <Link 
+                      href="/kyc" 
+                      className="flex items-center gap-3 bg-red-500/10 border border-red-500/30 text-red-400 px-4 py-2 rounded-lg text-sm font-bold hover:bg-red-500/20 transition-all group"
+                    >
+                      <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse"></span>
+                      Verify KYC
+                    </Link>
+                  ) : (
+                    <>
+                      <WalletStatusBadge />
+                      <WalletButton profileName={userName} />
+                    </>
+                  )}
+                </div>
+              ) : (
+                <div className="flex items-center gap-3">
+                  <Link
+                    href="/login"
+                    className="text-white hover:text-gold transition-colors text-sm font-medium"
+                  >
+                    Log In
+                  </Link>
+                  <Link
+                    href="/signup"
+                    className="bg-gradient-to-r from-gold to-gold-light text-navy font-bold py-2 px-6 rounded-lg transition-all duration-300 text-sm shadow-lg shadow-gold/20 hover:scale-105"
+                  >
+                    Register
+                  </Link>
+                </div>
+              )}
             </div>
 
-            {/* Fallback Login for Logged-out & Wallet-disconnected users on small screens */}
+            {/* Mobile Fallback Login */}
             {!user && (
               <Link
                 href="/login"
@@ -158,6 +191,13 @@ export default function Header() {
               >
                 Log In
               </Link>
+            )}
+
+            {/* Mobile Wallet Integration (Visible only when logged in) */}
+            {user && (
+              <div className="lg:hidden scale-75 origin-right">
+                <WalletButton profileName={userName} />
+              </div>
             )}
 
             {/* Mobile Menu Button */}
@@ -221,20 +261,36 @@ export default function Header() {
               ))}
 
               {/* Mobile Account/Login */}
-              {user ? (
-                <Link
-                  href="/dashboard"
-                  onClick={() => setMobileMenuOpen(false)}
-                  className="flex items-center gap-3 px-4 py-3 rounded-lg bg-gold/10 border border-gold/20 hover:border-gold/40 transition-all duration-300 mt-2"
-                >
-                  <div className="w-8 h-8 bg-gold/20 rounded-full flex items-center justify-center">
-                    <svg className="w-5 h-5 text-gold" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                    </svg>
-                  </div>
-                  <span className="text-sm font-medium text-gold">{userName}</span>
-                </Link>
-              ) : (
+              {user && (
+                <>
+                  {!isKycVerified ? (
+                    <Link
+                      href="/kyc"
+                      onClick={() => setMobileMenuOpen(false)}
+                      className="flex items-center gap-3 px-4 py-3 rounded-lg bg-red-500/10 border border-red-500/30 hover:border-red-500/50 transition-all duration-300 mt-2 group"
+                    >
+                      <div className="w-8 h-8 bg-red-500/20 rounded-full flex items-center justify-center">
+                        <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse"></span>
+                      </div>
+                      <span className="text-sm font-medium text-red-400 group-hover:text-red-300">Verify KYC Required</span>
+                    </Link>
+                  ) : (
+                    <Link
+                      href="/dashboard"
+                      onClick={() => setMobileMenuOpen(false)}
+                      className="flex items-center gap-3 px-4 py-3 rounded-lg bg-gold/10 border border-gold/20 hover:border-gold/40 transition-all duration-300 mt-2"
+                    >
+                      <div className="w-8 h-8 bg-gold/20 rounded-full flex items-center justify-center">
+                        <svg className="w-5 h-5 text-gold" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                        </svg>
+                      </div>
+                      <span className="text-sm font-medium text-gold">{userName}</span>
+                    </Link>
+                  )}
+                </>
+              )}
+              {!user && (
                 <Link
                   href="/login"
                   onClick={() => setMobileMenuOpen(false)}
@@ -244,14 +300,16 @@ export default function Header() {
                 </Link>
               )}
 
-              {/* Mobile Wallet Integration */}
-              <div className="flex flex-col gap-2 mt-4 pt-4 border-t border-gold/10">
-                <div className="flex items-center justify-between px-2">
-                  <span className="text-[10px] uppercase tracking-widest text-gray-500 font-bold">Wallet Connectivity</span>
-                  <WalletStatusBadge />
+              {/* Mobile Wallet Integration - Visible only when logged in */}
+              {user && (
+                <div className="flex flex-col gap-2 mt-4 pt-4 border-t border-gold/10">
+                  <div className="flex items-center justify-between px-2">
+                    <span className="text-[10px] uppercase tracking-widest text-gray-500 font-bold">Wallet Connectivity</span>
+                    <WalletStatusBadge />
+                  </div>
+                  <WalletButton profileName={userName} />
                 </div>
-                <WalletButton />
-              </div>
+              )}
             </div>
           </div>
         </div>

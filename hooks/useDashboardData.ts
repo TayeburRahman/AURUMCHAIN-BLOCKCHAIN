@@ -13,6 +13,7 @@ export interface DashboardData {
     name: string;
     email: string;
     investorTier: string;
+    isKycVerified: boolean;
   };
   stats: {
     totalInvested: number;
@@ -34,7 +35,7 @@ export function useDashboardData() {
   const { connection } = useConnection();
   const wallet = useWallet();
   const [data, setData] = useState<DashboardData>({
-    user: { name: "", email: "", investorTier: "browser" },
+    user: { name: "", email: "", investorTier: "browser", isKycVerified: false },
     stats: {
       totalInvested: 0,
       totalReturns: 0,
@@ -300,6 +301,7 @@ export function useDashboardData() {
           name: `${profile?.first_name || ""} ${profile?.last_name || ""}`.trim() || "User",
           email: profile?.email || authUser.email || "",
           investorTier: profile?.investor_tier || "browser",
+          isKycVerified: profile?.kyc_verified || false,
         },
         stats: {
           totalInvested,

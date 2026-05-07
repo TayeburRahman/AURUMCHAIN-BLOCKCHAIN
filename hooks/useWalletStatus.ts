@@ -18,6 +18,7 @@ export interface WalletStatus {
 
   // Combined status
   isWalletLinked: boolean; // Wallet connected AND saved to Supabase
+  isKycVerified: boolean;
   investorTier: InvestorTier;
 
   // Actions
@@ -43,6 +44,7 @@ export function useWalletStatus(): WalletStatus {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [userId, setUserId] = useState<string | null>(null);
   const [isWalletLinked, setIsWalletLinked] = useState(false);
+  const [isKycVerified, setIsKycVerified] = useState(false);
   const [investorTier, setInvestorTier] = useState<InvestorTier>('browser');
   const [isLinking, setIsLinking] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -73,19 +75,22 @@ export function useWalletStatus(): WalletStatus {
         // Check if wallet is linked
         const { data: profile } = await supabase
           .from('profiles')
-          .select('crypto_wallet_address, investor_tier')
+          .select('crypto_wallet_address, investor_tier, kyc_verified')
           .eq('id', user.id)
           .single();
 
         if (profile) {
           const walletLinked = !!profile.crypto_wallet_address;
           setIsWalletLinked(walletLinked);
+          setIsKycVerified(profile.kyc_verified || false);
           setInvestorTier((profile.investor_tier as InvestorTier) || 'browser');
         }
       } else {
         setIsAuthenticated(false);
         setUserId(null);
+        setUserId(null);
         setIsWalletLinked(false);
+        setIsKycVerified(false);
         setInvestorTier('browser');
       }
     } catch (err) {
@@ -93,6 +98,7 @@ export function useWalletStatus(): WalletStatus {
       setIsAuthenticated(false);
       setUserId(null);
       setIsWalletLinked(false);
+      setIsKycVerified(false);
       setInvestorTier('browser');
     }
   }, []); // Empty dependency array since this function doesn't depend on any external values
@@ -197,6 +203,7 @@ export function useWalletStatus(): WalletStatus {
     isAuthenticated,
     userId,
     isWalletLinked,
+    isKycVerified,
     investorTier,
     linkWallet,
     unlinkWallet,
