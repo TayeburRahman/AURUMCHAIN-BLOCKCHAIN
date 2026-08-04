@@ -114,15 +114,6 @@ NEXT_PUBLIC_SUPABASE_URL=your_supabase_url
 NEXT_PUBLIC_SUPABASE_ANON_KEY=your_anon_key
 ```
 
-### Running Tests
-```bash
-# Run full investment flow simulation
-npm run test:full-flow
-
-# Run specific suite
-npm run test:tokenization
-```
-
 ---
 
 ## 📦 Deployment
