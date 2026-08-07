@@ -1,4 +1,4 @@
-# GoldenFleece - Tokenized Investment Platform
+# Tokenized Investment Platform (Client: davidgiorgad686) 
 
 [![Next.js](https://img.shields.io/badge/Next.js-16.1.4-black)](https://nextjs.org/)
 [![Solana](https://img.shields.io/badge/Solana-Anchor-14F195)](https://solana.com/)
