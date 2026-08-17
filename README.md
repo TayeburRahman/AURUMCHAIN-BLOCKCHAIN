@@ -7,7 +7,7 @@
 
 **GoldenFleece** is a tokenized investment platform enabling fractional ownership of real-world assets (gold mining, real estate) through Solana blockchain technology.
 
-## 📋 Table of Contents
+## Table of Contents
 
 - [Overview](#overview)
 - [Milestone 2 Accomplishments](#-milestone-2-accomplishments)
